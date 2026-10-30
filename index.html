@@ -72,6 +72,14 @@ button{cursor:pointer}
 .s-jarayonda{background:var(--gold-bg);color:var(--gold)}
 .s-hal{background:var(--green-bg);color:var(--green)}
 .cat{font-size:11px;color:var(--dim);margin-left:6px}
+.kinds{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -4px;padding:2px 4px}
+.kinds::-webkit-scrollbar{display:none}
+.kinds .chip{flex:none;font-weight:600;color:var(--muted)}
+.kinds .chip[aria-pressed="true"]{color:var(--gold-hi)}
+.k-savol{background:var(--blue-bg);color:var(--blue)}
+.k-kerak{background:var(--green-bg);color:var(--green)}
+.k-elon{background:var(--metal);color:#1a1406}
+.card.elon{border-color:var(--gold-line);background:linear-gradient(135deg,rgba(242,217,160,.1),rgba(169,130,63,.05))}
 .admin{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .admin button{font-size:12px;padding:6px 10px;border-radius:10px;border:1px solid var(--line);background:var(--glass-2)}
 .admin button.on{border-color:var(--gold-line);color:var(--gold)}
@@ -148,7 +156,7 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 <div class="bgmark" aria-hidden="true"><img src="emblem.webp" alt=""></div>
 <main class="app" id="app"></main>
 <nav aria-label="Bo‘limlar">
-  <button data-tab="ovoz" aria-current="page">Ovoz</button>
+  <button data-tab="ovoz" aria-current="page">Lenta</button>
   <button data-tab="tadbirlar">Tadbirlar</button>
   <button data-tab="profil">Profil</button>
 </nav>
@@ -159,6 +167,12 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 const API = 'https://br-steep-haze-b9tabbet-api.compute.c-7.eu-central-1.aws.neon.tech';
 const CATS = ["O'quv jarayoni", 'Ustozlar bilan', 'Infratuzilma', 'Yotoqxona', 'Boshqa'];
 const STATUS = { yangi: 'Yangi', qabul: 'Qabul qilindi', jarayonda: 'Jarayonda', hal: 'Hal qilindi' };
+const KINDS = {
+  muammo: { label: 'Muammo', many: 'Muammolar', ph: 'Masalan: Wi-Fi 3-qavatda ishlamaydi', bph: 'Qayerda, qachondan beri, kimga ta’sir qilyapti?', ok: 'Murojaat yuborildi' },
+  savol: { label: 'Savol', many: 'Savollar', ph: 'Masalan: Amaliy matematikadan 11-variantni kim yechdi?', bph: 'Savolingizni batafsilroq yozing', ok: 'Savol joylandi' },
+  kerak: { label: 'Kerak', many: 'Kerak', ph: 'Masalan: Menga Figma o‘rgatadigan odam kerak', bph: 'Nima kerak, qachon, evaziga nima bera olasiz?', ok: 'Post joylandi' },
+  elon: { label: 'E’lon', many: 'E’lonlar', ph: 'Masalan: Shanba kuni ochiq uchrashuv', bph: 'E’lon matni', ok: 'E’lon joylandi' },
+};
 const MONTHS = ['yanvar','fevral','mart','aprel','may','iyun','iyul','avgust','sentabr','oktabr','noyabr','dekabr'];
 const TG = window.Telegram && window.Telegram.WebApp;
 if (TG) { try { TG.ready(); TG.expand(); TG.setHeaderColor && TG.setHeaderColor('#050505'); TG.setBackgroundColor && TG.setBackgroundColor('#050505'); } catch (e) {} }
@@ -175,7 +189,7 @@ if (!uid) { uid = 'u' + (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '
 let adminKey = store.get('bk_admin') || '';
 let isAdmin = false;
 
-const S = { tab: 'ovoz', ptab: 'top', problems: null, events: null, stats: null, me: null, myStats: null, matches: [], open: {}, offline: false };
+const S = { tab: 'ovoz', ptab: 'top', kind: '', problems: null, events: null, stats: null, me: null, myStats: null, matches: [], open: {}, offline: false };
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -221,7 +235,7 @@ const head = (title, extra = '') => `<header class="head"><img class="logo" src=
 // ---------- data
 async function loadStats() { try { S.stats = await api('/api/stats'); S.offline = false; } catch (e) { S.offline = true; } }
 async function loadProblems() {
-  try { S.problems = (await api(`/api/problems?tab=${S.ptab}&uid=${uid}`)).problems; S.offline = false; }
+  try { S.problems = (await api(`/api/problems?tab=${S.ptab}&kind=${S.kind}&uid=${uid}`)).problems; S.offline = false; }
   catch (e) { S.offline = true; if (!S.problems) S.problems = []; }
 }
 async function loadEvents() {
@@ -247,30 +261,38 @@ function offlineNote() { return S.offline ? '<div class="offline" role="alert">S
 function viewOvoz() {
   const st = S.stats || { total: 0, progress: 0, done: 0, done_month: 0 };
   const pct = st.total ? Math.round(st.done / st.total * 100) : 0;
-  const tabs = [['top', 'Dolzarb'], ['new', 'Yangi'], ['done', 'Hal qilingan']];
+  const showIssues = S.kind === '' || S.kind === 'muammo';
+  const tabs = [['top', 'Dolzarb'], ['new', 'Yangi']].concat(showIssues ? [['done', 'Hal qilingan']] : []);
+  const kinds = [['', 'Hammasi']].concat(Object.keys(KINDS).map((k) => [k, KINDS[k].many]));
   let list;
   if (S.problems === null) list = '<div class="skeleton"></div><div class="skeleton"></div>';
-  else if (!S.problems.length) list = `<div class="glass empty"><b>${S.ptab === 'done' ? 'Hali hal qilingan muammo yo‘q' : 'Hali murojaat yo‘q'}</b>Birinchi bo‘lib yozing: “+ Muammo yozish” tugmasini bosing.</div>`;
+  else if (!S.problems.length) list = `<div class="glass empty"><b>${S.ptab === 'done' ? 'Hali hal qilingan muammo yo‘q' : 'Bu yerda hali post yo‘q'}</b>Birinchi bo‘lib yozing: “+ Post yozish” tugmasini bosing.</div>`;
   else list = S.problems.map(problemCard).join('');
-  return head('Talabalar ovozi') + offlineNote() + `
-  <section class="glass stat" aria-label="Statistika">
-    <div class="row"><div><div class="small">Shu oy hal qilindi</div><div class="big">${st.done_month}</div></div>
+  return head('Talabalar lentasi') + offlineNote() + `
+  ${showIssues ? `<section class="glass stat" aria-label="Murojaatlar statistikasi">
+    <div class="row"><div><div class="small">Shu oy hal qilingan muammolar</div><div class="big">${st.done_month}</div></div>
     <div class="small" style="text-align:right">${st.total} murojaat<br>${st.progress} tasi jarayonda</div></div>
     <div class="bar" role="img" aria-label="${pct}% hal qilingan"><i style="width:${pct}%"></i></div>
-  </section>
-  <button class="cta" data-act="new">+ Muammo yozish</button>
+  </section>` : ''}
+  <button class="cta" data-act="new">+ Post yozish</button>
+  <div class="kinds" role="group" aria-label="Post turi">${kinds.map(([k, l]) => `<button class="chip" data-kind="${k}" aria-pressed="${S.kind === k}">${l}</button>`).join('')}</div>
   <div class="seg" role="group" aria-label="Saralash">${tabs.map(([k, l]) => `<button data-ptab="${k}" aria-pressed="${S.ptab === k}">${l}</button>`).join('')}</div>
   <div class="list">${list}</div>`;
 }
 
 function problemCard(p) {
   const open = S.open[p.id];
-  const who = p.anon ? 'Anonim' : esc(p.author || 'Talaba');
-  const adminRow = isAdmin ? `<div class="admin">${Object.keys(STATUS).map((k) => `<button data-status="${k}" data-id="${p.id}" class="${p.status === k ? 'on' : ''}">${STATUS[k]}</button>`).join('')}<button class="del" data-delp="${p.id}">O‘chirish</button></div>` : '';
-  return `<article class="glass card">
+  const kind = KINDS[p.kind] ? p.kind : 'muammo';
+  const who = kind === 'elon' ? 'Black Knight Team' : p.anon ? 'Anonim' : esc(p.author || 'Talaba');
+  const badge = kind === 'muammo'
+    ? `<span class="pill s-${p.status}">${STATUS[p.status]}</span><span class="cat">${esc(p.category)}</span>`
+    : `<span class="pill k-${kind}">${KINDS[kind].label}</span>`;
+  const statusBtns = kind === 'muammo' ? Object.keys(STATUS).map((k) => `<button data-status="${k}" data-id="${p.id}" class="${p.status === k ? 'on' : ''}">${STATUS[k]}</button>`).join('') : '';
+  const adminRow = isAdmin ? `<div class="admin">${statusBtns}<button class="del" data-delp="${p.id}">O‘chirish</button></div>` : '';
+  return `<article class="glass card${kind === 'elon' ? ' elon' : ''}">
     <button class="vote" data-vote="${p.id}" aria-pressed="${p.voted}" aria-label="Ovoz berish, ${p.votes} ovoz">▲<br>${p.votes}</button>
     <div class="body">
-      <span class="pill s-${p.status}">${STATUS[p.status]}</span><span class="cat">${esc(p.category)}</span>
+      ${badge}
       <h3>${esc(p.title)}</h3>
       <div class="meta">${who} · ${ago(p.created_at)}${p.body ? ` · <button class="link" style="padding:0;font-size:12px" data-open="${p.id}" aria-expanded="${!!open}">${open ? 'Yopish' : 'Batafsil'}</button>` : ''}</div>
       ${open && p.body ? `<div class="more">${esc(p.body)}</div>` : ''}
@@ -410,16 +432,29 @@ function needProfile(action) { if (S.me) return true; pendingAction = action; pr
 
 function newProblemSheet() {
   if (!needProfile(newProblemSheet)) return;
-  let cat = 'Infratuzilma', anon = true;
-  openSheet(sheetTop('Muammo yozish') + `
+  let kind = S.kind && (S.kind !== 'elon' || isAdmin) ? S.kind : 'muammo', cat = 'Infratuzilma', anon = true;
+  const kindKeys = Object.keys(KINDS).filter((k) => k !== 'elon' || isAdmin);
+  openSheet(sheetTop('Post yozish') + `
     <form id="np" style="display:flex;flex-direction:column;gap:14px" novalidate>
-      <label class="field">Sarlavha<input id="np-title" maxlength="140" placeholder="Masalan: Wi-Fi 3-qavatda ishlamaydi" required></label>
-      <label class="field">Batafsil<textarea id="np-body" rows="4" maxlength="2000" placeholder="Qayerda, qachondan beri, kimga ta’sir qilyapti?"></textarea></label>
-      <div class="field">Yo‘nalish<div class="chips" id="np-cat">${CATS.map((c) => `<button type="button" class="chip" aria-pressed="${c === cat}">${esc(c)}</button>`).join('')}</div></div>
+      <div class="field">Post turi<div class="chips" id="np-kind">${kindKeys.map((k) => `<button type="button" class="chip" data-k="${k}" aria-pressed="${k === kind}">${KINDS[k].label}</button>`).join('')}</div></div>
+      <label class="field">Sarlavha<input id="np-title" maxlength="140" required></label>
+      <label class="field">Batafsil<textarea id="np-body" rows="4" maxlength="2000"></textarea></label>
+      <div class="field" id="np-catwrap">Yo‘nalish<div class="chips" id="np-cat">${CATS.map((c) => `<button type="button" class="chip" aria-pressed="${c === cat}">${esc(c)}</button>`).join('')}</div></div>
       <button type="button" class="toggle" id="np-anon" role="switch" aria-checked="true"><span style="flex:1"><b style="display:block">Anonim yuborish</b><span class="small">Ismingiz talabalarga ko‘rinmaydi</span></span><span class="sw" aria-hidden="true"></span></button>
+      <div class="small" id="np-note"></div>
       <div class="err" id="np-err" role="alert"></div>
-      <button class="primary" type="submit">Yuborish</button>
+      <button class="primary" type="submit">Joylash</button>
     </form>`, (el) => {
+    const sync = () => {
+      $('#np-title', el).placeholder = KINDS[kind].ph;
+      $('#np-body', el).placeholder = KINDS[kind].bph;
+      $('#np-catwrap', el).hidden = kind !== 'muammo';
+      $('#np-anon', el).hidden = !(kind === 'muammo' || kind === 'savol');
+      $('#np-note', el).textContent = kind === 'kerak' ? 'Ismingiz ko‘rinadi, shunda yordam beradiganlar siz bilan bog‘lana oladi.' : kind === 'elon' ? 'E’lon Black Knight Team nomidan chiqadi.' : '';
+      el.querySelectorAll('#np-kind .chip').forEach((x) => x.setAttribute('aria-pressed', x.dataset.k === kind));
+    };
+    sync();
+    $('#np-kind', el).addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return; kind = b.dataset.k; sync(); });
     $('#np-cat', el).addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return; cat = b.textContent; el.querySelectorAll('#np-cat .chip').forEach((x) => x.setAttribute('aria-pressed', x === b)); });
     $('#np-anon', el).addEventListener('click', (e) => { anon = !anon; e.currentTarget.setAttribute('aria-checked', anon); });
     $('#np', el).addEventListener('submit', async (e) => {
@@ -428,8 +463,8 @@ function newProblemSheet() {
       if (title.length < 5) { $('#np-err', el).textContent = 'Sarlavhani biroz batafsilroq yozing (kamida 5 belgi).'; return; }
       const btn = $('button[type=submit]', el); btn.disabled = true;
       try {
-        await api('/api/problems', { method: 'POST', body: { uid, title, body: $('#np-body', el).value, category: cat, anon } });
-        closeSheet(); toast('Murojaat yuborildi'); S.ptab = 'new'; S.tab = 'ovoz';
+        await api('/api/problems', { method: 'POST', body: { uid, kind, title, body: $('#np-body', el).value, category: cat, anon } });
+        closeSheet(); toast(KINDS[kind].ok); S.ptab = 'new'; S.kind = ''; S.tab = 'ovoz';
         await Promise.all([loadProblems(), loadStats(), loadMe()]); render();
       } catch (err) { $('#np-err', el).textContent = err.message; btn.disabled = false; }
     });
@@ -486,6 +521,7 @@ document.addEventListener('click', async (e) => {
   const t = e.target.closest('button'); if (!t || t.closest('.sheet')) return;
   const d = t.dataset;
   if (d.tab) { S.tab = d.tab; render(); window.scrollTo(0, 0); refresh(); return; }
+  if (d.kind !== undefined && t.closest('.kinds')) { S.kind = d.kind; if (S.ptab === 'done' && S.kind && S.kind !== 'muammo') S.ptab = 'top'; S.problems = null; render(); await loadProblems(); render(); return; }
   if (d.ptab) { S.ptab = d.ptab; S.problems = null; render(); await loadProblems(); render(); return; }
   if (d.act === 'new') return newProblemSheet();
   if (d.act === 'profile') return profileSheet(false);

@@ -4,6 +4,7 @@ const DB_HOST = DB_URL ? new URL(DB_URL).hostname : '';
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
 const CATS = ["O'quv jarayoni", 'Ustozlar bilan', 'Infratuzilma', 'Yotoqxona', 'Boshqa'];
 const STATUSES = ['yangi', 'qabul', 'jarayonda', 'hal'];
+const KINDS = ['muammo', 'savol', 'kerak', 'elon'];
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -173,7 +174,7 @@ async function route(req) {
       count(*) FILTER (WHERE status IN ('qabul','jarayonda'))::int progress,
       count(*) FILTER (WHERE status='hal')::int done,
       count(*) FILTER (WHERE status='hal' AND resolved_at > date_trunc('month', now()))::int done_month
-      FROM problems`);
+      FROM problems WHERE kind='muammo'`);
     const u = await q('SELECT count(*)::int n FROM users');
     return json({ ...r.rows[0], members: u.rows[0].n });
   }
@@ -214,9 +215,11 @@ async function route(req) {
   // ---- problems
   if (p === '/api/problems' && m === 'GET') {
     const tab = url.searchParams.get('tab') || 'top';
-    const where = tab === 'done' ? "p.status='hal'" : tab === 'new' ? "p.status<>'hal'" : "p.status<>'hal'";
+    const kind = KINDS.includes(url.searchParams.get('kind')) ? url.searchParams.get('kind') : '';
+    let where = tab === 'done' ? "p.status='hal'" : "p.status<>'hal'";
+    if (kind) where += ` AND p.kind='${kind}'`;
     const order = tab === 'new' ? 'p.created_at DESC' : tab === 'done' ? 'p.resolved_at DESC NULLS LAST' : 'votes DESC, p.created_at DESC';
-    const r = await q(`SELECT p.id, p.title, p.body, p.category, p.status, p.created_at, p.anon,
+    const r = await q(`SELECT p.id, p.kind, p.title, p.body, p.category, p.status, p.created_at, p.anon,
       CASE WHEN p.anon THEN NULL ELSE u.name END author,
       (SELECT count(*) FROM votes v WHERE v.problem_id=p.id)::int votes,
       EXISTS(SELECT 1 FROM votes v WHERE v.problem_id=p.id AND v.user_id=$1) voted,
@@ -229,11 +232,15 @@ async function route(req) {
     if (!validUid(body.uid) || !(await userExists(body.uid))) return bad('Avval profilni to‘ldiring', 401);
     const title = str(body.title, 140);
     if (title.length < 5) return bad('Sarlavha juda qisqa');
-    const category = CATS.includes(body.category) ? body.category : 'Boshqa';
+    const kind = KINDS.includes(body.kind) ? body.kind : 'muammo';
+    if (kind === 'elon' && !admin) return bad('E’lonni faqat adminlar joylay oladi', 403);
+    const category = kind === 'muammo' ? (CATS.includes(body.category) ? body.category : 'Boshqa') : '';
+    // "Kerak" posts need a real name so people can respond; announcements are signed by the club.
+    const anon = (kind === 'muammo' || kind === 'savol') && !!body.anon;
     const recent = await q("SELECT count(*)::int n FROM problems WHERE author_id=$1 AND created_at > now() - interval '1 hour'", [body.uid]);
-    if (recent.rows[0].n >= 5) return bad('Bir soatda 5 tadan ko‘p murojaat yuborib bo‘lmaydi', 429);
-    const r = await q('INSERT INTO problems (title,body,category,anon,author_id) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-      [title, str(body.body, 2000), category, !!body.anon, body.uid]);
+    if (recent.rows[0].n >= 5 && !admin) return bad('Bir soatda 5 tadan ko‘p post yozib bo‘lmaydi', 429);
+    const r = await q('INSERT INTO problems (title,body,category,anon,author_id,kind) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+      [title, str(body.body, 2000), category, anon, body.uid, kind]);
     await q('INSERT INTO votes VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [r.rows[0].id, body.uid]);
     return json({ id: r.rows[0].id }, 201);
   }
@@ -308,6 +315,9 @@ async function selftest() {
     await call('PUT', '/api/me', { uid, name: 'Selftest', teach: 'Python', learn: 'Ingliz tili', interests: ['Startaplar'] });
     const p = await call('POST', '/api/problems', { uid, title: 'Selftest muammosi', category: 'Infratuzilma', anon: true });
     await call('GET', '/api/problems?tab=top&uid=' + uid);
+    const sv = await call('POST', '/api/problems', { uid, title: 'Selftest savoli', kind: 'savol' });
+    await call('GET', '/api/problems?tab=new&kind=savol&uid=' + uid);
+    await call('DELETE', `/api/problems/${sv.id}`, null, { 'x-admin-key': ADMIN_KEY });
     await call('POST', `/api/problems/${p.id}/vote`, { uid });
     await call('PATCH', `/api/problems/${p.id}`, { status: 'hal' }, { 'x-admin-key': ADMIN_KEY });
     const e = await call('POST', '/api/events', { title: 'Selftest', starts_at: new Date(Date.now() + 864e5).toISOString(), capacity: 5 }, { 'x-admin-key': ADMIN_KEY });
