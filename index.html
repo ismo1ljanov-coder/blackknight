@@ -38,7 +38,8 @@ button{cursor:pointer}
 .head{display:flex;align-items:center;gap:12px}
 .logo{width:46px;height:46px;border-radius:50%;border:1px solid var(--gold-line);box-shadow:0 0 0 3px rgba(217,180,108,.08);flex:none;object-fit:cover;background:#000}
 .head .grow{flex:1;min-width:0}
-.head .uni{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+.head .sp{font-family:var(--crest);font-weight:600;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+.head .uni{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);margin-top:1px}
 .head .team{font-family:var(--crest);font-weight:700;font-size:17px;letter-spacing:.04em;background:var(--metal);-webkit-background-clip:text;background-clip:text;color:transparent;line-height:1.2}
 .pagetitle{display:flex;flex-direction:column;gap:8px;margin-top:4px}
 .pagetitle h1{margin:0;font-family:var(--crest);font-weight:700;font-size:26px;letter-spacing:.02em;color:var(--fg);text-wrap:balance}
@@ -213,7 +214,7 @@ function toast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
 }
 
-const head = (title, extra = '') => `<header class="head"><img class="logo" src="logo.jpg" alt="Black Knight Team logotipi"><div class="grow"><div class="uni">Millat Umidi University</div><div class="team">Black Knight Team</div></div>${extra}</header>
+const head = (title, extra = '') => `<header class="head"><img class="logo" src="logo.jpg" alt="Students’ Parliament — Black Knight Team logotipi"><div class="grow"><div class="sp">Students’ Parliament</div><div class="team">Black Knight Team</div><div class="uni">Millat Umidi University</div></div>${extra}</header>
   <div class="pagetitle"><h1>${title}</h1><div class="rule" aria-hidden="true"><i></i></div></div>`;
 
 // ---------- data
