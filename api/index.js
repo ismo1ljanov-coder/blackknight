@@ -90,9 +90,36 @@ const START_TEXT = `Assalomu alaykum! Bu — BlackKnight Club, Millat Umidi tala
 
 Pastdagi tugmani bosing 👇`;
 
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+// Target answers a contact request; on accept the requester gets a link to the target.
+async function answerRequest(id, targetUid, accept) {
+  const r = await q(`UPDATE contact_requests SET status=$1, answered_at=now() WHERE id=$2 AND to_id=$3 AND status='pending'
+    RETURNING from_id, to_id`, [accept ? 'accepted' : 'declined', id, targetUid]);
+  if (!r.rowCount) return { ok: false, error: 'So‘rov topilmadi yoki allaqachon javob berilgan' };
+  if (accept) {
+    const t = (await q('SELECT name, username FROM users WHERE id=$1', [targetUid])).rows[0] || {};
+    const link = t.username ? `https://t.me/${t.username}` : `tg://user?id=${targetUid.slice(2)}`;
+    await tg('sendMessage', { chat_id: r.rows[0].from_id.slice(2), parse_mode: 'HTML',
+      text: `✅ <b>${esc(t.name)}</b> tanishish so‘rovingizni qabul qildi. <a href="${link}">Unga yozish</a>` }).catch(() => {});
+  }
+  return { ok: true, accepted: accept };
+}
+
 async function tgWebhook(req) {
   if (req.headers.get('x-telegram-bot-api-secret-token') !== WEBHOOK_SECRET) return bad('forbidden', 403);
   const upd = await req.json().catch(() => ({}));
+  const cb = upd.callback_query;
+  if (cb && typeof cb.data === 'string' && cb.data.startsWith('rq:')) {
+    const [, id, act] = cb.data.split(':');
+    const res = await answerRequest(+id, 'tg' + cb.from.id, act === 'a');
+    await tg('answerCallbackQuery', { callback_query_id: cb.id, text: res.ok ? (res.accepted ? 'Qabul qilindi' : 'Rad etildi') : res.error });
+    if (res.ok && cb.message) {
+      await tg('editMessageReplyMarkup', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, reply_markup: { inline_keyboard: [] } }).catch(() => {});
+      await tg('sendMessage', { chat_id: cb.message.chat.id, text: res.accepted ? 'Qabul qildingiz. Endi u sizga Telegram’da yoza oladi.' : 'So‘rov rad etildi. U bu haqda xabar olmaydi.' });
+    }
+    return json({ ok: true });
+  }
   const msg = upd.message;
   if (msg && msg.chat && msg.chat.type === 'private') {
     const kb = WEBAPP_URL ? { inline_keyboard: [[{ text: 'BlackKnight’ni ochish', web_app: { url: WEBAPP_URL } }]] } : undefined;
@@ -104,7 +131,7 @@ async function tgWebhook(req) {
 async function tgSetup() {
   const out = {};
   out.before = await tg('getWebhookInfo', {});
-  out.webhook = await tg('setWebhook', { url: SELF_URL + '/tg/webhook', secret_token: WEBHOOK_SECRET, allowed_updates: ['message'], drop_pending_updates: true });
+  out.webhook = await tg('setWebhook', { url: SELF_URL + '/tg/webhook', secret_token: WEBHOOK_SECRET, allowed_updates: ['message', 'callback_query'] });
   if (WEBAPP_URL) out.menu = await tg('setChatMenuButton', { menu_button: { type: 'web_app', text: 'Ochish', web_app: { url: WEBAPP_URL } } });
   out.commands = await tg('setMyCommands', { commands: [{ command: 'start', description: 'BlackKnight Club ilovasini ochish' }] });
   out.desc = await tg('setMyShortDescription', { short_description: 'Millat Umidi talabalari ovozi: muammolar, tadbirlar, Skill Swap.' });
@@ -129,9 +156,11 @@ async function route(req) {
     const name = [tu.first_name, tu.last_name].filter(Boolean).join(' ').slice(0, 60) || tu.username || 'Talaba';
     const uname = tu.username ? String(tu.username).toLowerCase().slice(0, 40) : null;
     // Creates the user on first visit; afterwards keeps only the Telegram username current.
-    await q(`INSERT INTO users (id,name,username) VALUES ($1,$2,$3)
-      ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username WHERE users.username IS DISTINCT FROM EXCLUDED.username
-      RETURNING 1 x`, [uid, name, uname]);
+    const photo = typeof tu.photo_url === 'string' && tu.photo_url.startsWith('https://') ? tu.photo_url.slice(0, 500) : null;
+    await q(`INSERT INTO users (id,name,username,photo_url) VALUES ($1,$2,$3,$4)
+      ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username, photo_url=EXCLUDED.photo_url
+      WHERE users.username IS DISTINCT FROM EXCLUDED.username OR users.photo_url IS DISTINCT FROM EXCLUDED.photo_url
+      RETURNING 1 x`, [uid, name, uname, photo]);
   }
 
   // Admin = the server key (scripts) or a Telegram account listed in admins.
@@ -197,11 +226,80 @@ async function route(req) {
     if (!name) return bad('Ismingizni yozing');
     const interests = Array.isArray(body.interests)
       ? body.interests.map((x) => str(x, 30)).filter(Boolean).slice(0, 8) : [];
-    const r = await q(`INSERT INTO users (id,name,major,year,interests,teach,learn) VALUES ($1,$2,$3,$4,$5,$6,$7)
-      ON CONFLICT (id) DO UPDATE SET name=$2, major=$3, year=$4, interests=$5, teach=$6, learn=$7 RETURNING *`,
-      [id, name, str(body.major, 80), str(body.year, 20), interests, str(body.teach, 80), str(body.learn, 80)]);
+    const contact = body.contact === 'open' ? 'open' : 'request';
+    const r = await q(`INSERT INTO users (id,name,major,year,interests,teach,learn,contact) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      ON CONFLICT (id) DO UPDATE SET name=$2, major=$3, year=$4, interests=$5, teach=$6, learn=$7, contact=$8 RETURNING *`,
+      [id, name, str(body.major, 80), str(body.year, 20), interests, str(body.teach, 80), str(body.learn, 80), contact]);
     return json({ user: r.rows[0] });
   }
+  // ---- people directory and contact requests
+  if (p === '/api/people' && m === 'GET') {
+    const term = str(url.searchParams.get('q') || '', 60).replace(/^@/, '');
+    const r = await q(`SELECT u.id, u.name, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url
+      FROM users u WHERE u.id NOT LIKE 'selftest%' AND u.id<>$1
+      AND ($2='' OR u.name ILIKE '%'||$2||'%' OR u.username ILIKE '%'||$2||'%' OR u.major ILIKE '%'||$2||'%'
+           OR u.teach ILIKE '%'||$2||'%' OR array_to_string(u.interests,' ') ILIKE '%'||$2||'%')
+      ORDER BY u.created_at DESC LIMIT 60`, [uid, term]);
+    return json({ people: r.rows });
+  }
+  if ((mm = p.match(/^\/api\/people\/([a-zA-Z0-9_-]+)$/)) && m === 'GET') {
+    const r = await q(`SELECT u.id, u.name, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url, u.contact,
+      u.username, (u.id LIKE 'tg%') tg,
+      (SELECT status FROM contact_requests WHERE from_id=$2 AND to_id=u.id) out_status,
+      (SELECT json_build_object('id', id, 'status', status) FROM contact_requests WHERE from_id=u.id AND to_id=$2) incoming
+      FROM users u WHERE u.id=$1`, [mm[1], uid]);
+    if (!r.rowCount) return bad('Talaba topilmadi', 404);
+    const u = r.rows[0];
+    const inc = u.incoming;
+    // Contact opens when the person allows everyone, or a request between the two was accepted.
+    const canWrite = u.tg && u.id !== uid && (u.contact === 'open' || u.out_status === 'accepted' || (inc && inc.status === 'accepted'));
+    const relation = u.id === uid ? 'me' : canWrite ? 'open' : inc && inc.status === 'pending' ? 'incoming'
+      : u.out_status ? 'pending' : !u.tg ? 'unavailable' : 'none';
+    return json({ person: { id: u.id, name: u.name, major: u.major, year: u.year, interests: u.interests, teach: u.teach, learn: u.learn,
+      photo_url: u.photo_url, relation, username: canWrite ? u.username : null, request_id: inc ? inc.id : null } });
+  }
+  if ((mm = p.match(/^\/api\/people\/([a-zA-Z0-9_-]+)\/write$/)) && m === 'POST') {
+    // For people without a public @username: the bot sends the requester a tappable link to them.
+    if (!tu) return bad('Bu amal faqat Telegram ichida ishlaydi', 401);
+    const r = await q(`SELECT u.id, u.name, u.contact, u.username FROM users u WHERE u.id=$1`, [mm[1]]);
+    if (!r.rowCount || !r.rows[0].id.startsWith('tg')) return bad('Talaba topilmadi', 404);
+    const t = r.rows[0];
+    const ok = t.contact === 'open' || (await q(`SELECT 1 x FROM contact_requests WHERE status='accepted' AND
+      ((from_id=$1 AND to_id=$2) OR (from_id=$2 AND to_id=$1))`, [uid, t.id])).rowCount > 0;
+    if (!ok) return bad('Avval tanishish so‘rovi yuboring', 403);
+    await tg('sendMessage', { chat_id: tu.id, parse_mode: 'HTML',
+      text: `${esc(t.name)} bilan bog‘lanish: <a href="tg://user?id=${t.id.slice(2)}">profilini ochish</a>` });
+    return json({ ok: true });
+  }
+  if (p === '/api/requests' && m === 'GET') {
+    const r = await q(`SELECT c.id, c.note, c.created_at, u.id user_id, u.name, u.major, u.year, u.photo_url
+      FROM contact_requests c JOIN users u ON u.id=c.from_id WHERE c.to_id=$1 AND c.status='pending' ORDER BY c.created_at DESC`, [uid]);
+    return json({ incoming: r.rows });
+  }
+  if (p === '/api/requests' && m === 'POST') {
+    if (!tu) return bad('Tanishish so‘rovi faqat Telegram ichida yuboriladi', 401);
+    const to = str(body.to, 64);
+    if (!to.startsWith('tg') || to === uid) return bad('Bu talabaga so‘rov yuborib bo‘lmaydi');
+    const day = await q(`SELECT count(*)::int n FROM contact_requests WHERE from_id=$1 AND created_at > now() - interval '1 day'`, [uid]);
+    if (day.rows[0].n >= 15) return bad('Bir kunda 15 tadan ko‘p so‘rov yuborib bo‘lmaydi', 429);
+    const note = str(body.note, 200);
+    const ins = await q(`INSERT INTO contact_requests (from_id,to_id,note) SELECT $1,$2,$3 WHERE EXISTS (SELECT 1 FROM users WHERE id=$2)
+      ON CONFLICT (from_id,to_id) DO NOTHING RETURNING id`, [uid, to, note]);
+    if (!ins.rowCount) return json({ ok: true, already: true });
+    const me = (await q('SELECT name, major, year FROM users WHERE id=$1', [uid])).rows[0] || {};
+    const who = [me.major, me.year && me.year + '-kurs'].filter(Boolean).join(', ');
+    await tg('sendMessage', { chat_id: to.slice(2), parse_mode: 'HTML',
+      text: `🤝 <b>${esc(me.name || 'Talaba')}</b>${who ? ' (' + esc(who) + ')' : ''} siz bilan tanishmoqchi.${note ? '\n\n«' + esc(note) + '»' : ''}\n\nRozi bo‘lsangiz, u sizga Telegram'da yoza oladi.`,
+      reply_markup: { inline_keyboard: [[{ text: '✅ Qabul qilish', callback_data: `rq:${ins.rows[0].id}:a` }, { text: 'Rad etish', callback_data: `rq:${ins.rows[0].id}:d` }]] },
+    }).catch(() => {});
+    return json({ ok: true }, 201);
+  }
+  if ((mm = p.match(/^\/api\/requests\/(\d+)$/)) && m === 'POST') {
+    if (!tu) return bad('Bu amal faqat Telegram ichida ishlaydi', 401);
+    const res = await answerRequest(+mm[1], uid, body.action === 'accept');
+    return res.ok ? json(res) : bad(res.error, 404);
+  }
+
   if (p === '/api/matches' && m === 'GET') {
     if (!validUid(uid)) return bad('uid kerak');
     const r = await q(`SELECT u.id, u.name, u.major, u.teach, u.learn FROM users u, users me
@@ -324,6 +422,10 @@ async function selftest() {
     await call('POST', `/api/events/${e.id}/rsvp`, { uid });
     await call('GET', '/api/events?uid=' + uid);
     await call('GET', '/api/me?uid=' + uid);
+    await call('GET', '/api/people?q=Self&uid=x' );
+    await call('GET', `/api/people/${uid}?uid=${uid}`);
+    await call('GET', '/api/requests?uid=' + uid);
+    await call('POST', '/api/requests', { uid, to: 'tg1' });
     await call('GET', '/api/stats');
     await call('DELETE', `/api/problems/${p.id}`, null, { 'x-admin-key': ADMIN_KEY });
     await call('DELETE', `/api/events/${e.id}`, null, { 'x-admin-key': ADMIN_KEY });

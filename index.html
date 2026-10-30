@@ -72,6 +72,28 @@ button{cursor:pointer}
 .s-jarayonda{background:var(--gold-bg);color:var(--gold)}
 .s-hal{background:var(--green-bg);color:var(--green)}
 .cat{font-size:11px;color:var(--dim);margin-left:6px}
+.dot{position:absolute;top:6px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--red)}
+.search{display:flex}
+.search input{width:100%;min-height:48px;padding:12px 16px;border-radius:16px;border:1px solid var(--line-2);background:var(--glass);font-size:16px;color:var(--fg)}
+.search input:focus{outline:none;border-color:var(--gold-line)}
+.person{display:flex;gap:12px;align-items:center;padding:12px;width:100%;text-align:left}
+.pava{width:48px;height:48px;border-radius:50%;flex:none;object-fit:cover;background:var(--gold-bg);border:1px solid var(--gold-line);display:grid;place-items:center;font-family:var(--crest);font-weight:700;font-size:20px;color:var(--gold-hi);overflow:hidden}
+.pava img{width:100%;height:100%;object-fit:cover}
+.person .body{flex:1;min-width:0}
+.person b{display:block;font-size:15px;overflow-wrap:anywhere}
+.person .meta{font-size:12px;color:var(--dim);margin-top:2px}
+.person .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.tag{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--green-bg);color:var(--green)}
+.tag.l{background:var(--blue-bg);color:var(--blue)}
+.psheet{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.psheet .pava{width:84px;height:84px;font-size:34px}
+.req{display:flex;flex-direction:column;gap:8px;padding:12px 0;border-top:1px solid rgba(217,180,108,.12)}
+.req:first-of-type{border-top:0}
+.req .row{display:flex;gap:10px;align-items:center}
+.req .acts{display:flex;gap:8px}
+.req .acts button{flex:1}
+.btn.ghost{background:transparent;border-color:var(--line-2);color:var(--muted)}
+.linkname{background:none;border:0;padding:0;color:var(--fg);font-weight:700;text-decoration:underline;text-decoration-color:var(--gold-line);text-underline-offset:3px}
 .kinds{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -4px;padding:2px 4px}
 .kinds::-webkit-scrollbar{display:none}
 .kinds .chip{flex:none;font-weight:600;color:var(--muted)}
@@ -124,7 +146,7 @@ button.chip[aria-pressed="true"]{background:var(--gold-bg);border-color:var(--go
 .match span{color:var(--muted);text-align:right}
 .link{background:none;border:0;color:var(--muted);font-size:13px;text-decoration:underline;padding:8px;align-self:center}
 nav{border-color:var(--line-2)!important;background:rgba(12,10,6,.72)!important;position:fixed;z-index:20;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));width:min(448px,calc(100% - 32px));height:64px;border-radius:26px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);display:flex;align-items:center;justify-content:space-around;padding:0 8px}
-nav button{border:0;background:none;padding:10px 16px;border-radius:16px;font-weight:600;font-size:13px;color:var(--muted)}
+nav button{position:relative;border:0;background:none;padding:10px 12px;border-radius:16px;font-weight:600;font-size:13px;color:var(--muted)}
 nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 /* bottom sheet */
 .scrim{position:fixed;inset:0;z-index:30;background:rgba(5,6,12,.55);display:flex;align-items:flex-end;justify-content:center}
@@ -157,8 +179,9 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 <main class="app" id="app"></main>
 <nav aria-label="Bo‘limlar">
   <button data-tab="ovoz" aria-current="page">Lenta</button>
+  <button data-tab="odamlar">Odamlar</button>
   <button data-tab="tadbirlar">Tadbirlar</button>
-  <button data-tab="profil">Profil</button>
+  <button data-tab="profil">Profil<span class="dot" id="reqdot" hidden></span></button>
 </nav>
 <div id="layer"></div>
 <script>
@@ -245,6 +268,13 @@ async function loadEvents() {
 async function loadMe() {
   try { const r = await api(`/api/me?uid=${uid}`); S.me = r.user; S.myStats = r.stats || null; } catch (e) {}
 }
+S.people = null; S.pq = ''; S.requests = [];
+async function loadPeople() { try { S.people = (await api(`/api/people?q=${encodeURIComponent(S.pq)}&uid=${uid}`)).people; S.offline = false; } catch (e) { S.offline = true; if (!S.people) S.people = []; } }
+async function loadRequests() {
+  try { S.requests = (await api(`/api/requests?uid=${uid}`)).incoming; } catch (e) { S.requests = []; }
+  const dot = document.getElementById('reqdot'); if (dot) dot.hidden = !S.requests.length;
+}
+const avatar = (p) => `<span class="pava" aria-hidden="true">${p.photo_url ? `<img src="${esc(p.photo_url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}${p.photo_url ? '' : esc((p.name || '?').trim().charAt(0).toUpperCase())}</span>`;
 async function loadMatches() { try { S.matches = (await api(`/api/matches?uid=${uid}`)).matches; } catch (e) { S.matches = []; } }
 async function checkAdmin() {
   if (!TG_INIT && !adminKey) { isAdmin = false; return; }
@@ -334,20 +364,85 @@ function viewTadbirlar() {
   return head('Tadbirlar', addBtn) + offlineNote() + body;
 }
 
+function peopleList() {
+  if (S.people === null) return '<div class="skeleton"></div><div class="skeleton"></div>';
+  if (!S.people.length) return `<div class="glass empty"><b>${S.pq ? 'Hech kim topilmadi' : 'Hali boshqa talabalar yo‘q'}</b>${S.pq ? 'Ism, @username, yo‘nalish yoki qiziqish bo‘yicha qidirib ko‘ring.' : 'Do‘stlaringizni botga taklif qiling.'}</div>`;
+  return S.people.map((p) => `<button class="glass person" data-person="${esc(p.id)}">
+    ${avatar(p)}
+    <span class="body"><b>${esc(p.name)}</b><span class="meta">${esc([p.major, p.year && p.year + '-kurs'].filter(Boolean).join(' · ') || 'Millat Umidi talabasi')}</span>
+    ${p.teach || p.learn ? `<span class="tags">${p.teach ? `<span class="tag">O‘rgatadi: ${esc(p.teach)}</span>` : ''}${p.learn ? `<span class="tag l">O‘rganadi: ${esc(p.learn)}</span>` : ''}</span>` : ''}</span>
+  </button>`).join('');
+}
+function viewOdamlar() {
+  return head('Odamlar') + offlineNote() + `
+  <form class="search" role="search" onsubmit="return false"><label class="sr" for="ppl-q" style="position:absolute;left:-9999px">Qidirish</label>
+    <input id="ppl-q" type="search" placeholder="Ism, @username, yo‘nalish yoki qiziqish" value="${esc(S.pq)}" autocomplete="off"></form>
+  <div class="list" id="ppl-list">${peopleList()}</div>`;
+}
+
+async function personSheet(id) {
+  openSheet(sheetTop('Talaba') + '<div class="skeleton" style="height:220px"></div>');
+  let p;
+  try { p = (await api(`/api/people/${encodeURIComponent(id)}?uid=${uid}`)).person; }
+  catch (err) { const sh = $('.sheet'); if (sh) sh.innerHTML = sheetTop('Talaba') + `<div class="err">${esc(err.message)}</div>`; return; }
+  const sh = $('.sheet'); if (!sh) return;
+  let action = '';
+  if (p.relation === 'open') action = `<button class="primary" data-write="${esc(p.id)}" data-user="${esc(p.username || '')}">Telegram’da yozish</button>`;
+  else if (p.relation === 'pending') action = `<button class="primary" disabled>So‘rov yuborildi · javob kutilmoqda</button>`;
+  else if (p.relation === 'incoming') action = `<div class="small">${esc(p.name)} siz bilan tanishmoqchi.</div><div class="req acts" style="display:flex;gap:8px;border:0"><button class="btn" data-answer="${p.request_id}" data-acc="1">Qabul qilish</button><button class="btn ghost" data-answer="${p.request_id}" data-acc="0">Rad etish</button></div>`;
+  else if (p.relation === 'unavailable') action = `<div class="small">Bu talaba Telegram orqali kirmagan, shuning uchun u bilan bog‘lanib bo‘lmaydi.</div>`;
+  else if (p.relation === 'none') action = TG_INIT
+    ? `<label class="field" style="width:100%;text-align:left">Nega tanishmoqchisiz? (ixtiyoriy)<textarea id="rq-note" rows="2" maxlength="200" placeholder="Masalan: Figma’ni o‘rganmoqchi edim"></textarea></label>
+       <button class="primary" style="width:100%" data-request="${esc(p.id)}">Tanishish so‘rovi yuborish</button>
+       <div class="small">U rozi bo‘lsa, bot sizga uning Telegram’ini yuboradi.</div>`
+    : `<div class="small">Tanishish so‘rovini yuborish uchun ilovani Telegram bot orqali oching.</div>`;
+  sh.innerHTML = sheetTop('Talaba') + `
+    <div class="psheet">${avatar(p)}<h2>${esc(p.name)}</h2>
+      <div class="small">${esc([p.major, p.year && p.year + '-kurs'].filter(Boolean).join(' · ') || 'Millat Umidi talabasi')}</div>
+      ${(p.interests || []).length ? `<div class="chips" style="justify-content:center">${p.interests.map((t) => `<span class="chip">${esc(t)}</span>`).join('')}</div>` : ''}
+    </div>
+    ${p.teach || p.learn ? `<div class="swap"><div class="t"><small>O‘rgatadi</small><b>${esc(p.teach || '—')}</b></div><div class="l"><small>O‘rganadi</small><b>${esc(p.learn || '—')}</b></div></div>` : ''}
+    <div style="display:flex;flex-direction:column;gap:10px;align-items:stretch">${action}</div>
+    <div class="err" id="ps-err" role="alert"></div>`;
+  sh.addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const err = $('#ps-err', sh);
+    if (b.dataset.request) {
+      b.disabled = true;
+      try { await api('/api/requests', { method: 'POST', body: { uid, to: b.dataset.request, note: ($('#rq-note', sh) || {}).value || '' } }); toast('So‘rov yuborildi'); personSheet(b.dataset.request); }
+      catch (x) { err.textContent = x.message; b.disabled = false; }
+    } else if (b.dataset.write) {
+      if (b.dataset.user) { const link = 'https://t.me/' + b.dataset.user; if (TG && TG.openTelegramLink) TG.openTelegramLink(link); else window.open(link, '_blank'); }
+      else { try { await api(`/api/people/${encodeURIComponent(b.dataset.write)}/write`, { method: 'POST', body: { uid } }); toast('Bot sizga uning havolasini yubordi'); } catch (x) { err.textContent = x.message; } }
+    } else if (b.dataset.answer) {
+      b.disabled = true;
+      try { await api(`/api/requests/${b.dataset.answer}`, { method: 'POST', body: { uid, action: b.dataset.acc === '1' ? 'accept' : 'decline' } }); toast(b.dataset.acc === '1' ? 'Qabul qilindi' : 'Rad etildi'); await loadRequests(); personSheet(id); }
+      catch (x) { err.textContent = x.message; b.disabled = false; }
+    }
+  });
+}
+
 function viewProfil() {
   const me = S.me;
   if (!me) return head('Profil') + `<div class="glass empty"><b>Profil hali yaratilmagan</b>Ovoz berish va murojaat yozish uchun ismingizni kiriting.</div><button class="cta" data-act="profile">Profil yaratish</button>`;
   const ms = S.myStats || { problems: 0, votes: 0, events: 0 };
   const interests = (me.interests || []).map((t) => `<span class="chip">${esc(t)}</span>`).join('');
   const matches = S.matches.length
-    ? S.matches.map((m) => `<div class="match"><b>${esc(m.name)}</b><span>${m.teach ? 'o‘rgatadi: ' + esc(m.teach) : ''}${m.teach && m.learn ? '<br>' : ''}${m.learn ? 'o‘rganadi: ' + esc(m.learn) : ''}</span></div>`).join('')
+    ? S.matches.map((m) => `<div class="match"><button class="linkname" data-person="${esc(m.id)}">${esc(m.name)}</button><span>${m.teach ? 'o‘rgatadi: ' + esc(m.teach) : ''}${m.teach && m.learn ? '<br>' : ''}${m.learn ? 'o‘rganadi: ' + esc(m.learn) : ''}</span></div>`).join('')
     : `<div class="small">${me.teach || me.learn ? 'Hozircha mos talaba topilmadi. Klub o‘sgani sari bu yerda paydo bo‘ladi.' : 'Nimani o‘rgata olishingiz va nimani o‘rganmoqchiligingizni yozing.'}</div>`;
   return head('Profil', '<button class="iconbtn" data-act="profile" aria-label="Profilni tahrirlash"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>') + `
+  ${S.requests.length ? `<section class="glass box" aria-label="Tanishish so‘rovlari">
+    <h3>Tanishish so‘rovlari · ${S.requests.length}</h3>
+    ${S.requests.map((r) => `<div class="req"><div class="row">${avatar(r)}<div style="flex:1;min-width:0;text-align:left"><button class="linkname" data-person="${esc(r.user_id)}">${esc(r.name)}</button><div class="small">${esc([r.major, r.year && r.year + '-kurs'].filter(Boolean).join(' · '))}</div></div></div>
+      ${r.note ? `<div class="small">«${esc(r.note)}»</div>` : ''}
+      <div class="acts"><button class="btn" data-answer="${r.id}" data-acc="1">Qabul qilish</button><button class="btn ghost" data-answer="${r.id}" data-acc="0">Rad etish</button></div></div>`).join('')}
+  </section>` : ''}
   <section class="glass prof">
     <div class="ava" aria-hidden="true">${esc((me.name || '?').trim().charAt(0).toUpperCase())}</div>
     <h2>${esc(me.name)}</h2>
     ${isAdmin ? '<span class="pill s-jarayonda">BlackKnight · Admin</span>' : ''}
     <div class="nums"><div><b>${ms.problems}</b><span>murojaat</span></div><div><b>${ms.votes}</b><span>ovoz</span></div><div><b>${ms.events}</b><span>tadbir</span></div></div>
+    <div class="small">${me.contact === 'open' ? 'Sizga hamma Telegram’da yoza oladi' : 'Sizga faqat tanishish so‘rovi orqali yozish mumkin'}</div>
   </section>
   <section class="glass box">
     <div class="small">Yo‘nalish</div>
@@ -375,7 +470,7 @@ function viewProfil() {
 function render() {
   const app = $('#app');
   const y = window.scrollY;
-  app.innerHTML = S.tab === 'ovoz' ? viewOvoz() : S.tab === 'tadbirlar' ? viewTadbirlar() : viewProfil();
+  app.innerHTML = S.tab === 'ovoz' ? viewOvoz() : S.tab === 'odamlar' ? viewOdamlar() : S.tab === 'tadbirlar' ? viewTadbirlar() : viewProfil();
   window.scrollTo(0, y);
   document.querySelectorAll('nav button').forEach((b) => b.toggleAttribute('aria-current', false) || (b.dataset.tab === S.tab && b.setAttribute('aria-current', 'page')));
 }
@@ -408,9 +503,14 @@ function profileSheet(required) {
       <div class="field">Qiziqishlar<div class="chips" id="pf-int">${all.map((t) => `<button type="button" class="chip" aria-pressed="${sel.has(t)}">${esc(t)}</button>`).join('')}</div></div>
       <div class="two"><label class="field">O‘rgataman<input id="pf-teach" maxlength="80" placeholder="No-code dasturlar" value="${esc(me.teach || '')}"></label>
       <label class="field">O‘rganaman<input id="pf-learn" maxlength="80" placeholder="Ingliz tili" value="${esc(me.learn || '')}"></label></div>
+      <div class="field">Kim menga Telegram’da yoza oladi?<div class="chips" id="pf-contact">
+        <button type="button" class="chip" data-c="request" aria-pressed="${me.contact !== 'open'}">Faqat so‘rov orqali</button>
+        <button type="button" class="chip" data-c="open" aria-pressed="${me.contact === 'open'}">Hamma</button></div>
+        <span class="small">“So‘rov orqali” tanlansa, avval sizdan ruxsat so‘raladi.</span></div>
       <div class="err" id="pf-err" role="alert"></div>
       <button class="primary" type="submit">Saqlash</button>
     </form>`, (el) => {
+    $('#pf-contact', el).addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return; el.querySelectorAll('#pf-contact .chip').forEach((x) => x.setAttribute('aria-pressed', x === b)); });
     $('#pf-int', el).addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); });
     $('#pf', el).addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -419,7 +519,7 @@ function profileSheet(required) {
       const btn = $('button[type=submit]', el); btn.disabled = true;
       try {
         const r = await api('/api/me', { method: 'PUT', body: { uid, name, major: $('#pf-major', el).value, year: $('#pf-year', el).value,
-          interests: [...el.querySelectorAll('#pf-int [aria-pressed="true"]')].map((b) => b.textContent), teach: $('#pf-teach', el).value, learn: $('#pf-learn', el).value } });
+          interests: [...el.querySelectorAll('#pf-int [aria-pressed="true"]')].map((b) => b.textContent), teach: $('#pf-teach', el).value, learn: $('#pf-learn', el).value, contact: (el.querySelector('#pf-contact [aria-pressed="true"]') || {}).dataset?.c || 'request' } });
         S.me = r.user; closeSheet(); toast('Profil saqlandi'); await Promise.all([loadMe(), loadMatches()]); render();
         if (pendingAction) { const a = pendingAction; pendingAction = null; a(); }
       } catch (err) { $('#pf-err', el).textContent = err.message; btn.disabled = false; }
@@ -527,6 +627,13 @@ document.addEventListener('click', async (e) => {
   if (d.act === 'profile') return profileSheet(false);
   if (d.act === 'newevent') return newEventSheet();
   if (d.act === 'admin') return adminSheet();
+  if (d.person) return personSheet(d.person);
+  if (d.answer) {
+    t.disabled = true;
+    try { await api(`/api/requests/${d.answer}`, { method: 'POST', body: { uid, action: d.acc === '1' ? 'accept' : 'decline' } }); toast(d.acc === '1' ? 'Qabul qilindi. Bot unga sizning Telegram’ingizni yubordi' : 'Rad etildi'); }
+    catch (err) { toast(err.message); }
+    await loadRequests(); render(); return;
+  }
   if (d.rmadmin) {
     if (t.dataset.confirm !== '1') { t.dataset.confirm = '1'; t.textContent = 'Tasdiqlang'; setTimeout(() => { if (t.isConnected) { t.dataset.confirm = ''; t.textContent = 'Olib tashlash'; } }, 3000); return; }
     try { await api('/api/admins/' + encodeURIComponent(d.rmadmin), { method: 'DELETE' }); toast('Admin olib tashlandi'); } catch (err) { toast(err.message); }
@@ -560,6 +667,15 @@ document.addEventListener('click', async (e) => {
     await Promise.all([loadProblems(), loadEvents(), loadStats()]); render(); return;
   }
 });
+let searchTimer;
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'ppl-q') return;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(async () => {
+    S.pq = e.target.value.trim(); await loadPeople();
+    const box = document.getElementById('ppl-list'); if (box) box.innerHTML = peopleList();
+  }, 300);
+});
 document.addEventListener('submit', async (e) => {
   if (e.target.id !== 'addadmin') return;
   e.preventDefault();
@@ -574,7 +690,8 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('.scri
 async function refresh() {
   if (S.tab === 'ovoz') await Promise.all([loadProblems(), loadStats()]);
   else if (S.tab === 'tadbirlar') await loadEvents();
-  else await Promise.all([loadMe(), loadMatches()]);
+  else if (S.tab === 'odamlar') await loadPeople();
+  else await Promise.all([loadMe(), loadMatches(), loadRequests()]);
   const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('form');
   if (!$('.scrim') && !typing) render();
 }
@@ -583,7 +700,7 @@ async function refresh() {
   render();
   await Promise.all([checkAdmin(), loadMe(), loadStats(), loadProblems()]);
   render();
-  loadEvents(); loadMatches();
+  loadEvents(); loadMatches(); loadPeople(); loadRequests();
   if (!S.me && !S.offline) profileSheet(true);
   setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 20000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
