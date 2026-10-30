@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0c16">
+<title>BlackKnight Club</title>
+<meta name="description" content="BlackKnight Club — Millat Umidi talabalari ovozi: muammolar, tadbirlar, Skill Swap.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/* Glass UI: dark ground, three blurred colour orbs, frosted cards, gold accent */
+:root{
+  --bg:#0a0c16; --fg:#f5f3ee; --muted:rgba(245,243,238,.66); --dim:rgba(245,243,238,.5);
+  --gold:#f5d68f; --gold-bg:rgba(245,214,143,.2); --gold-line:rgba(245,214,143,.55);
+  --glass:rgba(255,255,255,.07); --glass-2:rgba(255,255,255,.1); --line:rgba(255,255,255,.15); --line-2:rgba(255,255,255,.22);
+  --blue:#b9c6ff; --blue-bg:rgba(140,165,255,.2); --green:#a6ecbc; --green-bg:rgba(130,220,160,.18); --red:#ffb4a8;
+  --font:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--fg);font:500 15px/1.4 var(--font);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.orbs{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.orbs i{position:absolute;border-radius:50%;filter:blur(100px)}
+.orbs i:nth-child(1){width:300px;height:300px;left:-100px;top:-80px;background:#c8973a;opacity:.5}
+.orbs i:nth-child(2){width:280px;height:280px;right:-130px;top:300px;background:#4357d6;opacity:.45}
+.orbs i:nth-child(3){width:240px;height:240px;left:20px;bottom:-60px;background:#7a45c9;opacity:.35}
+.app{position:relative;z-index:1;max-width:480px;margin:0 auto;min-height:100vh;
+  padding:calc(18px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(110px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  display:flex;flex-direction:column;gap:14px}
+.glass{background:var(--glass);border:1px solid var(--line);border-radius:22px;-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
+.head{display:flex;align-items:center;gap:12px}
+.logo{width:42px;height:42px;border-radius:50%;border:1px solid var(--line-2);background:linear-gradient(145deg,#1b1f33,#0e101c);display:grid;place-items:center;flex:none}
+.head .k{font-size:12px;color:var(--muted)}
+.head h1{margin:0;font-size:21px;font-weight:800;letter-spacing:-.01em}
+.head .grow{flex:1;min-width:0}
+.iconbtn{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--glass-2);display:grid;place-items:center;flex:none}
+.stat{padding:16px;display:flex;flex-direction:column;gap:12px}
+.stat .row{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.big{font-size:40px;font-weight:800;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}
+.small{font-size:13px;color:var(--muted)}
+.bar{height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
+.bar>i{display:block;height:100%;border-radius:3px;background:var(--gold);transition:width .4s}
+.cta{height:52px;border-radius:18px;border:1px solid var(--gold-line);background:var(--gold-bg);color:#fff;font-weight:700;font-size:16px;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+.seg{display:flex;padding:4px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
+.seg button{flex:1;border:0;background:none;padding:9px 4px;border-radius:12px;font-size:14px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:rgba(255,255,255,.16);color:var(--fg)}
+.list{display:flex;flex-direction:column;gap:10px}
+.card{display:flex;gap:12px;padding:12px;text-align:left;width:100%}
+.vote{width:50px;min-height:56px;border-radius:16px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);font-weight:700;font-size:15px;line-height:1.15;flex:none;font-variant-numeric:tabular-nums}
+.vote[aria-pressed="true"]{border-color:var(--gold-line);background:var(--gold-bg);color:var(--gold)}
+.card .body{flex:1;min-width:0}
+.card h3{margin:6px 0 0;font-size:15px;font-weight:600;overflow-wrap:anywhere}
+.card .meta{font-size:12px;color:var(--dim);margin-top:3px}
+.card .more{font-size:14px;color:var(--muted);margin-top:8px;white-space:pre-wrap;overflow-wrap:anywhere}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px}
+.s-yangi{background:rgba(255,255,255,.12);color:var(--muted)}
+.s-qabul{background:var(--blue-bg);color:var(--blue)}
+.s-jarayonda{background:var(--gold-bg);color:var(--gold)}
+.s-hal{background:var(--green-bg);color:var(--green)}
+.cat{font-size:11px;color:var(--dim);margin-left:6px}
+.admin{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.admin button{font-size:12px;padding:6px 10px;border-radius:10px;border:1px solid var(--line);background:var(--glass-2)}
+.admin button.on{border-color:var(--gold-line);color:var(--gold)}
+.admin button.del{color:var(--red)}
+.empty{padding:28px 18px;text-align:center;color:var(--muted);font-size:14px}
+.empty b{display:block;color:var(--fg);font-size:16px;margin-bottom:4px}
+.hero{padding:18px;display:flex;flex-direction:column;gap:10px;background:var(--glass-2);border-color:var(--line-2);border-radius:26px}
+.hero h2{margin:0;font-size:22px;font-weight:800;line-height:1.2;text-wrap:balance}
+.hero p{margin:0;font-size:14px;color:var(--muted);white-space:pre-wrap}
+.hero .foot{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.btn{height:44px;padding:0 18px;border-radius:14px;border:1px solid var(--gold-line);background:var(--gold-bg);font-weight:700;font-size:14px;color:#fff}
+.btn.done{border-color:rgba(130,220,160,.45);background:var(--green-bg);color:var(--green)}
+.btn:disabled{opacity:.5}
+.label{font-size:14px;font-weight:700;color:var(--muted);padding-top:4px}
+.ev{display:flex;gap:12px;align-items:center;padding:12px}
+.date{width:54px;height:58px;border-radius:16px;background:rgba(255,255,255,.1);display:flex;flex-direction:column;align-items:center;justify-content:center;flex:none}
+.date b{font-size:20px;font-weight:800;line-height:1}
+.date span{font-size:11px;color:var(--muted)}
+.ev .body{flex:1;min-width:0}
+.ev h3{margin:0;font-size:15px;font-weight:700}
+.join{width:44px;height:44px;border-radius:12px;border:1px solid var(--line-2);background:rgba(255,255,255,.08);font-weight:700;font-size:18px;flex:none}
+.join[aria-pressed="true"]{border-color:rgba(130,220,160,.45);background:var(--green-bg);color:var(--green)}
+.prof{display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px;border-radius:26px}
+.ava{width:76px;height:76px;border-radius:50%;background:var(--gold-bg);border:1px solid var(--gold-line);display:grid;place-items:center;font-size:30px;font-weight:800;color:var(--gold)}
+.prof h2{margin:0;font-size:20px;font-weight:800}
+.nums{display:flex;gap:28px;margin-top:6px;text-align:center}
+.nums b{display:block;font-size:18px;font-weight:800;font-variant-numeric:tabular-nums}
+.nums span{font-size:12px;color:var(--muted)}
+.box{padding:16px;display:flex;flex-direction:column;gap:8px}
+.box h3{margin:0;font-size:16px;font-weight:800}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:13px;padding:6px 12px;border-radius:999px;background:var(--glass-2);border:1px solid var(--line)}
+button.chip[aria-pressed="true"]{background:var(--gold-bg);border-color:var(--gold-line);color:var(--gold);font-weight:700}
+.swap{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.swap div{padding:12px;border-radius:16px;min-width:0}
+.swap .t{background:rgba(130,220,160,.12);border:1px solid rgba(130,220,160,.3)}
+.swap .l{background:rgba(140,165,255,.12);border:1px solid rgba(140,165,255,.3)}
+.swap small{font-size:12px}.swap .t small{color:var(--green)}.swap .l small{color:var(--blue)}
+.swap b{display:block;font-size:14px;margin-top:4px;overflow-wrap:anywhere}
+.match{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.08);font-size:14px}
+.match span{color:var(--muted);text-align:right}
+.link{background:none;border:0;color:var(--muted);font-size:13px;text-decoration:underline;padding:8px;align-self:center}
+nav{position:fixed;z-index:20;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));width:min(448px,calc(100% - 32px));height:64px;border-radius:26px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);display:flex;align-items:center;justify-content:space-around;padding:0 8px}
+nav button{border:0;background:none;padding:10px 16px;border-radius:16px;font-weight:600;font-size:13px;color:var(--muted)}
+nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
+/* bottom sheet */
+.scrim{position:fixed;inset:0;z-index:30;background:rgba(5,6,12,.55);display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:100%;max-width:480px;max-height:92vh;overflow:auto;border-radius:32px 32px 0 0;background:rgba(28,31,46,.88);border-top:1px solid var(--line-2);-webkit-backdrop-filter:blur(36px);backdrop-filter:blur(36px);
+  padding:14px max(18px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:14px;animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.sheet{animation:none}.bar>i{transition:none}}
+.grab{align-self:center;width:40px;height:5px;border-radius:3px;background:rgba(255,255,255,.3)}
+.sheet .top{display:flex;justify-content:space-between;align-items:center}
+.sheet h2{margin:0;font-size:22px;font-weight:800}
+.field{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:rgba(245,243,238,.8)}
+.field input,.field textarea{min-height:48px;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);font-size:16px;font-weight:500;color:var(--fg);resize:none;width:100%}
+.field input:focus,.field textarea:focus{border-color:var(--gold-line);outline:none}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.toggle{display:flex;align-items:center;gap:12px;padding:14px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid var(--line);width:100%;text-align:left}
+.toggle .sw{width:48px;height:28px;border-radius:14px;background:rgba(255,255,255,.2);position:relative;flex:none;transition:background .15s}
+.toggle .sw::after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:var(--fg);transition:left .15s}
+.toggle[aria-checked="true"] .sw{background:var(--gold)}
+.toggle[aria-checked="true"] .sw::after{left:23px;background:var(--bg)}
+.primary{height:54px;border-radius:18px;border:0;background:var(--gold);color:#1a1406;font-weight:800;font-size:16px}
+.primary:disabled{opacity:.55}
+.err{color:var(--red);font-size:13px;min-height:1em}
+.toast{position:fixed;z-index:40;left:50%;transform:translateX(-50%);top:calc(16px + env(safe-area-inset-top,0px));padding:10px 16px;border-radius:14px;background:rgba(28,31,46,.95);border:1px solid var(--line-2);font-size:14px;font-weight:600;max-width:calc(100% - 32px)}
+.skeleton{height:80px;border-radius:22px;background:rgba(255,255,255,.05)}
+.offline{padding:12px 14px;border-radius:16px;background:rgba(255,180,168,.12);border:1px solid rgba(255,180,168,.35);color:var(--red);font-size:13px}
+</style>
+</head>
+<body>
+<div class="orbs" aria-hidden="true"><i></i><i></i><i></i></div>
+<main class="app" id="app"></main>
+<nav aria-label="Bo‘limlar">
+  <button data-tab="ovoz" aria-current="page">Ovoz</button>
+  <button data-tab="tadbirlar">Tadbirlar</button>
+  <button data-tab="profil">Profil</button>
+</nav>
+<div id="layer"></div>
+<script>
+(() => {
+'use strict';
+const API = 'https://br-steep-haze-b9tabbet-api.compute.c-7.eu-central-1.aws.neon.tech';
+const CATS = ["O'quv jarayoni", 'Ustozlar bilan', 'Infratuzilma', 'Yotoqxona', 'Boshqa'];
+const STATUS = { yangi: 'Yangi', qabul: 'Qabul qilindi', jarayonda: 'Jarayonda', hal: 'Hal qilindi' };
+const MONTHS = ['yanvar','fevral','mart','aprel','may','iyun','iyul','avgust','sentabr','oktabr','noyabr','dekabr'];
+const TG = window.Telegram && window.Telegram.WebApp;
+if (TG) { try { TG.ready(); TG.expand(); TG.setHeaderColor && TG.setHeaderColor('#0a0c16'); TG.setBackgroundColor && TG.setBackgroundColor('#0a0c16'); } catch (e) {} }
+
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+const TG_INIT = TG && TG.initData ? TG.initData : '';
+const TG_USER = TG && TG.initDataUnsafe && TG.initDataUnsafe.user;
+let uid = TG_USER && TG_INIT ? 'tg' + TG_USER.id : store.get('bk_uid');
+if (!uid) { uid = 'u' + (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Math.random().toString(36).slice(2) + Date.now().toString(36)); store.set('bk_uid', uid); }
+let adminKey = store.get('bk_admin') || '';
+let isAdmin = false;
+
+const S = { tab: 'ovoz', ptab: 'top', problems: null, events: null, stats: null, me: null, myStats: null, matches: [], open: {}, offline: false };
+
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = (sel, el = document) => el.querySelector(sel);
+
+async function api(path, opts = {}) {
+  const headers = { 'content-type': 'application/json' };
+  if (adminKey) headers['x-admin-key'] = adminKey;
+  if (TG_INIT) headers['x-tg-init'] = TG_INIT;
+  const res = await fetch(API + path, { method: opts.method || 'GET', headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  let data = {};
+  try { data = await res.json(); } catch (e) {}
+  if (!res.ok) { const err = new Error(data.error || 'Xatolik yuz berdi'); err.status = res.status; throw err; }
+  return data;
+}
+
+function ago(iso) {
+  const d = new Date(iso), s = (Date.now() - d) / 1000;
+  if (s < 60) return 'hozir';
+  if (s < 3600) return Math.floor(s / 60) + ' daqiqa oldin';
+  if (s < 86400) return Math.floor(s / 3600) + ' soat oldin';
+  if (s < 7 * 86400) return Math.floor(s / 86400) + ' kun oldin';
+  return d.getDate() + '-' + MONTHS[d.getMonth()];
+}
+const hhmm = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+function until(iso) {
+  const days = Math.round((new Date(iso).setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 864e5);
+  if (days <= 0) return 'Bugun';
+  if (days === 1) return 'Ertaga';
+  return days + ' kundan keyin';
+}
+
+let toastTimer;
+function toast(msg) {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
+}
+
+const LOGO = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f5d68f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 21h10"/><path d="M8 21l1-5h6l1 5"/><path d="M9 16c-1-2-2-3-2-6 0-3 2.5-6 6-6l-1 3c2 0 4 2 4 5 0 2-1 3-2 4"/><circle cx="12.5" cy="8.5" r=".6" fill="#f5d68f"/></svg>';
+const head = (title, extra = '') => `<header class="head"><div class="logo">${LOGO}</div><div class="grow"><div class="k">BlackKnight Club</div><h1>${title}</h1></div>${extra}</header>`;
+
+// ---------- data
+async function loadStats() { try { S.stats = await api('/api/stats'); S.offline = false; } catch (e) { S.offline = true; } }
+async function loadProblems() {
+  try { S.problems = (await api(`/api/problems?tab=${S.ptab}&uid=${uid}`)).problems; S.offline = false; }
+  catch (e) { S.offline = true; if (!S.problems) S.problems = []; }
+}
+async function loadEvents() {
+  try { S.events = (await api(`/api/events?uid=${uid}`)).events; S.offline = false; }
+  catch (e) { S.offline = true; if (!S.events) S.events = []; }
+}
+async function loadMe() {
+  try { const r = await api(`/api/me?uid=${uid}`); S.me = r.user; S.myStats = r.stats || null; } catch (e) {}
+}
+async function loadMatches() { try { S.matches = (await api(`/api/matches?uid=${uid}`)).matches; } catch (e) { S.matches = []; } }
+async function checkAdmin() {
+  if (!adminKey) { isAdmin = false; return; }
+  try { isAdmin = (await api('/api/admin/check')).admin; } catch (e) { isAdmin = false; }
+  if (!isAdmin) { adminKey = ''; store.del('bk_admin'); }
+}
+
+// ---------- views
+function offlineNote() { return S.offline ? '<div class="offline" role="alert">Server bilan aloqa yo‘q. Internetni tekshirib, sahifani yangilang.</div>' : ''; }
+
+function viewOvoz() {
+  const st = S.stats || { total: 0, progress: 0, done: 0, done_month: 0 };
+  const pct = st.total ? Math.round(st.done / st.total * 100) : 0;
+  const tabs = [['top', 'Dolzarb'], ['new', 'Yangi'], ['done', 'Hal qilingan']];
+  let list;
+  if (S.problems === null) list = '<div class="skeleton"></div><div class="skeleton"></div>';
+  else if (!S.problems.length) list = `<div class="glass empty"><b>${S.ptab === 'done' ? 'Hali hal qilingan muammo yo‘q' : 'Hali murojaat yo‘q'}</b>Birinchi bo‘lib yozing: “+ Muammo yozish” tugmasini bosing.</div>`;
+  else list = S.problems.map(problemCard).join('');
+  return head('Talabalar ovozi') + offlineNote() + `
+  <section class="glass stat" aria-label="Statistika">
+    <div class="row"><div><div class="small">Shu oy hal qilindi</div><div class="big">${st.done_month}</div></div>
+    <div class="small" style="text-align:right">${st.total} murojaat<br>${st.progress} tasi jarayonda</div></div>
+    <div class="bar" role="img" aria-label="${pct}% hal qilingan"><i style="width:${pct}%"></i></div>
+  </section>
+  <button class="cta" data-act="new">+ Muammo yozish</button>
+  <div class="seg" role="group" aria-label="Saralash">${tabs.map(([k, l]) => `<button data-ptab="${k}" aria-pressed="${S.ptab === k}">${l}</button>`).join('')}</div>
+  <div class="list">${list}</div>`;
+}
+
+function problemCard(p) {
+  const open = S.open[p.id];
+  const who = p.anon ? 'Anonim' : esc(p.author || 'Talaba');
+  const adminRow = isAdmin ? `<div class="admin">${Object.keys(STATUS).map((k) => `<button data-status="${k}" data-id="${p.id}" class="${p.status === k ? 'on' : ''}">${STATUS[k]}</button>`).join('')}<button class="del" data-delp="${p.id}">O‘chirish</button></div>` : '';
+  return `<article class="glass card">
+    <button class="vote" data-vote="${p.id}" aria-pressed="${p.voted}" aria-label="Ovoz berish, ${p.votes} ovoz">▲<br>${p.votes}</button>
+    <div class="body">
+      <span class="pill s-${p.status}">${STATUS[p.status]}</span><span class="cat">${esc(p.category)}</span>
+      <h3>${esc(p.title)}</h3>
+      <div class="meta">${who} · ${ago(p.created_at)}${p.body ? ` · <button class="link" style="padding:0;font-size:12px" data-open="${p.id}" aria-expanded="${!!open}">${open ? 'Yopish' : 'Batafsil'}</button>` : ''}</div>
+      ${open && p.body ? `<div class="more">${esc(p.body)}</div>` : ''}
+      ${adminRow}
+    </div>
+  </article>`;
+}
+
+function viewTadbirlar() {
+  const evs = S.events;
+  const addBtn = isAdmin ? '<button class="iconbtn" data-act="newevent" aria-label="Tadbir qo‘shish"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>' : '';
+  let body;
+  if (evs === null) body = '<div class="skeleton" style="height:200px"></div>';
+  else if (!evs.length) body = `<div class="glass empty"><b>Yaqin kunlarda tadbir yo‘q</b>Yangi tadbirlar e’lon qilinganda shu yerda chiqadi.</div>`;
+  else {
+    const [first, ...rest] = evs;
+    const d = new Date(first.starts_at);
+    const cap = first.capacity;
+    const full = cap && first.going >= cap && !first.joined;
+    body = `<section class="glass hero">
+      <span class="pill s-jarayonda" style="align-self:flex-start">${until(first.starts_at)}</span>
+      <h2>${esc(first.title)}</h2>
+      ${first.description ? `<p>${esc(first.description)}</p>` : ''}
+      <div class="small">${d.getDate()}-${MONTHS[d.getMonth()]}, ${hhmm(d)}${first.place ? ' · ' + esc(first.place) : ''}</div>
+      ${cap ? `<div class="bar"><i style="width:${Math.min(100, Math.round(first.going / cap * 100))}%"></i></div>` : ''}
+      <div class="foot"><span class="small">${cap ? `${first.going} / ${cap} joy band` : `${first.going} kishi qatnashadi`}</span>
+      <button class="btn ${first.joined ? 'done' : ''}" data-rsvp="${first.id}" ${full ? 'disabled' : ''}>${first.joined ? '✓ Yozildingiz' : full ? 'Joy qolmadi' : 'Qatnashaman'}</button></div>
+      ${isAdmin ? `<div class="admin"><button class="del" data-dele="${first.id}">O‘chirish</button></div>` : ''}
+    </section>
+    ${rest.length ? '<div class="label">Keyingi tadbirlar</div>' : ''}
+    <div class="list">${rest.map((e) => {
+      const dd = new Date(e.starts_at);
+      return `<article class="glass ev"><div class="date"><b>${dd.getDate()}</b><span>${MONTHS[dd.getMonth()]}</span></div>
+        <div class="body"><h3>${esc(e.title)}</h3><div class="meta small" style="font-size:12px">${hhmm(dd)}${e.place ? ' · ' + esc(e.place) : ''} · ${e.capacity ? e.going + '/' + e.capacity : e.going + ' kishi'}</div>
+        ${isAdmin ? `<div class="admin"><button class="del" data-dele="${e.id}">O‘chirish</button></div>` : ''}</div>
+        <button class="join" data-rsvp="${e.id}" aria-pressed="${e.joined}" aria-label="${e.joined ? 'Yozilishni bekor qilish' : 'Qatnashish'}">${e.joined ? '✓' : '+'}</button></article>`;
+    }).join('')}</div>`;
+  }
+  return head('Tadbirlar', addBtn) + offlineNote() + body;
+}
+
+function viewProfil() {
+  const me = S.me;
+  if (!me) return head('Profil') + `<div class="glass empty"><b>Profil hali yaratilmagan</b>Ovoz berish va murojaat yozish uchun ismingizni kiriting.</div><button class="cta" data-act="profile">Profil yaratish</button>`;
+  const ms = S.myStats || { problems: 0, votes: 0, events: 0 };
+  const interests = (me.interests || []).map((t) => `<span class="chip">${esc(t)}</span>`).join('');
+  const matches = S.matches.length
+    ? S.matches.map((m) => `<div class="match"><b>${esc(m.name)}</b><span>${m.teach ? 'o‘rgatadi: ' + esc(m.teach) : ''}${m.teach && m.learn ? '<br>' : ''}${m.learn ? 'o‘rganadi: ' + esc(m.learn) : ''}</span></div>`).join('')
+    : `<div class="small">${me.teach || me.learn ? 'Hozircha mos talaba topilmadi. Klub o‘sgani sari bu yerda paydo bo‘ladi.' : 'Nimani o‘rgata olishingiz va nimani o‘rganmoqchiligingizni yozing.'}</div>`;
+  return head('Profil', '<button class="iconbtn" data-act="profile" aria-label="Profilni tahrirlash"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>') + `
+  <section class="glass prof">
+    <div class="ava" aria-hidden="true">${esc((me.name || '?').trim().charAt(0).toUpperCase())}</div>
+    <h2>${esc(me.name)}</h2>
+    ${isAdmin ? '<span class="pill s-jarayonda">BlackKnight · Admin</span>' : ''}
+    <div class="nums"><div><b>${ms.problems}</b><span>murojaat</span></div><div><b>${ms.votes}</b><span>ovoz</span></div><div><b>${ms.events}</b><span>tadbir</span></div></div>
+  </section>
+  <section class="glass box">
+    <div class="small">Yo‘nalish</div>
+    <div style="font-weight:600">${esc([me.major, me.year && me.year + '-kurs'].filter(Boolean).join(' · ') || '—')}</div>
+    <div class="small" style="margin-top:6px">Qiziqishlar</div>
+    <div class="chips">${interests || '<span class="small">Qo‘shilmagan</span>'}</div>
+  </section>
+  <section class="glass box">
+    <h3>Skill Swap</h3>
+    <div class="swap"><div class="t"><small>O‘rgataman</small><b>${esc(me.teach || '—')}</b></div><div class="l"><small>O‘rganaman</small><b>${esc(me.learn || '—')}</b></div></div>
+    ${matches}
+  </section>
+  <button class="link" data-act="admin">${isAdmin ? 'Admin rejimidan chiqish' : 'Admin kirish'}</button>`;
+}
+
+function render() {
+  const app = $('#app');
+  const y = window.scrollY;
+  app.innerHTML = S.tab === 'ovoz' ? viewOvoz() : S.tab === 'tadbirlar' ? viewTadbirlar() : viewProfil();
+  window.scrollTo(0, y);
+  document.querySelectorAll('nav button').forEach((b) => b.toggleAttribute('aria-current', false) || (b.dataset.tab === S.tab && b.setAttribute('aria-current', 'page')));
+}
+
+// ---------- sheets
+function openSheet(html, onMount) {
+  const layer = $('#layer');
+  layer.innerHTML = `<div class="scrim"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+  const scrim = $('.scrim', layer);
+  scrim.addEventListener('click', (e) => { if (e.target === scrim || e.target.closest('[data-close]')) closeSheet(); });
+  document.body.style.overflow = 'hidden';
+  onMount && onMount($('.sheet', layer));
+  const f = $('input,textarea', layer); f && setTimeout(() => f.focus(), 60);
+}
+function closeSheet() { $('#layer').innerHTML = ''; document.body.style.overflow = ''; }
+const sheetTop = (t, closable = true) => `<div class="grab" aria-hidden="true"></div><div class="top"><h2>${t}</h2>${closable ? '<button class="iconbtn" data-close aria-label="Yopish" style="width:38px;height:38px">✕</button>' : ''}</div>`;
+
+function profileSheet(required) {
+  const me = S.me || {};
+  const tgName = TG && TG.initDataUnsafe && TG.initDataUnsafe.user ? [TG.initDataUnsafe.user.first_name, TG.initDataUnsafe.user.last_name].filter(Boolean).join(' ') : '';
+  const sel = new Set(me.interests || []);
+  const IDEAS = ['Startaplar', 'Marketing', 'Dasturlash', 'Dizayn', 'Ingliz tili', 'Sport', 'Kitob', 'Moliya', 'Fotografiya', 'Musiqa'];
+  const all = Array.from(new Set([...IDEAS, ...sel]));
+  openSheet(sheetTop(required ? 'Xush kelibsiz!' : 'Profil', !required) + `
+    ${required ? '<div class="small">BlackKnight Club platformasi. Ovoz berish va murojaat yozish uchun ismingizni kiriting.</div>' : ''}
+    <form id="pf" style="display:flex;flex-direction:column;gap:14px" novalidate>
+      <label class="field">Ism<input id="pf-name" maxlength="60" autocomplete="name" value="${esc(me.name || tgName)}" required></label>
+      <div class="two"><label class="field">Yo‘nalish<input id="pf-major" maxlength="80" placeholder="Biznes boshqaruvi" value="${esc(me.major || '')}"></label>
+      <label class="field">Kurs<input id="pf-year" maxlength="20" inputmode="numeric" placeholder="1" value="${esc(me.year || '')}"></label></div>
+      <div class="field">Qiziqishlar<div class="chips" id="pf-int">${all.map((t) => `<button type="button" class="chip" aria-pressed="${sel.has(t)}">${esc(t)}</button>`).join('')}</div></div>
+      <div class="two"><label class="field">O‘rgataman<input id="pf-teach" maxlength="80" placeholder="No-code dasturlar" value="${esc(me.teach || '')}"></label>
+      <label class="field">O‘rganaman<input id="pf-learn" maxlength="80" placeholder="Ingliz tili" value="${esc(me.learn || '')}"></label></div>
+      <div class="err" id="pf-err" role="alert"></div>
+      <button class="primary" type="submit">Saqlash</button>
+    </form>`, (el) => {
+    $('#pf-int', el).addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); });
+    $('#pf', el).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = $('#pf-name', el).value.trim();
+      if (!name) { $('#pf-err', el).textContent = 'Ismingizni yozing.'; return; }
+      const btn = $('button[type=submit]', el); btn.disabled = true;
+      try {
+        const r = await api('/api/me', { method: 'PUT', body: { uid, name, major: $('#pf-major', el).value, year: $('#pf-year', el).value,
+          interests: [...el.querySelectorAll('#pf-int [aria-pressed="true"]')].map((b) => b.textContent), teach: $('#pf-teach', el).value, learn: $('#pf-learn', el).value } });
+        S.me = r.user; closeSheet(); toast('Profil saqlandi'); await Promise.all([loadMe(), loadMatches()]); render();
+        if (pendingAction) { const a = pendingAction; pendingAction = null; a(); }
+      } catch (err) { $('#pf-err', el).textContent = err.message; btn.disabled = false; }
+    });
+  });
+}
+
+let pendingAction = null;
+function needProfile(action) { if (S.me) return true; pendingAction = action; profileSheet(true); return false; }
+
+function newProblemSheet() {
+  if (!needProfile(newProblemSheet)) return;
+  let cat = 'Infratuzilma', anon = true;
+  openSheet(sheetTop('Muammo yozish') + `
+    <form id="np" style="display:flex;flex-direction:column;gap:14px" novalidate>
+      <label class="field">Sarlavha<input id="np-title" maxlength="140" placeholder="Masalan: Wi-Fi 3-qavatda ishlamaydi" required></label>
+      <label class="field">Batafsil<textarea id="np-body" rows="4" maxlength="2000" placeholder="Qayerda, qachondan beri, kimga ta’sir qilyapti?"></textarea></label>
+      <div class="field">Yo‘nalish<div class="chips" id="np-cat">${CATS.map((c) => `<button type="button" class="chip" aria-pressed="${c === cat}">${esc(c)}</button>`).join('')}</div></div>
+      <button type="button" class="toggle" id="np-anon" role="switch" aria-checked="true"><span style="flex:1"><b style="display:block">Anonim yuborish</b><span class="small">Ismingiz talabalarga ko‘rinmaydi</span></span><span class="sw" aria-hidden="true"></span></button>
+      <div class="err" id="np-err" role="alert"></div>
+      <button class="primary" type="submit">Yuborish</button>
+    </form>`, (el) => {
+    $('#np-cat', el).addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return; cat = b.textContent; el.querySelectorAll('#np-cat .chip').forEach((x) => x.setAttribute('aria-pressed', x === b)); });
+    $('#np-anon', el).addEventListener('click', (e) => { anon = !anon; e.currentTarget.setAttribute('aria-checked', anon); });
+    $('#np', el).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = $('#np-title', el).value.trim();
+      if (title.length < 5) { $('#np-err', el).textContent = 'Sarlavhani biroz batafsilroq yozing (kamida 5 belgi).'; return; }
+      const btn = $('button[type=submit]', el); btn.disabled = true;
+      try {
+        await api('/api/problems', { method: 'POST', body: { uid, title, body: $('#np-body', el).value, category: cat, anon } });
+        closeSheet(); toast('Murojaat yuborildi'); S.ptab = 'new'; S.tab = 'ovoz';
+        await Promise.all([loadProblems(), loadStats(), loadMe()]); render();
+      } catch (err) { $('#np-err', el).textContent = err.message; btn.disabled = false; }
+    });
+  });
+}
+
+function newEventSheet() {
+  const d = new Date(Date.now() + 864e5); d.setHours(15, 0, 0, 0);
+  const local = new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+  openSheet(sheetTop('Yangi tadbir') + `
+    <form id="ne" style="display:flex;flex-direction:column;gap:14px" novalidate>
+      <label class="field">Nomi<input id="ne-title" maxlength="120" required></label>
+      <label class="field">Tavsif<textarea id="ne-desc" rows="3" maxlength="1000"></textarea></label>
+      <div class="two"><label class="field">Sana va vaqt<input id="ne-date" type="datetime-local" value="${local}"></label>
+      <label class="field">Joylar soni<input id="ne-cap" type="number" min="0" inputmode="numeric" placeholder="0 = cheksiz"></label></div>
+      <label class="field">Joy<input id="ne-place" maxlength="80" placeholder="Aktlar zali"></label>
+      <div class="err" id="ne-err" role="alert"></div>
+      <button class="primary" type="submit">E’lon qilish</button>
+    </form>`, (el) => {
+    $('#ne', el).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = $('#ne-title', el).value.trim(), date = $('#ne-date', el).value;
+      if (!title || !date) { $('#ne-err', el).textContent = 'Nom va sanani kiriting.'; return; }
+      const btn = $('button[type=submit]', el); btn.disabled = true;
+      try {
+        await api('/api/events', { method: 'POST', body: { title, description: $('#ne-desc', el).value, starts_at: new Date(date).toISOString(), place: $('#ne-place', el).value, capacity: $('#ne-cap', el).value } });
+        closeSheet(); toast('Tadbir e’lon qilindi'); await loadEvents(); render();
+      } catch (err) { $('#ne-err', el).textContent = err.message; btn.disabled = false; }
+    });
+  });
+}
+
+function adminSheet() {
+  if (isAdmin) { adminKey = ''; isAdmin = false; store.del('bk_admin'); toast('Admin rejimidan chiqdingiz'); render(); return; }
+  openSheet(sheetTop('Admin kirish') + `
+    <form id="ad" style="display:flex;flex-direction:column;gap:14px" novalidate>
+      <div class="small">Murojaat holatini o‘zgartirish va tadbir qo‘shish uchun BlackKnight admin kalitini kiriting.</div>
+      <label class="field">Admin kaliti<input id="ad-key" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <div class="err" id="ad-err" role="alert"></div>
+      <button class="primary" type="submit">Kirish</button>
+    </form>`, (el) => {
+    $('#ad', el).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      adminKey = $('#ad-key', el).value.trim();
+      await checkAdmin();
+      if (!isAdmin) { $('#ad-err', el).textContent = 'Kalit noto‘g‘ri.'; return; }
+      store.set('bk_admin', adminKey); closeSheet(); toast('Admin rejimi yoqildi'); render();
+    });
+  });
+}
+
+// ---------- actions
+document.addEventListener('click', async (e) => {
+  const t = e.target.closest('button'); if (!t || t.closest('.sheet')) return;
+  const d = t.dataset;
+  if (d.tab) { S.tab = d.tab; render(); window.scrollTo(0, 0); refresh(); return; }
+  if (d.ptab) { S.ptab = d.ptab; S.problems = null; render(); await loadProblems(); render(); return; }
+  if (d.act === 'new') return newProblemSheet();
+  if (d.act === 'profile') return profileSheet(false);
+  if (d.act === 'newevent') return newEventSheet();
+  if (d.act === 'admin') return adminSheet();
+  if (d.open) { S.open[d.open] = !S.open[d.open]; render(); return; }
+  if (d.vote) {
+    if (!needProfile(null)) return;
+    const p = S.problems.find((x) => x.id == d.vote); if (!p) return;
+    p.voted = !p.voted; p.votes += p.voted ? 1 : -1; render();
+    try { const r = await api(`/api/problems/${p.id}/vote`, { method: 'POST', body: { uid } }); p.voted = r.voted; p.votes = r.votes; }
+    catch (err) { p.voted = !p.voted; p.votes += p.voted ? 1 : -1; toast(err.message); }
+    render(); return;
+  }
+  if (d.rsvp) {
+    if (!needProfile(null)) return;
+    t.disabled = true;
+    try { const r = await api(`/api/events/${d.rsvp}/rsvp`, { method: 'POST', body: { uid } }); toast(r.joined ? 'Siz ro‘yxatga yozildingiz' : 'Yozilish bekor qilindi'); }
+    catch (err) { toast(err.message); }
+    await Promise.all([loadEvents(), loadMe()]); render(); return;
+  }
+  if (d.status) {
+    try { await api(`/api/problems/${d.id}`, { method: 'PATCH', body: { status: d.status } }); toast('Holat: ' + STATUS[d.status]); }
+    catch (err) { toast(err.message); }
+    await Promise.all([loadProblems(), loadStats()]); render(); return;
+  }
+  if (d.delp || d.dele) {
+    if (t.dataset.confirm !== '1') { t.dataset.confirm = '1'; t.textContent = 'Rostdan o‘chirilsinmi?'; setTimeout(() => { if (t.isConnected) { t.dataset.confirm = ''; t.textContent = 'O‘chirish'; } }, 3000); return; }
+    try { await api(d.delp ? `/api/problems/${d.delp}` : `/api/events/${d.dele}`, { method: 'DELETE' }); toast('O‘chirildi'); }
+    catch (err) { toast(err.message); }
+    await Promise.all([loadProblems(), loadEvents(), loadStats()]); render(); return;
+  }
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('.scrim')) { const req = !$('[data-close]'); if (!req) closeSheet(); } });
+
+async function refresh() {
+  if (S.tab === 'ovoz') await Promise.all([loadProblems(), loadStats()]);
+  else if (S.tab === 'tadbirlar') await loadEvents();
+  else await Promise.all([loadMe(), loadMatches()]);
+  if (!$('.scrim')) render();
+}
+
+(async () => {
+  render();
+  await Promise.all([checkAdmin(), loadMe(), loadStats(), loadProblems()]);
+  render();
+  loadEvents(); loadMatches();
+  if (!S.me && !S.offline) profileSheet(true);
+  setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 20000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
+})();
+})();
+</script>
+</body>
+</html>
