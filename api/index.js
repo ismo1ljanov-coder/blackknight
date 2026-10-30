@@ -102,11 +102,13 @@ async function tgWebhook(req) {
 
 async function tgSetup() {
   const out = {};
+  out.before = await tg('getWebhookInfo', {});
   out.webhook = await tg('setWebhook', { url: SELF_URL + '/tg/webhook', secret_token: WEBHOOK_SECRET, allowed_updates: ['message'], drop_pending_updates: true });
   if (WEBAPP_URL) out.menu = await tg('setChatMenuButton', { menu_button: { type: 'web_app', text: 'Ochish', web_app: { url: WEBAPP_URL } } });
   out.commands = await tg('setMyCommands', { commands: [{ command: 'start', description: 'BlackKnight Club ilovasini ochish' }] });
   out.desc = await tg('setMyShortDescription', { short_description: 'Millat Umidi talabalari ovozi: muammolar, tadbirlar, Skill Swap.' });
   out.me = await tg('getMe', {});
+  try { const r = await fetch(SELF_URL + '/api/health'); out.selfcall = r.status + ' ' + (await r.text()).slice(0, 100); } catch (e) { out.selfcall = 'ERR ' + e.message; }
   await q('INSERT INTO selftest (result) VALUES ($1) RETURNING 1 x', [JSON.stringify({ tgsetup: out })]).catch(() => {});
   return json(out);
 }
@@ -123,18 +125,48 @@ async function route(req) {
   if (tu && tu.id) {
     uid = 'tg' + tu.id;
     body.uid = uid;
-    if (!(await userExists(uid))) {
-      const name = [tu.first_name, tu.last_name].filter(Boolean).join(' ').slice(0, 60) || tu.username || 'Talaba';
-      await q('INSERT INTO users (id,name) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [uid, name]);
-    }
+    const name = [tu.first_name, tu.last_name].filter(Boolean).join(' ').slice(0, 60) || tu.username || 'Talaba';
+    const uname = tu.username ? String(tu.username).toLowerCase().slice(0, 40) : null;
+    // Creates the user on first visit; afterwards keeps only the Telegram username current.
+    await q(`INSERT INTO users (id,name,username) VALUES ($1,$2,$3)
+      ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username WHERE users.username IS DISTINCT FROM EXCLUDED.username
+      RETURNING 1 x`, [uid, name, uname]);
   }
+
+  // Admin = the server key (scripts) or a Telegram account listed in admins.
+  let mm;
+  let admin = isAdmin(req);
+  if (!admin && tu && tu.id) admin = (await q('SELECT 1 x FROM admins WHERE user_id=$1', [uid])).rowCount > 0;
 
   if (p === '/' || p === '/api/health') {
     const r = await q('SELECT 1 AS one');
     return json({ ok: r.rows[0].one === 1, name: 'BlackKnight API' });
   }
 
-  if (p === '/api/admin/check' && m === 'GET') return json({ admin: !!isAdmin(req) });
+  if (p === '/api/admin/check' && m === 'GET') return json({ admin: !!admin });
+
+  // ---- admin management (Telegram accounts)
+  if (p === '/api/admins' && m === 'GET') {
+    if (!admin) return bad('Ruxsat yo‘q', 403);
+    const r = await q(`SELECT u.id, u.name, u.username, a.added_at FROM admins a JOIN users u ON u.id=a.user_id ORDER BY a.added_at`);
+    return json({ admins: r.rows });
+  }
+  if (p === '/api/admins' && m === 'POST') {
+    if (!admin) return bad('Ruxsat yo‘q', 403);
+    const uname = str(body.username, 40).replace(/^@/, '').toLowerCase();
+    if (!uname) return bad('Telegram username kiriting');
+    const u = await q('SELECT id, name FROM users WHERE username=$1', [uname]);
+    if (!u.rowCount) return bad(`@${uname} hali ilovani ochmagan. Avval u botga kirib, ilovani bir marta ochsin.`, 404);
+    await q('INSERT INTO admins (user_id, added_by) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [u.rows[0].id, uid || 'key']);
+    return json({ ok: true, name: u.rows[0].name }, 201);
+  }
+  if ((mm = p.match(/^\/api\/admins\/([a-zA-Z0-9_-]+)$/)) && m === 'DELETE') {
+    if (!admin) return bad('Ruxsat yo‘q', 403);
+    const c = await q('SELECT count(*)::int n FROM admins');
+    if (c.rows[0].n <= 1) return bad('Oxirgi adminni o‘chirib bo‘lmaydi');
+    await q('DELETE FROM admins WHERE user_id=$1 RETURNING 1 x', [mm[1]]);
+    return json({ ok: true });
+  }
 
   if (p === '/api/stats' && m === 'GET') {
     const r = await q(`SELECT count(*)::int total,
@@ -205,7 +237,6 @@ async function route(req) {
     await q('INSERT INTO votes VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [r.rows[0].id, body.uid]);
     return json({ id: r.rows[0].id }, 201);
   }
-  let mm;
   if ((mm = p.match(/^\/api\/problems\/(\d+)\/vote$/)) && m === 'POST') {
     if (!validUid(body.uid) || !(await userExists(body.uid))) return bad('Avval profilni to‘ldiring', 401);
     const id = +mm[1];
@@ -215,13 +246,13 @@ async function route(req) {
     return json({ voted: !del.rowCount, votes: c.rows[0].n });
   }
   if ((mm = p.match(/^\/api\/problems\/(\d+)$/)) && m === 'PATCH') {
-    if (!isAdmin(req)) return bad('Ruxsat yo‘q', 403);
+    if (!admin) return bad('Ruxsat yo‘q', 403);
     if (!STATUSES.includes(body.status)) return bad('Noto‘g‘ri holat');
     await q("UPDATE problems SET status=$1, resolved_at = CASE WHEN $1='hal' THEN now() ELSE NULL END WHERE id=$2 RETURNING 1 x", [body.status, +mm[1]]);
     return json({ ok: true });
   }
   if ((mm = p.match(/^\/api\/problems\/(\d+)$/)) && m === 'DELETE') {
-    if (!isAdmin(req)) return bad('Ruxsat yo‘q', 403);
+    if (!admin) return bad('Ruxsat yo‘q', 403);
     await q('DELETE FROM problems WHERE id=$1 RETURNING 1 x', [+mm[1]]);
     return json({ ok: true });
   }
@@ -234,7 +265,7 @@ async function route(req) {
     return json({ events: r.rows });
   }
   if (p === '/api/events' && m === 'POST') {
-    if (!isAdmin(req)) return bad('Ruxsat yo‘q', 403);
+    if (!admin) return bad('Ruxsat yo‘q', 403);
     const title = str(body.title, 120);
     const starts = new Date(body.starts_at);
     if (!title || isNaN(starts)) return bad('Nom va sana kerak');
@@ -243,7 +274,7 @@ async function route(req) {
     return json({ id: r.rows[0].id }, 201);
   }
   if ((mm = p.match(/^\/api\/events\/(\d+)$/)) && m === 'DELETE') {
-    if (!isAdmin(req)) return bad('Ruxsat yo‘q', 403);
+    if (!admin) return bad('Ruxsat yo‘q', 403);
     await q('DELETE FROM events WHERE id=$1 RETURNING 1 x', [+mm[1]]);
     return json({ ok: true });
   }

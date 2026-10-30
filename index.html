@@ -76,6 +76,7 @@ button{cursor:pointer}
 .admin button{font-size:12px;padding:6px 10px;border-radius:10px;border:1px solid var(--line);background:var(--glass-2)}
 .admin button.on{border-color:var(--gold-line);color:var(--gold)}
 .admin button.del{color:var(--red)}
+.admin-rm{margin-left:6px;font-size:12px;padding:4px 8px;border-radius:8px;border:1px solid var(--line);background:var(--glass-2);color:var(--red)}
 .empty{padding:28px 18px;text-align:center;color:var(--muted);font-size:14px}
 .empty b{display:block;color:var(--fg);font-size:16px;margin-bottom:4px}
 .hero{padding:18px;display:flex;flex-direction:column;gap:10px;background:var(--glass-2);border-color:var(--line-2);border-radius:26px}
@@ -232,10 +233,13 @@ async function loadMe() {
 }
 async function loadMatches() { try { S.matches = (await api(`/api/matches?uid=${uid}`)).matches; } catch (e) { S.matches = []; } }
 async function checkAdmin() {
-  if (!adminKey) { isAdmin = false; return; }
+  if (!TG_INIT && !adminKey) { isAdmin = false; return; }
   try { isAdmin = (await api('/api/admin/check')).admin; } catch (e) { isAdmin = false; }
-  if (!isAdmin) { adminKey = ''; store.del('bk_admin'); }
+  if (!isAdmin && adminKey) { adminKey = ''; store.del('bk_admin'); }
+  if (isAdmin) loadAdmins();
 }
+S.admins = [];
+async function loadAdmins() { try { S.admins = (await api('/api/admins')).admins; if (S.tab === 'profil' && !document.querySelector('.scrim')) render(); } catch (e) {} }
 
 // ---------- views
 function offlineNote() { return S.offline ? '<div class="offline" role="alert">Server bilan aloqa yo‘q. Internetni tekshirib, sahifani yangilang.</div>' : ''; }
@@ -334,7 +338,16 @@ function viewProfil() {
     <div class="swap"><div class="t"><small>O‘rgataman</small><b>${esc(me.teach || '—')}</b></div><div class="l"><small>O‘rganaman</small><b>${esc(me.learn || '—')}</b></div></div>
     ${matches}
   </section>
-  <button class="link" data-act="admin">${isAdmin ? 'Admin rejimidan chiqish' : 'Admin kirish'}</button>`;
+  ${isAdmin ? `<section class="glass box">
+    <h3>Adminlar</h3>
+    ${S.admins.map((a) => `<div class="match"><b>${esc(a.name)}</b><span>${a.username ? '@' + esc(a.username) : ''}${a.id !== uid ? ` <button class="admin-rm" data-rmadmin="${esc(a.id)}" aria-label="${esc(a.name)} adminligini olib tashlash">Olib tashlash</button>` : ' · siz'}</span></div>`).join('')}
+    <form id="addadmin" style="display:flex;gap:8px;margin-top:6px" novalidate>
+      <label class="field" style="flex:1"><span class="small">Yangi admin (Telegram username)</span><input id="aa-user" placeholder="@username" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <button class="btn" type="submit" style="align-self:flex-end;height:48px">Qo‘shish</button>
+    </form>
+    <div class="small">Yangi admin avval botga kirib, ilovani bir marta ochgan bo‘lishi kerak.</div>
+  </section>` : ''}
+  ${!TG_INIT && location.hash === '#admin' ? `<button class="link" data-act="admin">${isAdmin ? 'Admin rejimidan chiqish' : 'Admin kirish (kalit bilan)'}</button>` : ''}`;
 }
 
 function render() {
@@ -478,6 +491,11 @@ document.addEventListener('click', async (e) => {
   if (d.act === 'profile') return profileSheet(false);
   if (d.act === 'newevent') return newEventSheet();
   if (d.act === 'admin') return adminSheet();
+  if (d.rmadmin) {
+    if (t.dataset.confirm !== '1') { t.dataset.confirm = '1'; t.textContent = 'Tasdiqlang'; setTimeout(() => { if (t.isConnected) { t.dataset.confirm = ''; t.textContent = 'Olib tashlash'; } }, 3000); return; }
+    try { await api('/api/admins/' + encodeURIComponent(d.rmadmin), { method: 'DELETE' }); toast('Admin olib tashlandi'); } catch (err) { toast(err.message); }
+    await loadAdmins(); render(); return;
+  }
   if (d.open) { S.open[d.open] = !S.open[d.open]; render(); return; }
   if (d.vote) {
     if (!needProfile(null)) return;
@@ -506,13 +524,23 @@ document.addEventListener('click', async (e) => {
     await Promise.all([loadProblems(), loadEvents(), loadStats()]); render(); return;
   }
 });
+document.addEventListener('submit', async (e) => {
+  if (e.target.id !== 'addadmin') return;
+  e.preventDefault();
+  const inp = document.getElementById('aa-user'); const username = inp.value.trim();
+  if (!username) { toast('Telegram username kiriting'); return; }
+  try { const r = await api('/api/admins', { method: 'POST', body: { username } }); toast(r.name + ' admin qilindi'); inp.value = ''; }
+  catch (err) { toast(err.message); }
+  await loadAdmins(); render();
+});
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('.scrim')) { const req = !$('[data-close]'); if (!req) closeSheet(); } });
 
 async function refresh() {
   if (S.tab === 'ovoz') await Promise.all([loadProblems(), loadStats()]);
   else if (S.tab === 'tadbirlar') await loadEvents();
   else await Promise.all([loadMe(), loadMatches()]);
-  if (!$('.scrim')) render();
+  const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('form');
+  if (!$('.scrim') && !typing) render();
 }
 
 (async () => {
