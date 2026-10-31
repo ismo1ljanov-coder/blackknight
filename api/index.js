@@ -208,10 +208,84 @@ async function sendGuide(chatId) {
   await tg('sendMessage', { chat_id: chatId, text: START_TEXT, reply_markup: openKb() });
 }
 
+// Group link for an event, sent privately once someone signs up.
+async function sendEventLink(eventId, uid) {
+  if (!uid || !uid.startsWith('tg')) return;
+  const e = (await q('SELECT title, link FROM events WHERE id=$1', [eventId])).rows[0];
+  if (!e || !e.link) return;
+  await tg('sendMessage', { chat_id: uid.slice(2), parse_mode: 'HTML',
+    text: `✅ Siz <b>${esc(e.title)}</b> ro‘yxatidasiz!\n\nVaqt va boshqa tafsilotlar tadbir guruhida. Hoziroq qo‘shiling 👇`,
+    reply_markup: { inline_keyboard: [[{ text: '👥 Guruhga qo‘shilish', url: e.link }]] } }).catch(() => {});
+}
+
+// "✅ Qatnashaman" pressed under an event announcement in the bot.
+async function eventCallback(cb, eventId) {
+  const me = 'tg' + cb.from.id;
+  const ev = (await q('SELECT id FROM events WHERE id=$1', [eventId])).rows[0];
+  if (!ev) return tg('answerCallbackQuery', { callback_query_id: cb.id, text: 'Tadbir topilmadi' });
+  const isUser = (await q('SELECT 1 x FROM users WHERE id=$1', [me])).rowCount > 0;
+  const name = [cb.from.first_name, cb.from.last_name].filter(Boolean).join(' ').slice(0, 80);
+  if (isUser) await q('INSERT INTO rsvps VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [eventId, me]);
+  else await q('INSERT INTO event_guests (event_id, user_id, name, username) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING 1 x', [eventId, me, name, cb.from.username || null]);
+  await tg('answerCallbackQuery', { callback_query_id: cb.id, text: 'Ro‘yxatga yozildingiz ✅' });
+  await sendEventLink(eventId, me);
+}
+
+const eventCaption = (e) => `🌿 <b>BlackKnight Club Picnic'ga taklif qiladi!</b>
+
+Darslar, deadline'lar, imtihonlar... Bir kun hammasidan dam olamizmi? 🧺
+
+📅 1-noyabr, yakshanba
+📍 ${esc(e.place || '')}
+👥 Barcha talabalar uchun ochiq!
+
+🔥 Tanishuv va suhbat, jamoaviy o‘yinlar, choy va mazali ovqat, yangi do‘stlar.
+
+Pastdagi <b>«✅ Qatnashaman»</b> tugmasini bosing — tadbir guruhi havolasini olasiz. Vaqt va boshqa tafsilotlar o‘sha yerda 👇
+
+♞ <b>Black Knight Team</b>`;
+
+// Event announcement: video + caption + join button. ?to=<tg id> sends one test copy; ?to=all sends to everyone once.
+async function announceEvent(eventId, to) {
+  const e = (await q('SELECT * FROM events WHERE id=$1', [eventId])).rows[0];
+  if (!e) return bad('Tadbir topilmadi', 404);
+  const kind = 'event_' + eventId;
+  const key = 'event_video_' + eventId;
+  const kb = { inline_keyboard: [[{ text: '✅ Qatnashaman', callback_data: 'ev:' + eventId }]] };
+  if (WEBAPP_URL) kb.inline_keyboard.push([{ text: 'Black Knight’ni ochish', web_app: { url: WEBAPP_URL } }]);
+  const send = async (uid) => {
+    const cached = (await q('SELECT value FROM settings WHERE key=$1', [key])).rows[0];
+    const video = cached ? cached.value : WEBAPP_URL.replace(/\/$/, '') + '/picnic.mp4';
+    const r = await tg('sendVideo', { chat_id: uid.slice(2), video, caption: eventCaption(e), parse_mode: 'HTML', supports_streaming: true, width: 1080, height: 1920, reply_markup: kb }).catch(() => null);
+    const fid = r && r.ok && r.result.video && r.result.video.file_id;
+    if (fid && !cached) await q('INSERT INTO settings (key,value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2, updated_at=now() RETURNING 1 x', [key, fid]);
+    return r;
+  };
+  if (to !== 'all') {
+    if (!/^(tg)?\d+$/.test(String(to))) return bad('to=<telegram id> yoki to=all kerak');
+    const r = await send('tg' + String(to).replace(/^tg/, ''));
+    return json({ test: true, ok: !!(r && r.ok), error: r && !r.ok ? r.description : undefined });
+  }
+  const rows = (await q(`SELECT id user_id FROM users WHERE id LIKE 'tg%' UNION SELECT user_id FROM bot_starts WHERE user_id LIKE 'tg%' AND user_id NOT LIKE 'tg99000000%'
+    EXCEPT SELECT user_id FROM reminders WHERE kind=$1`, [kind])).rows;
+  const res = { sent: 0, failed: 0 };
+  for (const r of rows) {
+    const t = await send(r.user_id);
+    const ok = !!(t && t.ok); res[ok ? 'sent' : 'failed']++;
+    await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, kind, ok]);
+    await new Promise((z) => setTimeout(z, 60));
+  }
+  return json(res);
+}
+
 async function tgWebhook(req) {
   if (req.headers.get('x-telegram-bot-api-secret-token') !== WEBHOOK_SECRET) return bad('forbidden', 403);
   const upd = await req.json().catch(() => ({}));
   const cb = upd.callback_query;
+  if (cb && typeof cb.data === 'string' && cb.data.startsWith('ev:')) {
+    await eventCallback(cb, +cb.data.slice(3));
+    return json({ ok: true });
+  }
   if (cb && typeof cb.data === 'string' && cb.data.startsWith('rq:')) {
     const [, id, act] = cb.data.split(':');
     const res = await answerRequest(+id, 'tg' + cb.from.id, act === 'a');
@@ -620,7 +694,7 @@ async function route(req) {
 
   // ---- events
   if (p === '/api/events' && m === 'GET') {
-    const r = await q(`SELECT e.*, (SELECT count(*) FROM rsvps r WHERE r.event_id=e.id)::int going,
+    const r = await q(`SELECT e.*, ((SELECT count(*) FROM rsvps r WHERE r.event_id=e.id) + (SELECT count(*) FROM event_guests g WHERE g.event_id=e.id))::int going,
       (SELECT json_build_object('name', u.name, 'role', u.role, 'position', u.position) FROM users u WHERE u.id=e.created_by AND u.role='leader') organizer,
       (e.created_by=$1) mine,
       EXISTS(SELECT 1 FROM rsvps r WHERE r.event_id=e.id AND r.user_id=$1) joined
@@ -651,8 +725,18 @@ async function route(req) {
       if (!e.rowCount) return bad('Tadbir topilmadi', 404);
       if (e.rows[0].capacity && e.rows[0].going >= e.rows[0].capacity) return bad('Joylar tugagan', 409);
       await q('INSERT INTO rsvps VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [id, body.uid]);
+      await sendEventLink(id, body.uid);
     }
     return json({ joined: !del.rowCount });
+  }
+  if ((mm = p.match(/^\/api\/events\/(\d+)\/attendees$/)) && m === 'GET') {
+    const id = +mm[1];
+    const ev = (await q('SELECT created_by FROM events WHERE id=$1', [id])).rows[0];
+    if (!ev) return bad('Tadbir topilmadi', 404);
+    if (!admin && ev.created_by !== uid) return bad('Ruxsat yo‘q', 403);
+    const r = await q(`SELECT u.id, u.name, u.username, u.contact, u.major, u.year, 'app' src FROM rsvps r JOIN users u ON u.id=r.user_id WHERE r.event_id=$1
+      UNION ALL SELECT g.user_id, g.name, g.username, NULL, NULL, NULL, 'bot' FROM event_guests g WHERE g.event_id=$1 ORDER BY 2`, [id]);
+    return json({ attendees: r.rows });
   }
 
   return bad('Topilmadi', 404);
@@ -767,6 +851,11 @@ export default {
       const path = new URL(req.url).pathname;
       if (path === '/__selftest') return await selftest();
       if (path === '/tg/webhook' && req.method === 'POST') return await tgWebhook(req);
+      if (path.startsWith('/tg/announce/')) {
+        const [, , , key, id] = path.split('/');
+        if (!ADMIN_KEY || key !== ADMIN_KEY) return bad('forbidden', 403);
+        return await announceEvent(+id, new URL(req.url).searchParams.get('to') || '');
+      }
       if (path.startsWith('/tg/remind/')) {
         if (!ADMIN_KEY || path.split('/')[3] !== ADMIN_KEY) return bad('forbidden', 403);
         return await remindJob();

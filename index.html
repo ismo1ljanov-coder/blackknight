@@ -379,19 +379,20 @@ function viewTadbirlar() {
       <span class="pill s-jarayonda" style="align-self:flex-start">${until(first.starts_at)}</span>
       <h2>${esc(first.title)}</h2>
       ${first.description ? `<p>${esc(first.description)}</p>` : ''}
-      <div class="small">${d.getDate()}-${MONTHS[d.getMonth()]}, ${hhmm(d)}${first.place ? ' · ' + esc(first.place) : ''}</div>
+      <div class="small">${d.getDate()}-${MONTHS[d.getMonth()]}${first.date_only ? '' : ', ' + hhmm(d)}${first.place ? ' · ' + esc(first.place) : ''}</div>
       ${first.organizer ? `<div class="small">Tashkil etuvchi: <span class="ldname">◇ ${esc(first.organizer.position || first.organizer.name)}</span></div>` : ''}
       ${cap ? `<div class="bar"><i style="width:${Math.min(100, Math.round(first.going / cap * 100))}%"></i></div>` : ''}
       <div class="foot"><span class="small">${cap ? `${first.going} / ${cap} joy band` : `${first.going} kishi qatnashadi`}</span>
       <button class="btn ${first.joined ? 'done' : ''}" data-rsvp="${first.id}" ${full ? 'disabled' : ''}>${first.joined ? '✓ Yozildingiz' : full ? 'Joy qolmadi' : 'Qatnashaman'}</button></div>
-      ${isAdmin || first.mine ? `<div class="admin"><button class="del" data-dele="${first.id}">O‘chirish</button></div>` : ''}
+      ${first.joined && first.link ? `<button class="btn" data-glink="${esc(first.link)}" style="width:100%">👥 Tadbir guruhiga qo‘shilish</button>` : ''}
+      ${isAdmin || first.mine ? `<div class="admin"><button class="del" data-att="${first.id}" style="color:inherit">Ishtirokchilar (${first.going})</button><button class="del" data-dele="${first.id}">O‘chirish</button></div>` : ''}
     </section>
     ${rest.length ? '<div class="label">Keyingi tadbirlar</div>' : ''}
     <div class="list">${rest.map((e) => {
       const dd = new Date(e.starts_at);
       return `<article class="glass ev"><div class="date"><b>${dd.getDate()}</b><span>${MONTHS[dd.getMonth()]}</span></div>
-        <div class="body"><h3>${esc(e.title)}</h3><div class="meta small" style="font-size:12px">${hhmm(dd)}${e.place ? ' · ' + esc(e.place) : ''} · ${e.capacity ? e.going + '/' + e.capacity : e.going + ' kishi'}${e.organizer ? ` · <span class="ldname">◇ ${esc(e.organizer.position || e.organizer.name)}</span>` : ''}</div>
-        ${isAdmin || e.mine ? `<div class="admin"><button class="del" data-dele="${e.id}">O‘chirish</button></div>` : ''}</div>
+        <div class="body"><h3>${esc(e.title)}</h3><div class="meta small" style="font-size:12px">${e.date_only ? dd.getDate() + '-' + MONTHS[dd.getMonth()] : hhmm(dd)}${e.place ? ' · ' + esc(e.place) : ''} · ${e.capacity ? e.going + '/' + e.capacity : e.going + ' kishi'}${e.organizer ? ` · <span class="ldname">◇ ${esc(e.organizer.position || e.organizer.name)}</span>` : ''}</div>
+        ${isAdmin || e.mine ? `<div class="admin"><button class="del" data-att="${e.id}" style="color:inherit">Ishtirokchilar</button><button class="del" data-dele="${e.id}">O‘chirish</button></div>` : ''}</div>
         <button class="join" data-rsvp="${e.id}" aria-pressed="${e.joined}" aria-label="${e.joined ? 'Yozilishni bekor qilish' : 'Qatnashish'}">${e.joined ? '✓' : '+'}</button></article>`;
     }).join('')}</div>`;
   }
@@ -625,6 +626,22 @@ function openSheet(html, onMount) {
   onMount && onMount($('.sheet', layer));
   const f = $('input,textarea', layer); f && setTimeout(() => f.focus(), 60);
 }
+async function attendeesSheet(id) {
+  openSheet(sheetTop('Ishtirokchilar') + '<div id="att-body" class="small">Yuklanmoqda…</div>');
+  let rows;
+  try { rows = (await api(`/api/events/${id}/attendees`)).attendees; }
+  catch (err) { const b = $('#att-body'); if (b) b.textContent = err.message; return; }
+  const b = $('#att-body'); if (!b) return;
+  const tsv = 'Ism\tUsername\tKontakt\tYo‘nalish\tKurs\tManba\n' + rows.map((r) => [r.name, r.username ? '@' + r.username : '', r.contact, r.major, r.year, r.src === 'bot' ? 'bot' : 'ilova']
+    .map((v) => String(v == null ? '' : v).replace(/[\t\n]/g, ' ')).join('\t')).join('\n');
+  b.innerHTML = `<p style="margin:0 0 10px"><b>${rows.length}</b> kishi yozilgan</p>
+    <div class="list">${rows.map((r, i) => `<div class="glass" style="padding:10px 14px;display:flex;justify-content:space-between;gap:10px;align-items:center">
+      <span>${i + 1}. ${esc(r.name || 'Nomaʼlum')}${r.major ? ` <span class="small">· ${esc(r.major)}${r.year ? ', ' + esc(r.year) : ''}</span>` : ''}</span>
+      <span class="small">${r.username ? '@' + esc(r.username) : esc(r.contact || '')}</span></div>`).join('')}</div>
+    ${rows.length ? '<button class="btn" id="att-copy" style="width:100%;margin-top:12px">Ro‘yxatni nusxalash (Excel uchun)</button>' : ''}`;
+  const c = $('#att-copy');
+  if (c) c.addEventListener('click', async () => { try { await navigator.clipboard.writeText(tsv); toast('Nusxalandi — Excel’ga joylang'); } catch (e) { toast('Nusxalab bo‘lmadi'); } });
+}
 function closeSheet() { $('#layer').innerHTML = ''; document.body.style.overflow = ''; }
 const sheetTop = (t, closable = true) => `<div class="grab" aria-hidden="true"></div><div class="top"><h2>${t}</h2>${closable ? '<button class="iconbtn" data-close aria-label="Yopish" style="width:38px;height:38px">✕</button>' : ''}</div>`;
 
@@ -832,6 +849,11 @@ document.addEventListener('click', async (e) => {
     catch (err) { p.voted = !p.voted; p.votes += p.voted ? 1 : -1; toast(err.message); }
     render(); return;
   }
+  if (d.glink) {
+    if (TG && TG.openTelegramLink && d.glink.startsWith('https://t.me/')) TG.openTelegramLink(d.glink); else window.open(d.glink, '_blank');
+    return;
+  }
+  if (d.att) return attendeesSheet(d.att);
   if (d.rsvp) {
     if (!needProfile(null)) return;
     t.disabled = true;
