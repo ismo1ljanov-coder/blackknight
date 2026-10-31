@@ -442,8 +442,8 @@ async function route(req) {
     if (!admin) return bad('Ruxsat yo‘q', 403);
     const pos = str(body.position, 60);
     const r = await q(`UPDATE users SET position=$1 WHERE id=$2 AND EXISTS (SELECT 1 FROM admins WHERE user_id=$2) RETURNING id`, [pos || null, mm[1]]);
-    if (!r.rowCount) return bad('Pagon faqat jamoa a’zosiga beriladi', 404);
-    if (pos) await notify(mm[1], `◆ Sizga jamoada pagon berildi:\n<b>${esc(pos)}</b>\n\nMas’uliyat — sharaf. Omad!`);
+    if (!r.rowCount) return bad('Mas’uliyat faqat jamoa a’zosiga beriladi', 404);
+    if (pos) await notify(mm[1], `◆ Sizga jamoada mas’uliyat berildi:\n<b>${esc(pos)}</b>\n\nMas’uliyat — sharaf. Omad!`);
     return json({ ok: true, position: pos || null });
   }
   if (p === '/api/volunteers' && m === 'GET') {
