@@ -79,6 +79,7 @@ button{cursor:pointer}
 .ladder span.on{color:var(--gold-hi);font-weight:700}
 .pg-mark{text-align:center;font-size:40px;line-height:1;background:var(--metal);-webkit-background-clip:text;background-clip:text;color:transparent}.pg-name{text-align:center;font-family:Cinzel,serif;font-weight:700;font-size:20px;color:var(--gold-hi)}
 .why{display:flex;flex-direction:column;gap:12px}.why .w{display:flex;gap:12px;align-items:flex-start}.why .w>b{flex:0 0 32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--metal);color:#1a1406;font-size:15px}.why h3{margin:2px 0 4px;font-size:16px;color:var(--gold-hi)}.why p{margin:0;font-size:14px;line-height:1.45;color:var(--muted)}.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.4}
+.kn.ld,.ldname{color:#d6dbe3}.ldpill{background:linear-gradient(135deg,#eef1f5,#b9c0ca);color:#15181c}.card.elon.ld{border-color:rgba(214,219,227,.45);background:linear-gradient(135deg,rgba(214,219,227,.08),rgba(140,148,160,.04))}
 .svlist{display:flex;flex-direction:column;gap:6px;margin-top:4px}.sv{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid rgba(217,180,108,.14)}.sv b{color:var(--gold-hi);min-width:38px;font-variant-numeric:tabular-nums}.sv span{flex:1;font-size:13px;line-height:1.35}.sv small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
 .reflink{font-size:13px;padding:10px 12px;border-radius:12px;border:1px dashed var(--line-2);color:var(--gold-hi);overflow-wrap:anywhere;user-select:all}
 .dot{position:absolute;top:6px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--red)}
@@ -275,7 +276,7 @@ async function loadEvents() {
   catch (e) { S.offline = true; if (!S.events) S.events = []; }
 }
 async function loadMe() {
-  try { const r = await api(`/api/me?uid=${uid}`); S.me = r.user; S.myStats = r.stats || null; S.score = r.score || null; S.knights = r.knights || 0; S.knightLimit = r.knight_limit || 229; S.refLink = r.ref_link || null; S.service = r.service || null; S.team = !!r.team;
+  try { const r = await api(`/api/me?uid=${uid}`); S.me = r.user; S.myStats = r.stats || null; S.score = r.score || null; S.knights = r.knights || 0; S.knightLimit = r.knight_limit || 229; S.refLink = r.ref_link || null; S.service = r.service || null; S.team = !!r.team; S.leader = !!r.leader;
     S.svc = r.user && (r.user.role === 'volunteer' || (r.service && r.service.entries)) ? await api(`/api/service/${encodeURIComponent(uid)}`) : null; } catch (e) {}
 }
 S.people = null; S.pq = ''; S.requests = [];
@@ -296,7 +297,7 @@ async function checkAdmin() {
 }
 S.admins = []; S.vols = [];
 // Status marks next to a name: founder, team, volunteer, first-229 knight.
-const marks = (o) => (o.title === 'Founder' ? ' <span class="kn" title="Founder">✦</span>' : '') + (o.team ? ' <span class="kn" title="Jamoa">◆</span>' : '') + (o.role === 'volunteer' ? ' <span class="kn" title="Volontyor">✧</span>' : '') + (o.knight_no ? ` <span class="kn" title="Birinchi ritsar #${o.knight_no}">♞</span>` : '');
+const marks = (o) => (o.title === 'Founder' ? ' <span class="kn" title="Founder">✦</span>' : '') + (o.team ? ' <span class="kn" title="Jamoa">◆</span>' : '') + (o.role === 'volunteer' ? ' <span class="kn" title="Volontyor">✧</span>' : '') + (o.role === 'leader' ? ` <span class="kn ld" title="${esc(o.position || 'Yetakchi')}">◇</span>` : '') + (o.knight_no ? ` <span class="kn" title="Birinchi ritsar #${o.knight_no}">♞</span>` : '');
 const VLADDER = [['Volontyor', 0], ['Yordamchi', 10], ['Fidoyi', 25], ['Xizmat ustasi', 50]];
 const fmtDate = (iso) => { const d = new Date(iso); return `${d.getDate()}-${MONTHS[d.getMonth()]}`; };
 function serviceBox(sum, entries, canEdit, title) {
@@ -344,13 +345,14 @@ function viewOvoz() {
 function problemCard(p) {
   const open = S.open[p.id];
   const kind = KINDS[p.kind] ? p.kind : 'muammo';
-  const who = kind === 'elon' ? 'Black Knight Team' : p.anon ? 'Anonim' : esc(p.author || 'Talaba') + marks({ title: p.author_title, team: p.author_team, role: p.author_role, knight_no: p.author_knight });
+  const leaderPost = kind === 'elon' && p.author_role === 'leader';
+  const who = leaderPost ? `<span class="ldname">◇ ${esc(p.author_position || p.author || 'Yetakchi')}</span>` : kind === 'elon' ? 'Black Knight Team' : p.anon ? 'Anonim' : esc(p.author || 'Talaba') + marks({ title: p.author_title, team: p.author_team, role: p.author_role, position: p.author_position, knight_no: p.author_knight });
   const badge = kind === 'muammo'
     ? `<span class="pill s-${p.status}">${STATUS[p.status]}</span><span class="cat">${esc(p.category)}</span>`
-    : `<span class="pill k-${kind}">${KINDS[kind].label}</span>`;
+    : `<span class="pill ${leaderPost ? 'ldpill' : 'k-' + kind}">${KINDS[kind].label}</span>`;
   const statusBtns = kind === 'muammo' ? Object.keys(STATUS).map((k) => `<button data-status="${k}" data-id="${p.id}" class="${p.status === k ? 'on' : ''}">${STATUS[k]}</button>`).join('') : '';
-  const adminRow = isAdmin ? `<div class="admin">${statusBtns}<button class="del" data-delp="${p.id}">O‘chirish</button></div>` : '';
-  return `<article class="glass card${kind === 'elon' ? ' elon' : ''}">
+  const adminRow = isAdmin ? `<div class="admin">${statusBtns}<button class="del" data-delp="${p.id}">O‘chirish</button></div>` : (S.leader && p.mine && kind === 'elon') ? `<div class="admin"><button class="del" data-delp="${p.id}">O‘chirish</button></div>` : '';
+  return `<article class="glass card${kind === 'elon' ? (leaderPost ? ' elon ld' : ' elon') : ''}">
     <button class="vote" data-vote="${p.id}" aria-pressed="${p.voted}" aria-label="Ovoz berish, ${p.votes} ovoz">▲<br>${p.votes}</button>
     <div class="body">
       ${badge}
@@ -364,7 +366,7 @@ function problemCard(p) {
 
 function viewTadbirlar() {
   const evs = S.events;
-  const addBtn = isAdmin ? '<button class="iconbtn" data-act="newevent" aria-label="Tadbir qo‘shish"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>' : '';
+  const addBtn = isAdmin || S.leader ? '<button class="iconbtn" data-act="newevent" aria-label="Tadbir qo‘shish"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>' : '';
   let body;
   if (evs === null) body = '<div class="skeleton" style="height:200px"></div>';
   else if (!evs.length) body = `<div class="glass empty"><b>Yaqin kunlarda tadbir yo‘q</b>Yangi tadbirlar e’lon qilinganda shu yerda chiqadi.</div>`;
@@ -378,17 +380,18 @@ function viewTadbirlar() {
       <h2>${esc(first.title)}</h2>
       ${first.description ? `<p>${esc(first.description)}</p>` : ''}
       <div class="small">${d.getDate()}-${MONTHS[d.getMonth()]}, ${hhmm(d)}${first.place ? ' · ' + esc(first.place) : ''}</div>
+      ${first.organizer ? `<div class="small">Tashkil etuvchi: <span class="ldname">◇ ${esc(first.organizer.position || first.organizer.name)}</span></div>` : ''}
       ${cap ? `<div class="bar"><i style="width:${Math.min(100, Math.round(first.going / cap * 100))}%"></i></div>` : ''}
       <div class="foot"><span class="small">${cap ? `${first.going} / ${cap} joy band` : `${first.going} kishi qatnashadi`}</span>
       <button class="btn ${first.joined ? 'done' : ''}" data-rsvp="${first.id}" ${full ? 'disabled' : ''}>${first.joined ? '✓ Yozildingiz' : full ? 'Joy qolmadi' : 'Qatnashaman'}</button></div>
-      ${isAdmin ? `<div class="admin"><button class="del" data-dele="${first.id}">O‘chirish</button></div>` : ''}
+      ${isAdmin || first.mine ? `<div class="admin"><button class="del" data-dele="${first.id}">O‘chirish</button></div>` : ''}
     </section>
     ${rest.length ? '<div class="label">Keyingi tadbirlar</div>' : ''}
     <div class="list">${rest.map((e) => {
       const dd = new Date(e.starts_at);
       return `<article class="glass ev"><div class="date"><b>${dd.getDate()}</b><span>${MONTHS[dd.getMonth()]}</span></div>
-        <div class="body"><h3>${esc(e.title)}</h3><div class="meta small" style="font-size:12px">${hhmm(dd)}${e.place ? ' · ' + esc(e.place) : ''} · ${e.capacity ? e.going + '/' + e.capacity : e.going + ' kishi'}</div>
-        ${isAdmin ? `<div class="admin"><button class="del" data-dele="${e.id}">O‘chirish</button></div>` : ''}</div>
+        <div class="body"><h3>${esc(e.title)}</h3><div class="meta small" style="font-size:12px">${hhmm(dd)}${e.place ? ' · ' + esc(e.place) : ''} · ${e.capacity ? e.going + '/' + e.capacity : e.going + ' kishi'}${e.organizer ? ` · <span class="ldname">◇ ${esc(e.organizer.position || e.organizer.name)}</span>` : ''}</div>
+        ${isAdmin || e.mine ? `<div class="admin"><button class="del" data-dele="${e.id}">O‘chirish</button></div>` : ''}</div>
         <button class="join" data-rsvp="${e.id}" aria-pressed="${e.joined}" aria-label="${e.joined ? 'Yozilishni bekor qilish' : 'Qatnashish'}">${e.joined ? '✓' : '+'}</button></article>`;
     }).join('')}</div>`;
   }
@@ -422,8 +425,12 @@ async function personSheet(id) {
   const sh = $('.sheet'); if (!sh) return;
   const svAdmin = isAdmin ? `<section class="glass box" aria-label="Jamoa uchun">
       <h3>Jamoa uchun</h3>
-      ${p.team ? `<form id="pgform" style="display:flex;gap:8px" novalidate><label class="field" style="flex:1"><span class="small">Mas’uliyati</span><input id="pg-pos" maxlength="60" value="${esc(p.position || '')}" placeholder="Masalan: Tadbirlar mas’uli"></label><button class="btn" type="submit" style="align-self:flex-end;height:48px">Saqlash</button></form>` : `<button class="btn ghost" data-role="${p.role === 'volunteer' ? '' : 'volunteer'}">${p.role === 'volunteer' ? 'Volontyorlikdan olib tashlash' : '✧ Volontyor qilish'}</button>`}
-      ${p.team ? '' : `<form id="svform" style="display:flex;flex-direction:column;gap:8px" novalidate>
+      ${p.team ? `<form id="pgform" style="display:flex;gap:8px" novalidate><label class="field" style="flex:1"><span class="small">Mas’uliyati</span><input id="pg-pos" maxlength="60" value="${esc(p.position || '')}" placeholder="Masalan: Tadbirlar mas’uli"></label><button class="btn" type="submit" style="align-self:flex-end;height:48px">Saqlash</button></form>` : `${p.role === 'leader' ? '' : `<button class="btn ghost" data-role="${p.role === 'volunteer' ? '' : 'volunteer'}">${p.role === 'volunteer' ? 'Volontyorlikdan olib tashlash' : '✧ Volontyor qilish'}</button>`}
+      <form id="ldform" style="display:flex;flex-direction:column;gap:8px" novalidate>
+        <label class="field"><span class="small">◇ Yetakchi belgisi — nomi (e’lon va tadbir qo‘sha oladi)</span><input id="ld-name" maxlength="60" value="${esc(p.role === 'leader' ? p.position || '' : '')}" placeholder="Nomini o‘zingiz yozing"></label>
+        <div style="display:flex;gap:8px"><button class="btn" type="submit" style="flex:1">${p.role === 'leader' ? 'Saqlash' : '◇ Belgilash'}</button>${p.role === 'leader' ? '<button class="btn ghost" type="button" data-ldoff="1" style="flex:1">Olib tashlash</button>' : ''}</div>
+      </form>`}
+      ${p.team || p.role === 'leader' ? '' : `<form id="svform" style="display:flex;flex-direction:column;gap:8px" novalidate>
         <div style="display:flex;gap:8px">
           <label class="field" style="width:96px"><span class="small">Soat</span><input id="sv-h" type="number" inputmode="decimal" min="0.5" max="24" step="0.5" value="2"></label>
           <label class="field" style="flex:1"><span class="small">Nima ish qildi</span><input id="sv-n" maxlength="200" placeholder="Masalan: Eco hasharda tashkilotchi"></label>
@@ -443,7 +450,7 @@ async function personSheet(id) {
        <div class="small">U rozi bo‘lsa, bot sizga uning Telegram’ini yuboradi.</div>`
     : `<div class="small">Tanishish so‘rovini yuborish uchun ilovani Telegram bot orqali oching.</div>`;
   sh.innerHTML = sheetTop('Talaba') + `
-    <div class="psheet">${avatar(p)}<h2>${esc(p.name)}</h2>${p.title === 'Founder' ? '<span class="pill knpill">✦ Founder</span>' : ''}${p.team ? `<span class="pill knpill">◆ Jamoa${p.position ? ' · ' + esc(p.position) : ''}</span>` : ''}${p.role === 'volunteer' ? '<span class="pill knpill">✧ Volontyor</span>' : ''}${p.knight_no ? `<span class="pill knpill">♞ Birinchi ritsar #${p.knight_no}</span>` : ''}
+    <div class="psheet">${avatar(p)}<h2>${esc(p.name)}</h2>${p.title === 'Founder' ? '<span class="pill knpill">✦ Founder</span>' : ''}${p.team ? `<span class="pill knpill">◆ Jamoa${p.position ? ' · ' + esc(p.position) : ''}</span>` : ''}${p.role === 'volunteer' ? '<span class="pill knpill">✧ Volontyor</span>' : ''}${p.role === 'leader' ? `<span class="pill ldpill">◇ ${esc(p.position || 'Yetakchi')}</span>` : ''}${p.knight_no ? `<span class="pill knpill">♞ Birinchi ritsar #${p.knight_no}</span>` : ''}
       <div class="small">${esc([p.major, p.year && p.year + '-kurs'].filter(Boolean).join(' · ') || 'Millat Umidi talabasi')}</div>
       ${(p.interests || []).length ? `<div class="chips" style="justify-content:center">${p.interests.map((t) => `<span class="chip">${esc(t)}</span>`).join('')}</div>` : ''}
     </div>
@@ -452,6 +459,15 @@ async function personSheet(id) {
     ${svc && (svc.summary.entries || p.role === 'volunteer') ? serviceBox(svc.summary, svc.entries, isAdmin) : ''}
     ${svAdmin}
     <div class="err" id="ps-err" role="alert"></div>`;
+  const ldf = $('#ldform', sh);
+  if (ldf) {
+    const saveLd = async (name) => {
+      try { await api(`/api/people/${encodeURIComponent(p.id)}/leader`, { method: 'POST', body: { name } }); toast(name ? '◇ Belgi berildi' : 'Belgi olib tashlandi'); personSheet(id); }
+      catch (x) { $('#ps-err', sh).textContent = x.message; }
+    };
+    ldf.addEventListener('submit', (e) => { e.preventDefault(); const n = $('#ld-name', sh).value.trim(); if (!n) { $('#ps-err', sh).textContent = 'Nomini yozing'; return; } saveLd(n); });
+    const off = $('[data-ldoff]', ldf); if (off) off.addEventListener('click', () => saveLd(''));
+  }
   const pgf = $('#pgform', sh);
   if (pgf) pgf.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -551,6 +567,7 @@ function viewProfil() {
     ${me.title === 'Founder' ? '<span class="pill knpill">✦ Founder</span>' : ''}
     ${S.team ? '<span class="pill knpill">◆ Jamoa</span>' : ''}
     ${me.role === 'volunteer' ? '<span class="pill knpill">✧ Volontyor</span>' : ''}
+    ${me.role === 'leader' ? `<span class="pill ldpill">◇ ${esc(me.position || 'Yetakchi')}</span>` : ''}
     ${me.knight_no ? `<span class="pill knpill">♞ Birinchi ritsar #${me.knight_no}</span>` : ''}
     <div class="nums"><div><b>${ms.problems}</b><span>murojaat</span></div><div><b>${ms.votes}</b><span>ovoz</span></div><div><b>${ms.events}</b><span>tadbir</span></div></div>
     <div class="small">${me.contact === 'open' ? 'Sizga hamma Telegram’da yoza oladi' : 'Sizga faqat tanishish so‘rovi orqali yozish mumkin'}</div>
@@ -678,8 +695,9 @@ function needProfile(action) { if (S.me) return true; pendingAction = action; pr
 
 function newProblemSheet() {
   if (!needProfile(newProblemSheet)) return;
-  let kind = S.kind && (S.kind !== 'elon' || isAdmin) ? S.kind : 'muammo', cat = 'Infratuzilma', anon = true;
-  const kindKeys = Object.keys(KINDS).filter((k) => k !== 'elon' || isAdmin);
+  const canElon = isAdmin || S.leader;
+  let kind = S.kind && (S.kind !== 'elon' || canElon) ? S.kind : 'muammo', cat = 'Infratuzilma', anon = true;
+  const kindKeys = Object.keys(KINDS).filter((k) => k !== 'elon' || canElon);
   openSheet(sheetTop('Post yozish') + `
     <form id="np" style="display:flex;flex-direction:column;gap:14px" novalidate>
       <div class="field">Post turi<div class="chips" id="np-kind">${kindKeys.map((k) => `<button type="button" class="chip" data-k="${k}" aria-pressed="${k === kind}">${KINDS[k].label}</button>`).join('')}</div></div>
@@ -696,7 +714,7 @@ function newProblemSheet() {
       $('#np-body', el).placeholder = KINDS[kind].bph;
       $('#np-catwrap', el).hidden = kind !== 'muammo';
       $('#np-anon', el).hidden = !(kind === 'muammo' || kind === 'savol');
-      $('#np-note', el).textContent = kind === 'kerak' ? 'Ismingiz ko‘rinadi, shunda yordam beradiganlar siz bilan bog‘lana oladi.' : kind === 'elon' ? 'E’lon Black Knight Team nomidan chiqadi.' : '';
+      $('#np-note', el).textContent = kind === 'kerak' ? 'Ismingiz ko‘rinadi, shunda yordam beradiganlar siz bilan bog‘lana oladi.' : kind === 'elon' ? (isAdmin ? 'E’lon Black Knight Team nomidan chiqadi.' : `E’lon «◇ ${(S.me && S.me.position) || 'sizning'}» nomidan chiqadi.`) : '';
       el.querySelectorAll('#np-kind .chip').forEach((x) => x.setAttribute('aria-pressed', x.dataset.k === kind));
     };
     sync();

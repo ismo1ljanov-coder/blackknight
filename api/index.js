@@ -270,6 +270,8 @@ async function route(req) {
   let mm;
   let admin = isAdmin(req);
   if (!admin && tu && tu.id) admin = (await q('SELECT 1 x FROM admins WHERE user_id=$1', [uid])).rowCount > 0;
+  // Leaders (◇): recognized rival teams — may post announcements and run events, nothing else.
+  const leader = !admin && tu && tu.id ? (await q("SELECT 1 x FROM users WHERE id=$1 AND role='leader'", [uid])).rowCount > 0 : false;
 
   if (p === '/' || p === '/api/health') {
     const r = await q('SELECT 1 AS one');
@@ -326,7 +328,7 @@ async function route(req) {
       (SELECT count(*) FROM rsvps WHERE user_id=$1)::int events`, [uid]);
     const score = await scoreOf(uid);
     return json({ user: r.rows[0], stats: s.rows[0], score, service: await serviceOf(uid),
-      team: (await q('SELECT 1 x FROM admins WHERE user_id=$1', [uid])).rowCount > 0, knight_limit: KNIGHT_LIMIT,
+      team: (await q('SELECT 1 x FROM admins WHERE user_id=$1', [uid])).rowCount > 0, leader: r.rows[0].role === 'leader', knight_limit: KNIGHT_LIMIT,
       knights: (await q('SELECT count(*)::int n FROM users WHERE knight_no IS NOT NULL')).rows[0].n,
       ref_link: uid.startsWith('tg') ? `https://t.me/${BOT_USERNAME}?start=ref_${uid.slice(2)}` : null });
   }
@@ -373,7 +375,7 @@ async function route(req) {
     const canWrite = u.tg && u.id !== uid && (u.contact === 'open' || u.out_status === 'accepted' || (inc && inc.status === 'accepted'));
     const relation = u.id === uid ? 'me' : canWrite ? 'open' : inc && inc.status === 'pending' ? 'incoming'
       : u.out_status ? 'pending' : !u.tg ? 'unavailable' : 'none';
-    return json({ person: { position: u.team ? u.position : null, role: u.role, team: u.team, service: await serviceOf(u.id), title: u.title, knight_no: u.knight_no, id: u.id, name: u.name, major: u.major, year: u.year, interests: u.interests, teach: u.teach, learn: u.learn,
+    return json({ person: { position: u.team || u.role === 'leader' ? u.position : null, role: u.role, team: u.team, service: await serviceOf(u.id), title: u.title, knight_no: u.knight_no, id: u.id, name: u.name, major: u.major, year: u.year, interests: u.interests, teach: u.teach, learn: u.learn,
       photo_url: u.photo_url, relation, username: canWrite ? u.username : null, request_id: inc ? inc.id : null } });
   }
   if ((mm = p.match(/^\/api\/people\/([a-zA-Z0-9_-]+)\/write$/)) && m === 'POST') {
@@ -483,6 +485,17 @@ async function route(req) {
     if (pos) await notify(mm[1], `◆ Sizga jamoada mas’uliyat berildi:\n<b>${esc(pos)}</b>\n\nMas’uliyat — sharaf. Omad!`);
     return json({ ok: true, position: pos || null });
   }
+  if ((mm = p.match(/^\/api\/people\/([a-zA-Z0-9_-]+)\/leader$/)) && m === 'POST') {
+    if (!admin) return bad('Ruxsat yo‘q', 403);
+    const name = str(body.name, 60);
+    if ((await q('SELECT 1 x FROM admins WHERE user_id=$1', [mm[1]])).rowCount) return bad('Jamoa a’zosiga ◇ belgisi berilmaydi');
+    const r = name
+      ? await q("UPDATE users SET role='leader', position=$1 WHERE id=$2 RETURNING id", [name, mm[1]])
+      : await q("UPDATE users SET role=NULL, position=NULL WHERE id=$1 AND role='leader' RETURNING id", [mm[1]]);
+    if (!r.rowCount) return bad('Talaba topilmadi', 404);
+    if (name) await notify(mm[1], `◇ Siz Black Knight platformasida <b>${esc(name)}</b> sifatida tan olindingiz.\n\nEndi ilovada e’lon joylashingiz va tadbir qo‘shishingiz mumkin. Talabalar ovozi — hammamizniki.`);
+    return json({ ok: true });
+  }
   if (p === '/api/volunteers' && m === 'GET') {
     const r = await q(`SELECT u.id, u.name, u.major, u.photo_url, coalesce(sum(s.hours),0)::float hours, count(s.id)::int entries
       FROM users u LEFT JOIN service_log s ON s.user_id=u.id
@@ -499,7 +512,7 @@ async function route(req) {
     const order = tab === 'new' ? 'p.created_at DESC' : tab === 'done' ? 'p.resolved_at DESC NULLS LAST' : 'votes DESC, p.created_at DESC';
     const r = await q(`SELECT p.id, p.kind, p.title, p.body, p.category, p.status, p.created_at, p.anon,
       CASE WHEN p.anon THEN NULL ELSE u.name END author, CASE WHEN p.anon THEN NULL ELSE u.knight_no END author_knight, CASE WHEN p.anon THEN NULL ELSE u.title END author_title,
-      CASE WHEN p.anon THEN NULL ELSE u.role END author_role, (NOT p.anon AND EXISTS(SELECT 1 FROM admins a WHERE a.user_id=p.author_id)) author_team,
+      CASE WHEN p.anon THEN NULL ELSE u.role END author_role, CASE WHEN p.anon THEN NULL ELSE u.position END author_position, (NOT p.anon AND EXISTS(SELECT 1 FROM admins a WHERE a.user_id=p.author_id)) author_team,
       (SELECT count(*) FROM votes v WHERE v.problem_id=p.id)::int votes,
       EXISTS(SELECT 1 FROM votes v WHERE v.problem_id=p.id AND v.user_id=$1) voted,
       (p.author_id=$1) mine
@@ -512,7 +525,7 @@ async function route(req) {
     const title = str(body.title, 140);
     if (title.length < 5) return bad('Sarlavha juda qisqa');
     const kind = KINDS.includes(body.kind) ? body.kind : 'muammo';
-    if (kind === 'elon' && !admin) return bad('E’lonni faqat adminlar joylay oladi', 403);
+    if (kind === 'elon' && !admin && !leader) return bad('E’lonni faqat adminlar va ◇ yetakchilar joylay oladi', 403);
     const category = kind === 'muammo' ? (CATS.includes(body.category) ? body.category : 'Boshqa') : '';
     // "Kerak" posts need a real name so people can respond; announcements are signed by the club.
     const anon = (kind === 'muammo' || kind === 'savol') && !!body.anon;
@@ -555,30 +568,34 @@ async function route(req) {
     return json({ ok: true });
   }
   if ((mm = p.match(/^\/api\/problems\/(\d+)$/)) && m === 'DELETE') {
-    if (!admin) return bad('Ruxsat yo‘q', 403);
-    await q('DELETE FROM problems WHERE id=$1 RETURNING 1 x', [+mm[1]]);
+    if (!admin && !leader) return bad('Ruxsat yo‘q', 403);
+    const d = await q("DELETE FROM problems WHERE id=$1 AND ($2 OR (author_id=$3 AND kind='elon')) RETURNING 1 x", [+mm[1], !!admin, uid]);
+    if (!d.rowCount) return bad('Faqat o‘zingizning e’loningizni o‘chira olasiz', 403);
     return json({ ok: true });
   }
 
   // ---- events
   if (p === '/api/events' && m === 'GET') {
     const r = await q(`SELECT e.*, (SELECT count(*) FROM rsvps r WHERE r.event_id=e.id)::int going,
+      (SELECT json_build_object('name', u.name, 'role', u.role, 'position', u.position) FROM users u WHERE u.id=e.created_by AND u.role='leader') organizer,
+      (e.created_by=$1) mine,
       EXISTS(SELECT 1 FROM rsvps r WHERE r.event_id=e.id AND r.user_id=$1) joined
       FROM events e WHERE e.starts_at > now() - interval '3 hours' ORDER BY e.starts_at LIMIT 50`, [uid]);
     return json({ events: r.rows });
   }
   if (p === '/api/events' && m === 'POST') {
-    if (!admin) return bad('Ruxsat yo‘q', 403);
+    if (!admin && !leader) return bad('Tadbirni adminlar va ◇ yetakchilar qo‘sha oladi', 403);
     const title = str(body.title, 120);
     const starts = new Date(body.starts_at);
     if (!title || isNaN(starts)) return bad('Nom va sana kerak');
-    const r = await q('INSERT INTO events (title,description,starts_at,place,capacity) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-      [title, str(body.description, 1000), starts.toISOString(), str(body.place, 80), Math.max(0, parseInt(body.capacity) || 0)]);
+    const r = await q('INSERT INTO events (title,description,starts_at,place,capacity,created_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+      [title, str(body.description, 1000), starts.toISOString(), str(body.place, 80), Math.max(0, parseInt(body.capacity) || 0), uid || 'key']);
     return json({ id: r.rows[0].id }, 201);
   }
   if ((mm = p.match(/^\/api\/events\/(\d+)$/)) && m === 'DELETE') {
-    if (!admin) return bad('Ruxsat yo‘q', 403);
-    await q('DELETE FROM events WHERE id=$1 RETURNING 1 x', [+mm[1]]);
+    if (!admin && !leader) return bad('Ruxsat yo‘q', 403);
+    const d = await q('DELETE FROM events WHERE id=$1 AND ($2 OR created_by=$3) RETURNING 1 x', [+mm[1], !!admin, uid]);
+    if (!d.rowCount) return bad('Faqat o‘zingiz qo‘shgan tadbirni o‘chira olasiz', 403);
     return json({ ok: true });
   }
   if ((mm = p.match(/^\/api\/events\/(\d+)\/rsvp$/)) && m === 'POST') {
