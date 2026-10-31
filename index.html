@@ -77,6 +77,7 @@ button{cursor:pointer}
 .ladder{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
 .ladder i{flex:1;height:1px;background:var(--line-2)}
 .ladder span.on{color:var(--gold-hi);font-weight:700}
+.pagon svg{width:100%;max-width:320px;height:auto;display:block;margin:0 auto}.pg-name{text-align:center;font-family:Cinzel,serif;font-weight:700;font-size:20px;color:var(--gold-hi)}
 .svlist{display:flex;flex-direction:column;gap:6px;margin-top:4px}.sv{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid rgba(217,180,108,.14)}.sv b{color:var(--gold-hi);min-width:38px;font-variant-numeric:tabular-nums}.sv span{flex:1;font-size:13px;line-height:1.35}.sv small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
 .reflink{font-size:13px;padding:10px 12px;border-radius:12px;border:1px dashed var(--line-2);color:var(--gold-hi);overflow-wrap:anywhere;user-select:all}
 .dot{position:absolute;top:6px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--red)}
@@ -418,15 +419,15 @@ async function personSheet(id) {
   const sh = $('.sheet'); if (!sh) return;
   const svAdmin = isAdmin ? `<section class="glass box" aria-label="Jamoa uchun">
       <h3>Jamoa uchun</h3>
-      ${p.team ? '<div class="small">◆ Jamoa a’zosi</div>' : `<button class="btn ghost" data-role="${p.role === 'volunteer' ? '' : 'volunteer'}">${p.role === 'volunteer' ? 'Volontyorlikdan olib tashlash' : '✧ Volontyor qilish'}</button>`}
-      <form id="svform" style="display:flex;flex-direction:column;gap:8px" novalidate>
+      ${p.team ? `<form id="pgform" style="display:flex;gap:8px" novalidate><label class="field" style="flex:1"><span class="small">Pagon — mas’uliyati</span><input id="pg-pos" maxlength="60" value="${esc(p.position || '')}" placeholder="Masalan: Tadbirlar mas’uli"></label><button class="btn" type="submit" style="align-self:flex-end;height:48px">Saqlash</button></form>` : `<button class="btn ghost" data-role="${p.role === 'volunteer' ? '' : 'volunteer'}">${p.role === 'volunteer' ? 'Volontyorlikdan olib tashlash' : '✧ Volontyor qilish'}</button>`}
+      ${p.team ? '' : `<form id="svform" style="display:flex;flex-direction:column;gap:8px" novalidate>
         <div style="display:flex;gap:8px">
           <label class="field" style="width:96px"><span class="small">Soat</span><input id="sv-h" type="number" inputmode="decimal" min="0.5" max="24" step="0.5" value="2"></label>
           <label class="field" style="flex:1"><span class="small">Nima ish qildi</span><input id="sv-n" maxlength="200" placeholder="Masalan: Eco hasharda tashkilotchi"></label>
         </div>
         ${(S.events || []).length ? `<label class="field"><span class="small">Tadbir (ixtiyoriy)</span><select id="sv-e"><option value="">—</option>${S.events.map((e) => `<option value="${e.id}">${esc(e.title)}</option>`).join('')}</select></label>` : ''}
         <button class="btn" type="submit">+ Xizmat daftariga yozish</button>
-      </form>
+      </form>`}
     </section>` : '';
   let action = '';
   if (p.relation === 'open') action = `<button class="primary" data-write="${esc(p.id)}" data-user="${esc(p.username || '')}">Telegram’da yozish</button>`;
@@ -439,7 +440,7 @@ async function personSheet(id) {
        <div class="small">U rozi bo‘lsa, bot sizga uning Telegram’ini yuboradi.</div>`
     : `<div class="small">Tanishish so‘rovini yuborish uchun ilovani Telegram bot orqali oching.</div>`;
   sh.innerHTML = sheetTop('Talaba') + `
-    <div class="psheet">${avatar(p)}<h2>${esc(p.name)}</h2>${p.title === 'Founder' ? '<span class="pill knpill">✦ Founder</span>' : ''}${p.team ? '<span class="pill knpill">◆ Jamoa</span>' : ''}${p.role === 'volunteer' ? '<span class="pill knpill">✧ Volontyor</span>' : ''}${p.knight_no ? `<span class="pill knpill">♞ Birinchi ritsar #${p.knight_no}</span>` : ''}
+    <div class="psheet">${avatar(p)}<h2>${esc(p.name)}</h2>${p.title === 'Founder' ? '<span class="pill knpill">✦ Founder</span>' : ''}${p.team ? `<span class="pill knpill">◆ Jamoa${p.position ? ' · ' + esc(p.position) : ''}</span>` : ''}${p.role === 'volunteer' ? '<span class="pill knpill">✧ Volontyor</span>' : ''}${p.knight_no ? `<span class="pill knpill">♞ Birinchi ritsar #${p.knight_no}</span>` : ''}
       <div class="small">${esc([p.major, p.year && p.year + '-kurs'].filter(Boolean).join(' · ') || 'Millat Umidi talabasi')}</div>
       ${(p.interests || []).length ? `<div class="chips" style="justify-content:center">${p.interests.map((t) => `<span class="chip">${esc(t)}</span>`).join('')}</div>` : ''}
     </div>
@@ -448,6 +449,13 @@ async function personSheet(id) {
     ${svc && (svc.summary.entries || p.role === 'volunteer') ? serviceBox(svc.summary, svc.entries, isAdmin) : ''}
     ${svAdmin}
     <div class="err" id="ps-err" role="alert"></div>`;
+  const pgf = $('#pgform', sh);
+  if (pgf) pgf.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('button[type=submit]', pgf); btn.disabled = true;
+    try { await api(`/api/people/${encodeURIComponent(p.id)}/position`, { method: 'POST', body: { position: $('#pg-pos', sh).value } }); toast('Pagon saqlandi'); personSheet(id); }
+    catch (x) { $('#ps-err', sh).textContent = x.message; btn.disabled = false; }
+  });
   const svf = $('#svform', sh);
   if (svf) svf.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -483,6 +491,23 @@ async function personSheet(id) {
   });
 }
 
+function pagonBox() {
+  const me = S.me || {};
+  const founder = me.title === 'Founder';
+  const pos = me.position || (founder ? 'Founder' : 'Jamoa a’zosi');
+  const mark = founder ? '✦' : '◆';
+  return `<section class="glass box pagon" aria-label="Pagon">
+    <svg viewBox="0 0 320 84" role="img" aria-label="Pagon: ${esc(pos)}">
+      <defs><linearGradient id="pg-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f2d9a0"/><stop offset=".5" stop-color="#d9b46c"/><stop offset="1" stop-color="#a9823f"/></linearGradient></defs>
+      <path d="M8 14 H262 L308 42 L262 70 H8 Q2 70 2 64 V20 Q2 14 8 14 Z" fill="#14100a" stroke="url(#pg-g)" stroke-width="2.5"/>
+      <path d="M16 24 H256 M16 60 H256" stroke="url(#pg-g)" stroke-width="1.2" opacity=".55"/>
+      <circle cx="270" cy="42" r="9" fill="none" stroke="url(#pg-g)" stroke-width="2"/><circle cx="270" cy="42" r="3" fill="url(#pg-g)"/>
+      <text x="132" y="51" text-anchor="middle" font-size="26" fill="url(#pg-g)">${mark}</text>
+    </svg>
+    <div class="pg-name">${esc(pos)}</div>
+    <div class="small" style="text-align:center">Jamoa a’zolari ball yig‘maydi — ularda mas’uliyat bor. Pagonni jamoa beradi.</div>
+  </section>`;
+}
 function levelBox() {
   const sc = S.score; if (!sc) return '';
   const pct = sc.next_at ? Math.round((sc.points - sc.prev_at) / (sc.next_at - sc.prev_at) * 100) : 100;
@@ -534,7 +559,7 @@ function viewProfil() {
     <div class="small">${me.contact === 'open' ? 'Sizga hamma Telegram’da yoza oladi' : 'Sizga faqat tanishish so‘rovi orqali yozish mumkin'}</div>
   </section>
   ${S.svc ? serviceBox(S.svc.summary, S.svc.entries, false) : ''}
-  ${levelBox()}
+  ${S.team ? pagonBox() : levelBox()}
   ${inviteBox()}
   <section class="glass box">
     <div class="small">Yo‘nalish</div>

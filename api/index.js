@@ -323,7 +323,7 @@ async function route(req) {
   // ---- people directory and contact requests
   if (p === '/api/people' && m === 'GET') {
     const term = str(url.searchParams.get('q') || '', 60).replace(/^@/, '');
-    const r = await q(`SELECT u.id, u.name, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url, u.knight_no, u.title, u.role, EXISTS(SELECT 1 FROM admins a WHERE a.user_id=u.id) team
+    const r = await q(`SELECT u.id, u.name, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url, u.knight_no, u.title, u.role, u.position, EXISTS(SELECT 1 FROM admins a WHERE a.user_id=u.id) team
       FROM users u WHERE u.id NOT LIKE 'selftest%' AND u.id<>$1
       AND ($2='' OR u.name ILIKE '%'||$2||'%' OR u.username ILIKE '%'||$2||'%' OR u.major ILIKE '%'||$2||'%'
            OR u.teach ILIKE '%'||$2||'%' OR array_to_string(u.interests,' ') ILIKE '%'||$2||'%')
@@ -331,7 +331,7 @@ async function route(req) {
     return json({ people: r.rows });
   }
   if ((mm = p.match(/^\/api\/people\/([a-zA-Z0-9_-]+)$/)) && m === 'GET') {
-    const r = await q(`SELECT u.id, u.name, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url, u.contact, u.knight_no, u.title, u.role, EXISTS(SELECT 1 FROM admins a WHERE a.user_id=u.id) team,
+    const r = await q(`SELECT u.id, u.name, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url, u.contact, u.knight_no, u.title, u.role, u.position, EXISTS(SELECT 1 FROM admins a WHERE a.user_id=u.id) team,
       u.username, (u.id LIKE 'tg%') tg,
       (SELECT status FROM contact_requests WHERE from_id=$2 AND to_id=u.id) out_status,
       (SELECT json_build_object('id', id, 'status', status) FROM contact_requests WHERE from_id=u.id AND to_id=$2) incoming
@@ -343,7 +343,7 @@ async function route(req) {
     const canWrite = u.tg && u.id !== uid && (u.contact === 'open' || u.out_status === 'accepted' || (inc && inc.status === 'accepted'));
     const relation = u.id === uid ? 'me' : canWrite ? 'open' : inc && inc.status === 'pending' ? 'incoming'
       : u.out_status ? 'pending' : !u.tg ? 'unavailable' : 'none';
-    return json({ person: { role: u.role, team: u.team, service: await serviceOf(u.id), title: u.title, knight_no: u.knight_no, id: u.id, name: u.name, major: u.major, year: u.year, interests: u.interests, teach: u.teach, learn: u.learn,
+    return json({ person: { position: u.team ? u.position : null, role: u.role, team: u.team, service: await serviceOf(u.id), title: u.title, knight_no: u.knight_no, id: u.id, name: u.name, major: u.major, year: u.year, interests: u.interests, teach: u.teach, learn: u.learn,
       photo_url: u.photo_url, relation, username: canWrite ? u.username : null, request_id: inc ? inc.id : null } });
   }
   if ((mm = p.match(/^\/api\/people\/([a-zA-Z0-9_-]+)\/write$/)) && m === 'POST') {
@@ -436,6 +436,15 @@ async function route(req) {
     if (!r.rowCount) return bad('Talaba topilmadi', 404);
     if (role) await notify(mm[1], '✧ Siz Black Knight <b>volontyori</b> sifatida belgilandingiz. Xizmatlaringiz endi daftaringizda yozib boriladi. Xush kelibsiz!');
     return json({ ok: true, role });
+  }
+  // Pagon: a team member's responsibility, set by the team; replaces points for them.
+  if ((mm = p.match(/^\/api\/people\/([a-zA-Z0-9_-]+)\/position$/)) && m === 'POST') {
+    if (!admin) return bad('Ruxsat yo‘q', 403);
+    const pos = str(body.position, 60);
+    const r = await q(`UPDATE users SET position=$1 WHERE id=$2 AND EXISTS (SELECT 1 FROM admins WHERE user_id=$2) RETURNING id`, [pos || null, mm[1]]);
+    if (!r.rowCount) return bad('Pagon faqat jamoa a’zosiga beriladi', 404);
+    if (pos) await notify(mm[1], `◆ Sizga jamoada pagon berildi:\n<b>${esc(pos)}</b>\n\nMas’uliyat — sharaf. Omad!`);
+    return json({ ok: true, position: pos || null });
   }
   if (p === '/api/volunteers' && m === 'GET') {
     const r = await q(`SELECT u.id, u.name, u.major, u.photo_url, coalesce(sum(s.hours),0)::float hours, count(s.id)::int entries
@@ -582,6 +591,7 @@ async function selftest() {
     const sv2 = await call('GET', `/api/service/${uid}`);
     if (sv2.entries && sv2.entries[0]) await call('DELETE', `/api/service/entry/${sv2.entries[0].id}`, null, { 'x-admin-key': ADMIN_KEY });
     await call('GET', '/api/volunteers');
+    await call('POST', `/api/people/${uid}/position`, { position: 'Test' }, { 'x-admin-key': ADMIN_KEY });
     await call('POST', `/api/people/${uid}/role`, { role: null }, { 'x-admin-key': ADMIN_KEY });
     await call('GET', '/api/requests?uid=' + uid);
     await call('POST', '/api/requests', { uid, to: 'tg1' });
