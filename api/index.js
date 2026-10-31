@@ -81,14 +81,13 @@ async function tg(method, payload) {
   return r.json();
 }
 
-const START_TEXT = `Assalomu alaykum! Bu — BlackKnight Club, Millat Umidi talabalari ovozi.
+const START_TEXT = `Assalomu alaykum! Bu — Black Knight Team, Millat Umidi talabalari platformasi.
 
-• Universitetdagi muammoni yozing (anonim ham bo‘ladi)
-• Boshqalarning murojaatiga ovoz bering
-• Klub tadbirlariga yoziling
-• Skill Swap: bilganingizni o‘rgating, keraklisini o‘rganing
+▪️ Lenta — muammo, savol yoki «kerak» postini yozing (anonim ham bo‘ladi) va ovoz bering
+▪️ Odamlar — kerakli talabani toping, faqat ruxsat bilan tanishing
+▪️ Tadbirlar — bir tugma bilan yoziling
 
-Pastdagi tugmani bosing 👇`;
+Videoda hammasi 45 soniyada ko‘rsatilgan. Boshlash uchun pastdagi tugmani bosing 👇`;
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
@@ -104,6 +103,64 @@ async function answerRequest(id, targetUid, accept) {
       text: `✅ <b>${esc(t.name)}</b> tanishish so‘rovingizni qabul qildi. <a href="${link}">Unga yozish</a>` }).catch(() => {});
   }
   return { ok: true, accepted: accept };
+}
+
+const CHANNEL = process.env.CHANNEL || '';
+const BOT_USERNAME = 'blackknightsp_bot';
+const KNIGHT_LIMIT = 229;
+const MILESTONES = [5, 10, 25, 50, 100, 200];
+const LEVELS = [{ name: 'Navkar', min: 0 }, { name: 'Ritsar', min: 100 }, { name: 'Qora ritsar', min: 300 }];
+const notify = (uid, text) => (uid && uid.startsWith('tg') ? tg('sendMessage', { chat_id: uid.slice(2), text, parse_mode: 'HTML', reply_markup: openKb() }).catch(() => {}) : null);
+
+// Points: 10 per post, 2 per vote from someone else, 15 per invited friend who opened the app.
+async function scoreOf(uid) {
+  const r = await q(`SELECT
+    (SELECT count(*) FROM problems WHERE author_id=$1)::int posts,
+    (SELECT count(*) FROM votes v JOIN problems p ON p.id=v.problem_id WHERE p.author_id=$1 AND v.user_id<>$1)::int votes_recv,
+    (SELECT count(*) FROM referrals r JOIN users u ON u.id=r.user_id WHERE r.referrer_id=$1)::int invites`, [uid]);
+  const s = r.rows[0];
+  const points = s.posts * 10 + s.votes_recv * 2 + s.invites * 15;
+  let li = 0; LEVELS.forEach((l, i) => { if (points >= l.min) li = i; });
+  const next = LEVELS[li + 1] || null;
+  return { ...s, points, level: LEVELS[li].name, level_index: li, next_level: next ? next.name : null, next_at: next ? next.min : null, prev_at: LEVELS[li].min };
+}
+
+async function isSubscribed(uid) {
+  if (!CHANNEL) return true;
+  const r = await tg('getChatMember', { chat_id: CHANNEL, user_id: uid.slice(2) }).catch(() => null);
+  return !!(r && r.ok && ['member', 'administrator', 'creator', 'restricted'].includes(r.result.status));
+}
+
+// First Knight badge: the first KNIGHT_LIMIT authors whose post earned a vote from someone else.
+async function tryAwardKnight(uid) {
+  if (!uid || !uid.startsWith('tg')) return;
+  const u = await q('SELECT knight_no FROM users WHERE id=$1', [uid]);
+  if (!u.rowCount || u.rows[0].knight_no) return;
+  if (!(await isSubscribed(uid))) return;
+  try {
+    const r = await q(`UPDATE users SET knight_no=(SELECT coalesce(max(knight_no),0)+1 FROM users)
+      WHERE id=$1 AND knight_no IS NULL AND (SELECT count(*) FROM users WHERE knight_no IS NOT NULL) < ${KNIGHT_LIMIT}
+      RETURNING knight_no`, [uid]);
+    if (r.rowCount) await notify(uid, `♞ <b>Tabriklaymiz!</b> Siz Black Knight'ning <b>Birinchi ritsari #${r.rows[0].knight_no}</b> bo‘ldingiz (${KNIGHT_LIMIT} tadan).\n\nOltin belgi endi profilingiz va postlaringizda ko‘rinadi.`);
+  } catch { /* two awards raced for the same number; the next vote retries */ }
+}
+
+const openKb = () => (WEBAPP_URL ? { inline_keyboard: [[{ text: 'Black Knight’ni ochish', web_app: { url: WEBAPP_URL } }]] } : undefined);
+
+// Sends the guide video. The first send uploads it by URL; Telegram's file_id is then cached and reused.
+async function sendGuide(chatId) {
+  const cached = (await q("SELECT value FROM settings WHERE key='guide_file_id'")).rows[0];
+  const video = cached ? cached.value : (WEBAPP_URL ? WEBAPP_URL.replace(/\/$/, '') + '/qollanma.mp4' : '');
+  if (video) {
+    const r = await tg('sendVideo', { chat_id: chatId, video, caption: START_TEXT, supports_streaming: true, width: 1080, height: 1920, reply_markup: openKb() });
+    if (r && r.ok) {
+      const fid = r.result && r.result.video && r.result.video.file_id;
+      if (fid && !cached) await q("INSERT INTO settings (key,value) VALUES ('guide_file_id',$1) ON CONFLICT (key) DO UPDATE SET value=$1, updated_at=now() RETURNING 1 x", [fid]);
+      return;
+    }
+    if (cached) await q("DELETE FROM settings WHERE key='guide_file_id' RETURNING 1 x");
+  }
+  await tg('sendMessage', { chat_id: chatId, text: START_TEXT, reply_markup: openKb() });
 }
 
 async function tgWebhook(req) {
@@ -122,8 +179,16 @@ async function tgWebhook(req) {
   }
   const msg = upd.message;
   if (msg && msg.chat && msg.chat.type === 'private') {
-    const kb = WEBAPP_URL ? { inline_keyboard: [[{ text: 'BlackKnight’ni ochish', web_app: { url: WEBAPP_URL } }]] } : undefined;
-    await tg('sendMessage', { chat_id: msg.chat.id, text: START_TEXT, reply_markup: kb });
+    const text = String(msg.text || '');
+    const refm = text.match(/^\/start\s+ref_(\d+)/);
+    if (refm && msg.from && String(msg.from.id) !== refm[1]) {
+      const me = 'tg' + msg.from.id, refId = 'tg' + refm[1];
+      const known = await q('SELECT 1 x FROM users WHERE id=$1', [me]);
+      if (!known.rowCount) await q(`INSERT INTO referrals (user_id, referrer_id) SELECT $1,$2 WHERE EXISTS (SELECT 1 FROM users WHERE id=$2)
+        ON CONFLICT DO NOTHING RETURNING 1 x`, [me, refId]);
+    }
+    if (text.startsWith('/start') || text.startsWith('/qollanma')) await sendGuide(msg.chat.id);
+    else await tg('sendMessage', { chat_id: msg.chat.id, text: 'Ilovani ochish uchun pastdagi tugmani bosing. Qo‘llanma videoni qayta ko‘rish: /qollanma', reply_markup: openKb() });
   }
   return json({ ok: true });
 }
@@ -133,7 +198,7 @@ async function tgSetup() {
   out.before = await tg('getWebhookInfo', {});
   out.webhook = await tg('setWebhook', { url: SELF_URL + '/tg/webhook', secret_token: WEBHOOK_SECRET, allowed_updates: ['message', 'callback_query'] });
   if (WEBAPP_URL) out.menu = await tg('setChatMenuButton', { menu_button: { type: 'web_app', text: 'Ochish', web_app: { url: WEBAPP_URL } } });
-  out.commands = await tg('setMyCommands', { commands: [{ command: 'start', description: 'BlackKnight Club ilovasini ochish' }] });
+  out.commands = await tg('setMyCommands', { commands: [{ command: 'start', description: 'Black Knight ilovasini ochish' }, { command: 'qollanma', description: 'Qo‘llanma video' }] });
   out.desc = await tg('setMyShortDescription', { short_description: 'Millat Umidi talabalari ovozi: muammolar, tadbirlar, Skill Swap.' });
   out.me = await tg('getMe', {});
   try { const r = await fetch(SELF_URL + '/api/health'); out.selfcall = r.status + ' ' + (await r.text()).slice(0, 100); } catch (e) { out.selfcall = 'ERR ' + e.message; }
@@ -157,10 +222,14 @@ async function route(req) {
     const uname = tu.username ? String(tu.username).toLowerCase().slice(0, 40) : null;
     // Creates the user on first visit; afterwards keeps only the Telegram username current.
     const photo = typeof tu.photo_url === 'string' && tu.photo_url.startsWith('https://') ? tu.photo_url.slice(0, 500) : null;
-    await q(`INSERT INTO users (id,name,username,photo_url) VALUES ($1,$2,$3,$4)
+    const up = await q(`INSERT INTO users (id,name,username,photo_url) VALUES ($1,$2,$3,$4)
       ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username, photo_url=EXCLUDED.photo_url
       WHERE users.username IS DISTINCT FROM EXCLUDED.username OR users.photo_url IS DISTINCT FROM EXCLUDED.photo_url
-      RETURNING 1 x`, [uid, name, uname, photo]);
+      RETURNING (xmax = 0) AS inserted`, [uid, name, uname, photo]);
+    if (up.rowCount && up.rows[0].inserted) {
+      const ref = await q('SELECT referrer_id FROM referrals WHERE user_id=$1', [uid]);
+      if (ref.rowCount) await notify(ref.rows[0].referrer_id, `👥 Do‘stingiz <b>${esc(name)}</b> Black Knight'ga qo‘shildi! +15 ball.`);
+    }
   }
 
   // Admin = the server key (scripts) or a Telegram account listed in admins.
@@ -217,7 +286,10 @@ async function route(req) {
       (SELECT count(*) FROM problems WHERE author_id=$1)::int problems,
       (SELECT count(*) FROM votes WHERE user_id=$1)::int votes,
       (SELECT count(*) FROM rsvps WHERE user_id=$1)::int events`, [uid]);
-    return json({ user: r.rows[0], stats: s.rows[0] });
+    const score = await scoreOf(uid);
+    return json({ user: r.rows[0], stats: s.rows[0], score, knight_limit: KNIGHT_LIMIT,
+      knights: (await q('SELECT count(*)::int n FROM users WHERE knight_no IS NOT NULL')).rows[0].n,
+      ref_link: uid.startsWith('tg') ? `https://t.me/${BOT_USERNAME}?start=ref_${uid.slice(2)}` : null });
   }
   if (p === '/api/me' && m === 'PUT') {
     const id = body.uid;
@@ -235,7 +307,7 @@ async function route(req) {
   // ---- people directory and contact requests
   if (p === '/api/people' && m === 'GET') {
     const term = str(url.searchParams.get('q') || '', 60).replace(/^@/, '');
-    const r = await q(`SELECT u.id, u.name, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url
+    const r = await q(`SELECT u.id, u.name, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url, u.knight_no, u.title
       FROM users u WHERE u.id NOT LIKE 'selftest%' AND u.id<>$1
       AND ($2='' OR u.name ILIKE '%'||$2||'%' OR u.username ILIKE '%'||$2||'%' OR u.major ILIKE '%'||$2||'%'
            OR u.teach ILIKE '%'||$2||'%' OR array_to_string(u.interests,' ') ILIKE '%'||$2||'%')
@@ -243,7 +315,7 @@ async function route(req) {
     return json({ people: r.rows });
   }
   if ((mm = p.match(/^\/api\/people\/([a-zA-Z0-9_-]+)$/)) && m === 'GET') {
-    const r = await q(`SELECT u.id, u.name, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url, u.contact,
+    const r = await q(`SELECT u.id, u.name, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url, u.contact, u.knight_no, u.title,
       u.username, (u.id LIKE 'tg%') tg,
       (SELECT status FROM contact_requests WHERE from_id=$2 AND to_id=u.id) out_status,
       (SELECT json_build_object('id', id, 'status', status) FROM contact_requests WHERE from_id=u.id AND to_id=$2) incoming
@@ -255,7 +327,7 @@ async function route(req) {
     const canWrite = u.tg && u.id !== uid && (u.contact === 'open' || u.out_status === 'accepted' || (inc && inc.status === 'accepted'));
     const relation = u.id === uid ? 'me' : canWrite ? 'open' : inc && inc.status === 'pending' ? 'incoming'
       : u.out_status ? 'pending' : !u.tg ? 'unavailable' : 'none';
-    return json({ person: { id: u.id, name: u.name, major: u.major, year: u.year, interests: u.interests, teach: u.teach, learn: u.learn,
+    return json({ person: { title: u.title, knight_no: u.knight_no, id: u.id, name: u.name, major: u.major, year: u.year, interests: u.interests, teach: u.teach, learn: u.learn,
       photo_url: u.photo_url, relation, username: canWrite ? u.username : null, request_id: inc ? inc.id : null } });
   }
   if ((mm = p.match(/^\/api\/people\/([a-zA-Z0-9_-]+)\/write$/)) && m === 'POST') {
@@ -318,7 +390,7 @@ async function route(req) {
     if (kind) where += ` AND p.kind='${kind}'`;
     const order = tab === 'new' ? 'p.created_at DESC' : tab === 'done' ? 'p.resolved_at DESC NULLS LAST' : 'votes DESC, p.created_at DESC';
     const r = await q(`SELECT p.id, p.kind, p.title, p.body, p.category, p.status, p.created_at, p.anon,
-      CASE WHEN p.anon THEN NULL ELSE u.name END author,
+      CASE WHEN p.anon THEN NULL ELSE u.name END author, CASE WHEN p.anon THEN NULL ELSE u.knight_no END author_knight, CASE WHEN p.anon THEN NULL ELSE u.title END author_title,
       (SELECT count(*) FROM votes v WHERE v.problem_id=p.id)::int votes,
       EXISTS(SELECT 1 FROM votes v WHERE v.problem_id=p.id AND v.user_id=$1) voted,
       (p.author_id=$1) mine
@@ -348,12 +420,29 @@ async function route(req) {
     const del = await q('DELETE FROM votes WHERE problem_id=$1 AND user_id=$2 RETURNING 1 x', [id, body.uid]);
     if (!del.rowCount) await q('INSERT INTO votes VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [id, body.uid]);
     const c = await q('SELECT count(*)::int n FROM votes WHERE problem_id=$1', [id]);
-    return json({ voted: !del.rowCount, votes: c.rows[0].n });
+    const n = c.rows[0].n;
+    if (!del.rowCount) {
+      const pr = (await q('SELECT author_id, title, kind, notified_votes FROM problems WHERE id=$1', [id])).rows[0];
+      if (pr && pr.author_id && pr.author_id !== body.uid) {
+        const hit = MILESTONES.filter((x) => x <= n).pop();
+        if (hit && hit > pr.notified_votes) {
+          await q('UPDATE problems SET notified_votes=$1 WHERE id=$2 AND notified_votes<$1 RETURNING 1 x', [hit, id]);
+          await notify(pr.author_id, `📣 «${esc(pr.title)}» posti <b>${hit} ta ovoz</b> to‘pladi!${pr.kind === 'muammo' ? ' Muammo ko‘pchilikni qiynayotgani ko‘rinib turibdi.' : ''}`);
+        }
+        await tryAwardKnight(pr.author_id);
+      }
+    }
+    return json({ voted: !del.rowCount, votes: n });
   }
   if ((mm = p.match(/^\/api\/problems\/(\d+)$/)) && m === 'PATCH') {
     if (!admin) return bad('Ruxsat yo‘q', 403);
     if (!STATUSES.includes(body.status)) return bad('Noto‘g‘ri holat');
-    await q("UPDATE problems SET status=$1, resolved_at = CASE WHEN $1='hal' THEN now() ELSE NULL END WHERE id=$2 RETURNING 1 x", [body.status, +mm[1]]);
+    const up = await q("UPDATE problems SET status=$1, resolved_at = CASE WHEN $1='hal' THEN now() ELSE NULL END WHERE id=$2 RETURNING author_id, title", [body.status, +mm[1]]);
+    if (up.rowCount) {
+      const labels = { yangi: 'Yangi', qabul: 'Qabul qilindi 📥', jarayonda: 'Jarayonda ⚙️', hal: 'Hal qilindi ✅' };
+      const extra = body.status === 'hal' ? '\n\nRahmat! Ovozingiz natija berdi.' : '';
+      await notify(up.rows[0].author_id, `Murojaatingiz holati yangilandi:\n«${esc(up.rows[0].title)}»\n\n<b>${labels[body.status]}</b>${extra}`);
+    }
     return json({ ok: true });
   }
   if ((mm = p.match(/^\/api\/problems\/(\d+)$/)) && m === 'DELETE') {
