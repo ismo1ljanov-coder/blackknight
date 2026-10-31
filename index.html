@@ -285,6 +285,8 @@ async function loadRequests() {
   const dot = document.getElementById('reqdot'); if (dot) dot.hidden = !S.requests.length;
 }
 const avatar = (p) => `<span class="pava" aria-hidden="true">${p.photo_url ? `<img src="${esc(p.photo_url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}${p.photo_url ? '' : esc((p.name || '?').trim().charAt(0).toUpperCase())}</span>`;
+S.contacts = [];
+async function loadContacts() { try { S.contacts = (await api(`/api/contacts?uid=${uid}`)).contacts; } catch (e) { S.contacts = []; } }
 async function loadMatches() { try { S.matches = (await api(`/api/matches?uid=${uid}`)).matches; } catch (e) { S.matches = []; } }
 async function checkAdmin() {
   if (!TG_INIT && !adminKey) { isAdmin = false; return; }
@@ -431,7 +433,7 @@ async function personSheet(id) {
       </form>`}
     </section>` : '';
   let action = '';
-  if (p.relation === 'open') action = `<button class="primary" data-write="${esc(p.id)}" data-user="${esc(p.username || '')}">Telegram’da yozish</button>`;
+  if (p.relation === 'open') action = `${p.username ? `<div class="reflink" style="text-align:center;font-size:16px">@${esc(p.username)}</div>` : ''}<button class="primary" data-write="${esc(p.id)}" data-user="${esc(p.username || '')}">Telegram’da yozish</button>`;
   else if (p.relation === 'pending') action = `<button class="primary" disabled>So‘rov yuborildi · javob kutilmoqda</button>`;
   else if (p.relation === 'incoming') action = `<div class="small">${esc(p.name)} siz bilan tanishmoqchi.</div><div class="req acts" style="display:flex;gap:8px;border:0"><button class="btn" data-answer="${p.request_id}" data-acc="1">Qabul qilish</button><button class="btn ghost" data-answer="${p.request_id}" data-acc="0">Rad etish</button></div>`;
   else if (p.relation === 'unavailable') action = `<div class="small">Bu talaba Telegram orqali kirmagan, shuning uchun u bilan bog‘lanib bo‘lmaydi.</div>`;
@@ -553,6 +555,11 @@ function viewProfil() {
     <div class="nums"><div><b>${ms.problems}</b><span>murojaat</span></div><div><b>${ms.votes}</b><span>ovoz</span></div><div><b>${ms.events}</b><span>tadbir</span></div></div>
     <div class="small">${me.contact === 'open' ? 'Sizga hamma Telegram’da yoza oladi' : 'Sizga faqat tanishish so‘rovi orqali yozish mumkin'}</div>
   </section>
+  ${S.contacts.length ? `<section class="glass box" aria-label="Tanishlarim">
+    <h3>Tanishlarim · ${S.contacts.length}</h3>
+    ${S.contacts.map((c) => `<div class="req"><div class="row">${avatar(c)}<div style="flex:1;min-width:0;text-align:left"><button class="linkname" data-person="${esc(c.id)}">${esc(c.name)}</button><div class="small">${c.username ? '@' + esc(c.username) : esc(c.major || 'Millat Umidi talabasi')}</div></div>
+      <button class="btn" data-dm="${esc(c.id)}" data-user="${esc(c.username || '')}">Yozish</button></div></div>`).join('')}
+  </section>` : ''}
   ${S.svc ? serviceBox(S.svc.summary, S.svc.entries, false) : ''}
   ${S.team ? pagonBox() : levelBox()}
   ${inviteBox()}
@@ -760,6 +767,11 @@ document.addEventListener('click', async (e) => {
   if (d.act === 'new') return newProblemSheet();
   if (d.act === 'profile') return profileSheet(false);
   if (d.act === 'welcome') return welcomeSheet();
+  if (d.dm) {
+    if (d.user) { const link = 'https://t.me/' + d.user; if (TG && TG.openTelegramLink) TG.openTelegramLink(link); else window.open(link, '_blank'); }
+    else { try { await api(`/api/people/${encodeURIComponent(d.dm)}/write`, { method: 'POST', body: { uid } }); toast('Bot sizga uning havolasini yubordi'); } catch (x) { toast(x.message); } }
+    return;
+  }
   if (d.act === 'newevent') return newEventSheet();
   if (d.act === 'admin') return adminSheet();
   if (d.act === 'share' && S.refLink) {
@@ -776,9 +788,9 @@ document.addEventListener('click', async (e) => {
   if (d.person) return personSheet(d.person);
   if (d.answer) {
     t.disabled = true;
-    try { await api(`/api/requests/${d.answer}`, { method: 'POST', body: { uid, action: d.acc === '1' ? 'accept' : 'decline' } }); toast(d.acc === '1' ? 'Qabul qilindi. Bot unga sizning Telegram’ingizni yubordi' : 'Rad etildi'); }
+    try { await api(`/api/requests/${d.answer}`, { method: 'POST', body: { uid, action: d.acc === '1' ? 'accept' : 'decline' } }); toast(d.acc === '1' ? 'Qabul qilindi. Endi u «Tanishlarim»da' : 'Rad etildi'); }
     catch (err) { toast(err.message); }
-    await loadRequests(); render(); return;
+    await Promise.all([loadRequests(), loadContacts()]); render(); return;
   }
   if (d.rmadmin) {
     if (t.dataset.confirm !== '1') { t.dataset.confirm = '1'; t.textContent = 'Tasdiqlang'; setTimeout(() => { if (t.isConnected) { t.dataset.confirm = ''; t.textContent = 'Olib tashlash'; } }, 3000); return; }
@@ -839,7 +851,7 @@ async function refresh() {
   if (S.tab === 'ovoz') await Promise.all([loadProblems(), loadStats()]);
   else if (S.tab === 'tadbirlar') await loadEvents();
   else if (S.tab === 'odamlar') await loadPeople();
-  else await Promise.all([loadMe(), loadMatches(), loadRequests()]);
+  else await Promise.all([loadMe(), loadMatches(), loadRequests(), loadContacts()]);
   const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('form');
   if (!$('.scrim') && !typing) render();
 }
@@ -848,7 +860,7 @@ async function refresh() {
   render();
   await Promise.all([checkAdmin(), loadMe(), loadStats(), loadProblems()]);
   render();
-  loadEvents(); loadMatches(); loadPeople(); loadRequests();
+  loadEvents(); loadMatches(); loadPeople(); loadRequests(); loadContacts();
   if (!S.offline) { if (!store.get('bk_welcome') && profileEmpty(S.me)) welcomeSheet(); else if (!S.me) profileSheet(true); }
   setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 20000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });

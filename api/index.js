@@ -99,10 +99,19 @@ async function answerRequest(id, targetUid, accept) {
     RETURNING from_id, to_id`, [accept ? 'accepted' : 'declined', id, targetUid]);
   if (!r.rowCount) return { ok: false, error: 'So‘rov topilmadi yoki allaqachon javob berilgan' };
   if (accept) {
-    const t = (await q('SELECT name, username FROM users WHERE id=$1', [targetUid])).rows[0] || {};
-    const link = t.username ? `https://t.me/${t.username}` : `tg://user?id=${targetUid.slice(2)}`;
-    await tg('sendMessage', { chat_id: r.rows[0].from_id.slice(2), parse_mode: 'HTML',
-      text: `✅ <b>${esc(t.name)}</b> tanishish so‘rovingizni qabul qildi. <a href="${link}">Unga yozish</a>` }).catch(() => {});
+    // Both sides get each other's contact: an @username with a button, or a tappable profile link.
+    const rows = (await q('SELECT id, name, username FROM users WHERE id = ANY($1)', [[r.rows[0].from_id, targetUid]])).rows;
+    const by = (id) => rows.find((x) => x.id === id) || { id, name: 'Talaba' };
+    const send = (toId, other, head) => {
+      const handle = other.username ? `@${other.username}` : '';
+      const link = other.username ? `https://t.me/${other.username}` : `tg://user?id=${other.id.slice(2)}`;
+      return tg('sendMessage', { chat_id: toId.slice(2), parse_mode: 'HTML',
+        text: `${head}\n\n${handle ? `Telegram: <b>${esc(handle)}</b>` : `<a href="${link}">${esc(other.name)} profilini ochish</a>`}\n\nKontakt ilovadagi Profil → «Tanishlarim» bo‘limida ham saqlanadi.`,
+        reply_markup: other.username ? { inline_keyboard: [[{ text: `✉️ ${other.name} ga yozish`, url: link }]] } : undefined }).catch(() => {});
+    };
+    const from = by(r.rows[0].from_id), to = by(targetUid);
+    await send(from.id, to, `✅ <b>${esc(to.name)}</b> tanishish so‘rovingizni qabul qildi.`);
+    await send(to.id, from, `🤝 Siz <b>${esc(from.name)}</b> bilan tanishdingiz.`);
   }
   return { ok: true, accepted: accept };
 }
@@ -403,6 +412,13 @@ async function route(req) {
     return res.ok ? json(res) : bad(res.error, 404);
   }
 
+  if (p === '/api/contacts' && m === 'GET') {
+    if (!validUid(uid)) return bad('uid kerak');
+    const r = await q(`SELECT u.id, u.name, u.username, u.major, u.photo_url, c.answered_at
+      FROM contact_requests c JOIN users u ON u.id = CASE WHEN c.from_id=$1 THEN c.to_id ELSE c.from_id END
+      WHERE c.status='accepted' AND (c.from_id=$1 OR c.to_id=$1) ORDER BY c.answered_at DESC NULLS LAST LIMIT 100`, [uid]);
+    return json({ contacts: r.rows });
+  }
   if (p === '/api/matches' && m === 'GET') {
     if (!validUid(uid)) return bad('uid kerak');
     const r = await q(`SELECT u.id, u.name, u.major, u.teach, u.learn FROM users u, users me
