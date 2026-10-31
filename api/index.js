@@ -128,7 +128,8 @@ async function scoreOf(uid) {
   const r = await q(`SELECT
     (SELECT count(*) FROM problems WHERE author_id=$1)::int posts,
     (SELECT count(*) FROM votes v JOIN problems p ON p.id=v.problem_id WHERE p.author_id=$1 AND v.user_id<>$1)::int votes_recv,
-    (SELECT count(*) FROM referrals r JOIN users u ON u.id=r.user_id WHERE r.referrer_id=$1)::int invites`, [uid]);
+    (SELECT count(*) FROM referrals r JOIN users u ON u.id=r.user_id WHERE r.referrer_id=$1 AND r.credited)::int invites,
+    (SELECT count(*) FROM referrals r JOIN users u ON u.id=r.user_id WHERE r.referrer_id=$1 AND NOT r.credited)::int invites_pending`, [uid]);
   const s = r.rows[0];
   const points = s.posts * 10 + s.votes_recv * 2 + s.invites * 15;
   let li = 0; LEVELS.forEach((l, i) => { if (points >= l.min) li = i; });
@@ -261,7 +262,7 @@ async function route(req) {
       RETURNING (xmax = 0) AS inserted`, [uid, name, uname, photo]);
     if (up.rowCount && up.rows[0].inserted) {
       const ref = await q('SELECT referrer_id FROM referrals WHERE user_id=$1', [uid]);
-      if (ref.rowCount) await notify(ref.rows[0].referrer_id, `👥 Do‘stingiz <b>${esc(name)}</b> Black Knight'ga qo‘shildi! +15 ball.`);
+      if (ref.rowCount) await notify(ref.rows[0].referrer_id, `👥 Do‘stingiz <b>${esc(name)}</b> Black Knight'ga qo‘shildi. U profilini to‘ldirsa, sizga +15 ball beriladi.`);
     }
   }
 
@@ -341,6 +342,11 @@ async function route(req) {
       ON CONFLICT (id) DO UPDATE SET name=$2, major=$3, year=$4, interests=$5, teach=$6, learn=$7, contact=$8 RETURNING *`,
       [id, name, str(body.major, 80), str(body.year, 20), interests, str(body.teach, 80), str(body.learn, 80), contact]);
     const knight = tu ? await tryAwardKnight(id) : 'no-tg';
+    // Invite points count only once the invited friend has a filled profile.
+    if (profileFilled(r.rows[0])) {
+      const cr = await q('UPDATE referrals SET credited=true WHERE user_id=$1 AND NOT credited RETURNING referrer_id', [id]);
+      if (cr.rowCount) await notify(cr.rows[0].referrer_id, `👥 Do‘stingiz <b>${esc(name)}</b> profilini to‘ldirdi — sizga <b>+15 ball</b>!`);
+    }
     const user = knight === 'awarded' ? (await q('SELECT * FROM users WHERE id=$1', [id])).rows[0] : r.rows[0];
     return json({ user, knight });
   }

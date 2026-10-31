@@ -286,7 +286,7 @@ async function loadRequests() {
 }
 const avatar = (p) => `<span class="pava" aria-hidden="true">${p.photo_url ? `<img src="${esc(p.photo_url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}${p.photo_url ? '' : esc((p.name || '?').trim().charAt(0).toUpperCase())}</span>`;
 S.contacts = [];
-async function loadContacts() { try { S.contacts = (await api(`/api/contacts?uid=${uid}`)).contacts; } catch (e) { S.contacts = []; } }
+async function loadContacts() { try { S.contacts = (await api(`/api/contacts?uid=${uid}`)).contacts || []; } catch (e) { S.contacts = []; } }
 async function loadMatches() { try { S.matches = (await api(`/api/matches?uid=${uid}`)).matches; } catch (e) { S.matches = []; } }
 async function checkAdmin() {
   if (!TG_INIT && !adminKey) { isAdmin = false; return; }
@@ -514,7 +514,7 @@ function levelBox() {
     <div class="bar" role="img" aria-label="${pct}%"><i style="width:${pct}%"></i></div>
     <div class="small">${S.me && S.me.title === 'Founder' ? '✦ Siz — Founder. Ballar jamoa a’zolari uchun.' : ''}${S.me && S.me.title === 'Founder' ? '' : sc.next_level ? `«${esc(sc.next_level)}» darajasigacha ${sc.next_at - sc.points} ball qoldi` : 'Eng yuqori daraja — siz Qora ritsarsiz ♞'}</div>
     <div class="ladder"><span${sc.level_index >= 0 ? ' class="on"' : ''}>Navkar</span><i></i><span${sc.level_index >= 1 ? ' class="on"' : ''}>Ritsar · 100</span><i></i><span${sc.level_index >= 2 ? ' class="on"' : ''}>Qora ritsar · 300</span></div>
-    <div class="small">Post — 10 ball · boshqalardan ovoz — 2 ball · taklif qilingan do‘st — 15 ball</div>
+    <div class="small">Post — 10 ball · boshqalardan ovoz — 2 ball · profilini to‘ldirgan taklif qilingan do‘st — 15 ball</div>
     ${S.me && !S.me.knight_no && knightsLeft > 0 ? `<div class="small" style="color:var(--gold-hi)">♞ «Birinchi ritsar» belgisi: ${knightsLeft} ta joy qoldi. Shart: profilni to‘ldirish (yo‘nalish + qiziqish) va <a href="https://t.me/blackknightsp" style="color:inherit">@blackknightsp</a> kanaliga obuna bo‘lish.</div>` : ''}
   </section>`;
 }
@@ -523,7 +523,7 @@ function inviteBox() {
   const inv = S.score ? S.score.invites : 0;
   return `<section class="glass box" aria-label="Do‘stlarni taklif qilish">
     <h3>Do‘stingni olib kel</h3>
-    <div class="small">Har bir qo‘shilgan do‘st uchun +15 ball. Taklif qilganlaringiz: <b style="color:var(--fg)">${inv}</b></div>
+    <div class="small">Do‘stingiz qo‘shilib, profilini to‘ldirsa — +15 ball. Hisoblangan: <b style="color:var(--fg)">${inv}</b>${S.score && S.score.invites_pending ? ` · profil kutilmoqda: <b style="color:var(--fg)">${S.score.invites_pending}</b>` : ''}</div>
     <div class="reflink" id="reflink">${esc(S.refLink)}</div>
     <div style="display:flex;gap:8px"><button class="btn" style="flex:1" data-act="share">Ulashish</button><button class="btn ghost" style="flex:1" data-act="copyref">Nusxa olish</button></div>
   </section>`;
@@ -616,13 +616,15 @@ function profileSheet(required) {
   const me = S.me || {};
   const tgName = TG && TG.initDataUnsafe && TG.initDataUnsafe.user ? [TG.initDataUnsafe.user.first_name, TG.initDataUnsafe.user.last_name].filter(Boolean).join(' ') : '';
   const sel = new Set(me.interests || []);
+  const majorSel = !me.major ? '' : MAJORS.includes(me.major) ? me.major : 'Boshqa';
   const IDEAS = ['Startaplar', 'Marketing', 'Dasturlash', 'Dizayn', 'Ingliz tili', 'Sport', 'Kitob', 'Moliya', 'Fotografiya', 'Musiqa'];
   const all = Array.from(new Set([...IDEAS, ...sel]));
   openSheet(sheetTop(required ? 'Xush kelibsiz!' : 'Profil', !required) + `
     ${required ? '<div class="small">BlackKnight Club platformasi. Ovoz berish va murojaat yozish uchun ismingizni kiriting.</div>' : ''}
     <form id="pf" style="display:flex;flex-direction:column;gap:14px" novalidate>
       <label class="field">Ism<input id="pf-name" maxlength="60" autocomplete="name" value="${esc(me.name || tgName)}" required></label>
-      <div class="two"><label class="field">Yo‘nalish<input id="pf-major" maxlength="80" placeholder="Biznes boshqaruvi" value="${esc(me.major || '')}"></label>
+      <div class="two"><label class="field">Yo‘nalish<select id="pf-major-sel">${['', ...MAJORS, 'Boshqa'].map((m) => `<option value="${esc(m)}" ${(m === majorSel) ? 'selected' : ''}>${m ? esc(m) : '— tanlang —'}</option>`).join('')}</select>
+        <input id="pf-major" maxlength="80" placeholder="Yo‘nalishingizni yozing" value="${esc(majorSel === 'Boshqa' ? me.major || '' : '')}" ${majorSel === 'Boshqa' ? '' : 'hidden'} style="margin-top:6px"></label>
       <label class="field">Kurs<input id="pf-year" maxlength="20" inputmode="numeric" placeholder="1" value="${esc(me.year || '')}"></label></div>
       <div class="field">Qiziqishlar<div class="chips" id="pf-int">${all.map((t) => `<button type="button" class="chip" aria-pressed="${sel.has(t)}">${esc(t)}</button>`).join('')}</div></div>
       <div class="two"><label class="field">O‘rgataman<input id="pf-teach" maxlength="80" placeholder="No-code dasturlar" value="${esc(me.teach || '')}"></label>
@@ -635,6 +637,7 @@ function profileSheet(required) {
       <button class="primary" type="submit">Saqlash</button>
     </form>`, (el) => {
     $('#pf-contact', el).addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return; el.querySelectorAll('#pf-contact .chip').forEach((x) => x.setAttribute('aria-pressed', x === b)); });
+    $('#pf-major-sel', el).addEventListener('change', (e) => { const inp = $('#pf-major', el); inp.hidden = e.target.value !== 'Boshqa'; if (!inp.hidden) inp.focus(); });
     $('#pf-int', el).addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); });
     $('#pf', el).addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -642,7 +645,8 @@ function profileSheet(required) {
       if (!name) { $('#pf-err', el).textContent = 'Ismingizni yozing.'; return; }
       const btn = $('button[type=submit]', el); btn.disabled = true;
       try {
-        const r = await api('/api/me', { method: 'PUT', body: { uid, name, major: $('#pf-major', el).value, year: $('#pf-year', el).value,
+        const msel = $('#pf-major-sel', el).value;
+        const r = await api('/api/me', { method: 'PUT', body: { uid, name, major: msel === 'Boshqa' ? $('#pf-major', el).value : msel, year: $('#pf-year', el).value,
           interests: [...el.querySelectorAll('#pf-int [aria-pressed="true"]')].map((b) => b.textContent), teach: $('#pf-teach', el).value, learn: $('#pf-learn', el).value, contact: (el.querySelector('#pf-contact [aria-pressed="true"]') || {}).dataset?.c || 'request' } });
         S.me = r.user; closeSheet();
         toast(r.knight === 'awarded' ? `♞ Tabriklaymiz! Siz Birinchi ritsar #${r.user.knight_no}` : r.knight === 'not-subscribed' ? 'Saqlandi. Nishon uchun @blackknightsp kanaliga obuna bo‘ling' : r.knight === 'incomplete' ? 'Saqlandi. Nishon uchun yo‘nalish va qiziqishni ham kiriting' : 'Profil saqlandi'); await Promise.all([loadMe(), loadMatches()]); render();
@@ -652,6 +656,7 @@ function profileSheet(required) {
   });
 }
 
+const MAJORS = ['ELT', 'Business Administration', 'IT', 'Finance'];
 const profileEmpty = (me) => !me || !(me.major || me.teach || me.learn || (me.interests || []).length);
 function welcomeSheet() {
   store.set('bk_welcome', '1');
