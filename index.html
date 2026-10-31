@@ -385,7 +385,7 @@ function viewTadbirlar() {
       <div class="foot"><span class="small">${cap ? `${first.going} / ${cap} joy band` : `${first.going} kishi qatnashadi`}</span>
       <button class="btn ${first.joined ? 'done' : ''}" data-rsvp="${first.id}" ${full ? 'disabled' : ''}>${first.joined ? '✓ Yozildingiz' : full ? 'Joy qolmadi' : 'Qatnashaman'}</button></div>
       ${first.joined && first.link ? `<button class="btn" data-glink="${esc(first.link)}" style="width:100%">👥 Tadbir guruhiga qo‘shilish</button>` : ''}
-      ${isAdmin || first.mine ? `<div class="admin"><button class="del" data-att="${first.id}" style="color:inherit">Ishtirokchilar (${first.going})</button><button class="del" data-dele="${first.id}">O‘chirish</button></div>` : ''}
+      ${isAdmin || first.mine ? `<div class="admin"><button class="del" data-att="${first.id}" style="color:inherit">Ishtirokchilar (${first.going}) · E’lon</button><button class="del" data-dele="${first.id}">O‘chirish</button></div>` : ''}
     </section>
     ${rest.length ? '<div class="label">Keyingi tadbirlar</div>' : ''}
     <div class="list">${rest.map((e) => {
@@ -638,7 +638,25 @@ async function attendeesSheet(id) {
     <div class="list">${rows.map((r, i) => `<div class="glass" style="padding:10px 14px;display:flex;justify-content:space-between;gap:10px;align-items:center">
       <span>${i + 1}. ${esc(r.name || 'Nomaʼlum')}${r.major ? ` <span class="small">· ${esc(r.major)}${r.year ? ', ' + esc(r.year) : ''}</span>` : ''}</span>
       <span class="small">${r.username ? '@' + esc(r.username) : esc(r.contact || '')}</span></div>`).join('')}</div>
-    ${rows.length ? '<button class="btn" id="att-copy" style="width:100%;margin-top:12px">Ro‘yxatni nusxalash (Excel uchun)</button>' : ''}`;
+    ${rows.length ? '<button class="btn" id="att-copy" style="width:100%;margin-top:12px">Ro‘yxatni nusxalash (Excel uchun)</button>' : ''}
+    ${isAdmin ? `<div class="label" style="margin-top:18px">Botda e’lon qilish</div>
+      <button class="btn" id="ann-test" style="width:100%">1. O‘zimga sinov yuborish</button>
+      <button class="btn" id="ann-all" style="width:100%;margin-top:8px">2. Barcha a’zolarga yuborish</button>
+      <div class="small" id="ann-res" style="margin-top:8px">Avval sinovni ko‘ring. Hammaga yuborish har bir kishiga bir martadan boradi.</div>` : ''}`;
+  const res = $('#ann-res');
+  const at = $('#ann-test'), aa = $('#ann-all');
+  if (at) at.addEventListener('click', async () => {
+    at.disabled = true; res.textContent = 'Yuborilmoqda…';
+    try { const r = await api(`/api/events/${id}/announce`, { method: 'POST', body: { to: 'me' } }); res.textContent = r.ok ? '✓ Sinov botga yuborildi — tekshirib ko‘ring.' : 'Xato: ' + (r.error || 'yuborilmadi'); }
+    catch (err) { res.textContent = err.message; }
+    at.disabled = false;
+  });
+  if (aa) aa.addEventListener('click', async () => {
+    if (aa.dataset.confirm !== '1') { aa.dataset.confirm = '1'; aa.textContent = 'Rostdan hammaga yuborilsinmi? Yana bosing'; return; }
+    aa.disabled = true; res.textContent = 'Yuborilmoqda… 1–2 daqiqa kuting, oynani yopmang.';
+    try { const r = await api(`/api/events/${id}/announce`, { method: 'POST', body: { to: 'all' } }); res.textContent = `✓ Yuborildi: ${r.sent}, yetmadi: ${r.failed} (botni bloklaganlar).`; aa.textContent = 'Yuborildi'; }
+    catch (err) { res.textContent = 'Uzilib qoldi — qayta bossangiz, qolganlarga davom etadi. (' + err.message + ')'; aa.disabled = false; aa.dataset.confirm = ''; aa.textContent = '2. Davom ettirish'; }
+  });
   const c = $('#att-copy');
   if (c) c.addEventListener('click', async () => { try { await navigator.clipboard.writeText(tsv); toast('Nusxalandi — Excel’ga joylang'); } catch (e) { toast('Nusxalab bo‘lmadi'); } });
 }

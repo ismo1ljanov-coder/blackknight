@@ -729,6 +729,12 @@ async function route(req) {
     }
     return json({ joined: !del.rowCount });
   }
+  if ((mm = p.match(/^\/api\/events\/(\d+)\/announce$/)) && m === 'POST') {
+    if (!admin) return bad('Ruxsat yo‘q', 403);
+    if (body.to === 'all') return await announceEvent(+mm[1], 'all');
+    if (!tu || !tu.id) return bad('Sinov uchun ilovani Telegram ichida oching');
+    return await announceEvent(+mm[1], String(tu.id));
+  }
   if ((mm = p.match(/^\/api\/events\/(\d+)\/attendees$/)) && m === 'GET') {
     const id = +mm[1];
     const ev = (await q('SELECT created_by FROM events WHERE id=$1', [id])).rows[0];
