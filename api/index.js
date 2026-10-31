@@ -87,7 +87,7 @@ Nega qo‘shilish kerak?
 
 1️⃣ Ovozingiz eshitiladi. Kampusdagi muammoni yozing (anonim ham bo‘ladi). Ko‘p ovoz to‘plaganini jamoamiz ma’muriyatga olib chiqadi, natijani sizga xabar qilamiz.
 2️⃣ Kerakli odamni topasiz. Kim nimani biladi — «Odamlar»da qidiring, bilim almashing.
-3️⃣ Ritsarga aylanasiz. Post, ovoz va do‘st taklifi uchun ball. Birinchi 229 kishiga — «Birinchi ritsar» nishoni.
+3️⃣ Ritsarga aylanasiz. Post, ovoz va do‘st taklifi uchun ball. Profilini to‘ldirgan va @blackknightsp kanaliga obuna bo‘lgan birinchi 229 kishiga — raqamli «Birinchi ritsar» nishoni.
 
 Boshlash — 1 daqiqa: ilovani oching, profilingizni to‘ldiring va bitta muammoga ovoz bering 👇`;
 
@@ -134,17 +134,24 @@ async function isSubscribed(uid) {
 }
 
 // First Knight badge: the first KNIGHT_LIMIT authors whose post earned a vote from someone else.
+// Badge rule: a filled profile (major + an interest or skill) and a channel subscription.
+const profileFilled = (u) => !!(u && u.major && u.major.trim() && ((u.interests || []).length || (u.teach || '').trim() || (u.learn || '').trim()));
 async function tryAwardKnight(uid) {
-  if (!uid || !uid.startsWith('tg')) return;
-  const u = await q('SELECT knight_no FROM users WHERE id=$1', [uid]);
-  if (!u.rowCount || u.rows[0].knight_no) return;
-  if (!(await isSubscribed(uid))) return;
+  if (!uid || !uid.startsWith('tg')) return 'no-tg';
+  const u = await q('SELECT knight_no, major, interests, teach, learn FROM users WHERE id=$1', [uid]);
+  if (!u.rowCount) return 'no-user';
+  if (u.rows[0].knight_no) return 'has';
+  if (!profileFilled(u.rows[0])) return 'incomplete';
+  if ((await q('SELECT count(*)::int n FROM users WHERE knight_no IS NOT NULL')).rows[0].n >= KNIGHT_LIMIT) return 'full';
+  if (!(await isSubscribed(uid))) return 'not-subscribed';
   try {
     const r = await q(`UPDATE users SET knight_no=(SELECT coalesce(max(knight_no),0)+1 FROM users)
       WHERE id=$1 AND knight_no IS NULL AND (SELECT count(*) FROM users WHERE knight_no IS NOT NULL) < ${KNIGHT_LIMIT}
       RETURNING knight_no`, [uid]);
-    if (r.rowCount) await notify(uid, `♞ <b>Tabriklaymiz!</b> Siz Black Knight'ning <b>Birinchi ritsari #${r.rows[0].knight_no}</b> bo‘ldingiz (${KNIGHT_LIMIT} tadan).\n\nOltin belgi endi profilingiz va postlaringizda ko‘rinadi.`);
-  } catch { /* two awards raced for the same number; the next vote retries */ }
+    if (!r.rowCount) return 'full';
+    await notify(uid, `♞ <b>Tabriklaymiz!</b> Siz Black Knight'ning <b>Birinchi ritsari #${r.rows[0].knight_no}</b> bo‘ldingiz (${KNIGHT_LIMIT} tadan).\n\nOltin belgi endi profilingiz va postlaringizda ko‘rinadi.`);
+    return 'awarded';
+  } catch { return 'retry'; /* two awards raced for the same number; the next visit retries */ }
 }
 
 // Volunteer ladder: hours of service logged by the team, separate from the points ladder.
@@ -302,6 +309,7 @@ async function route(req) {
     if (!validUid(uid)) return bad('uid kerak');
     const r = await q('SELECT * FROM users WHERE id=$1', [uid]);
     if (!r.rowCount) return json({ user: null });
+    if (!r.rows[0].knight_no && tu && profileFilled(r.rows[0]) && (await tryAwardKnight(uid)) === 'awarded') r.rows[0] = (await q('SELECT * FROM users WHERE id=$1', [uid])).rows[0];
     const s = await q(`SELECT
       (SELECT count(*) FROM problems WHERE author_id=$1)::int problems,
       (SELECT count(*) FROM votes WHERE user_id=$1)::int votes,
@@ -323,7 +331,9 @@ async function route(req) {
     const r = await q(`INSERT INTO users (id,name,major,year,interests,teach,learn,contact) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
       ON CONFLICT (id) DO UPDATE SET name=$2, major=$3, year=$4, interests=$5, teach=$6, learn=$7, contact=$8 RETURNING *`,
       [id, name, str(body.major, 80), str(body.year, 20), interests, str(body.teach, 80), str(body.learn, 80), contact]);
-    return json({ user: r.rows[0] });
+    const knight = tu ? await tryAwardKnight(id) : 'no-tg';
+    const user = knight === 'awarded' ? (await q('SELECT * FROM users WHERE id=$1', [id])).rows[0] : r.rows[0];
+    return json({ user, knight });
   }
   // ---- people directory and contact requests
   if (p === '/api/people' && m === 'GET') {

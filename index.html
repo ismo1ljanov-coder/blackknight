@@ -513,7 +513,7 @@ function levelBox() {
     <div class="small">${S.me && S.me.title === 'Founder' ? '✦ Siz — Founder. Ballar jamoa a’zolari uchun.' : ''}${S.me && S.me.title === 'Founder' ? '' : sc.next_level ? `«${esc(sc.next_level)}» darajasigacha ${sc.next_at - sc.points} ball qoldi` : 'Eng yuqori daraja — siz Qora ritsarsiz ♞'}</div>
     <div class="ladder"><span${sc.level_index >= 0 ? ' class="on"' : ''}>Navkar</span><i></i><span${sc.level_index >= 1 ? ' class="on"' : ''}>Ritsar · 100</span><i></i><span${sc.level_index >= 2 ? ' class="on"' : ''}>Qora ritsar · 300</span></div>
     <div class="small">Post — 10 ball · boshqalardan ovoz — 2 ball · taklif qilingan do‘st — 15 ball</div>
-    ${S.me && !S.me.knight_no && knightsLeft > 0 ? `<div class="small" style="color:var(--gold-hi)">♞ «Birinchi ritsar» belgisi: ${knightsLeft} ta joy qoldi. Shart: <a href="https://t.me/blackknightsp" style="color:inherit">@blackknightsp</a> kanaliga obuna bo‘lish va postingiz birinchi ovozni olishi.</div>` : ''}
+    ${S.me && !S.me.knight_no && knightsLeft > 0 ? `<div class="small" style="color:var(--gold-hi)">♞ «Birinchi ritsar» belgisi: ${knightsLeft} ta joy qoldi. Shart: profilni to‘ldirish (yo‘nalish + qiziqish) va <a href="https://t.me/blackknightsp" style="color:inherit">@blackknightsp</a> kanaliga obuna bo‘lish.</div>` : ''}
   </section>`;
 }
 function inviteBox() {
@@ -637,7 +637,8 @@ function profileSheet(required) {
       try {
         const r = await api('/api/me', { method: 'PUT', body: { uid, name, major: $('#pf-major', el).value, year: $('#pf-year', el).value,
           interests: [...el.querySelectorAll('#pf-int [aria-pressed="true"]')].map((b) => b.textContent), teach: $('#pf-teach', el).value, learn: $('#pf-learn', el).value, contact: (el.querySelector('#pf-contact [aria-pressed="true"]') || {}).dataset?.c || 'request' } });
-        S.me = r.user; closeSheet(); toast('Profil saqlandi'); await Promise.all([loadMe(), loadMatches()]); render();
+        S.me = r.user; closeSheet();
+        toast(r.knight === 'awarded' ? `♞ Tabriklaymiz! Siz Birinchi ritsar #${r.user.knight_no}` : r.knight === 'not-subscribed' ? 'Saqlandi. Nishon uchun @blackknightsp kanaliga obuna bo‘ling' : r.knight === 'incomplete' ? 'Saqlandi. Nishon uchun yo‘nalish va qiziqishni ham kiriting' : 'Profil saqlandi'); await Promise.all([loadMe(), loadMatches()]); render();
         if (pendingAction) { const a = pendingAction; pendingAction = null; a(); }
       } catch (err) { $('#pf-err', el).textContent = err.message; btn.disabled = false; }
     });
@@ -653,7 +654,7 @@ function welcomeSheet() {
     <div class="why">
       <div class="w"><b>1</b><div><h3>Ovozingiz eshitiladi</h3><p>Kampusdagi muammoni yozing — xohlasangiz anonim. Ko‘p ovoz to‘plagan muammoni Black Knight jamoasi ma’muriyatga olib chiqadi. Holati o‘zgarsa, bot sizga xabar beradi.</p></div></div>
       <div class="w"><b>2</b><div><h3>Kerakli odamni topasiz</h3><p>Kim Python biladi, kim dizayn qiladi, kim ingliz tilida yordam beradi — «Odamlar»da qidiring. O‘zingiz nimani o‘rgata olishingizni yozsangiz, sizni ham topishadi.</p></div></div>
-      <div class="w"><b>3</b><div><h3>Ritsarga aylanasiz</h3><p>Har bir post, ovoz va taklif qilgan do‘stingiz uchun ball: Navkar → Ritsar → Qora ritsar.${left ? ` «Birinchi ritsar» nishoniga ${left} ta joy qoldi.` : ''}</p></div></div>
+      <div class="w"><b>3</b><div><h3>Ritsarga aylanasiz</h3><p>Har bir post, ovoz va taklif qilgan do‘stingiz uchun ball: Navkar → Ritsar → Qora ritsar.${left ? ` Profilini to‘ldirgan va kanalga obuna bo‘lganlarga — «Birinchi ritsar» nishoni, ${left} ta joy qoldi.` : ''}</p></div></div>
     </div>
     <div class="label" style="margin:4px 0 0">Boshlash — 1 daqiqa</div>
     <ol class="steps"><li>Profilingizni to‘ldiring: yo‘nalish, qiziqishlar, nimani o‘rgatasiz</li><li>Lentadagi muammolarga ovoz bering yoki o‘zingiznikini yozing</li></ol>
