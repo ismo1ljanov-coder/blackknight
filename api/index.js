@@ -666,7 +666,9 @@ async function remindJob() {
   const noSub = (await q(`SELECT u.id user_id, u.name FROM users u WHERE u.id LIKE 'tg%' AND u.knight_no IS NULL AND u.major<>''
     AND (cardinality(u.interests)>0 OR u.teach<>'' OR u.learn<>'')
     AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.user_id=u.id AND r.kind='subscribe')`)).rows;
-  const res = { open_app: [0, 0], subscribe: [0, 0], awarded_now: 0 };
+  const knights = (await q(`SELECT u.id user_id, u.name, u.knight_no FROM users u WHERE u.knight_no IS NOT NULL AND u.id LIKE 'tg%'
+    AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.user_id=u.id AND r.kind='knight_thanks') ORDER BY u.knight_no`)).rows;
+  const res = { open_app: [0, 0], subscribe: [0, 0], awarded_now: 0, knight_thanks: [0, 0] };
   for (const r of noApp) {
     const t = await tg('sendMessage', { chat_id: r.user_id.slice(2), parse_mode: 'HTML',
       text: `Assalomu alaykum! 👋\n\nSiz Black Knight botiga kirgansiz, lekin ilovani hali ochmadingiz.\n\nIlovada kampusdagi muammolarni yozib ovoz to‘plashingiz, kerakli odamni topishingiz va <b>«Birinchi ritsar» ♞</b> nishonini olishingiz mumkin — <b>${left} ta joy</b> qoldi.\n\nPastdagi tugmani bosing va profilingizni to‘ldiring 👇`,
@@ -685,6 +687,14 @@ async function remindJob() {
       reply_markup: { inline_keyboard: kb } }).catch(() => null);
     const ok = !!(t && t.ok); res.subscribe[ok ? 0 : 1]++;
     await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, 'subscribe', ok]);
+  }
+  for (const r of knights) {
+    const ref = `https://t.me/${BOT_USERNAME}?start=ref_${r.user_id.slice(2)}`;
+    const t = await tg('sendMessage', { chat_id: r.user_id.slice(2), parse_mode: 'HTML', disable_web_page_preview: true,
+      text: `♞ <b>${esc(firstName(r.name))}, siz — Black Knight'ning #${r.knight_no}-ritsarisiz.</b>\n\nRahmat! Siz platformaga birinchilardan bo‘lib ishondingiz. Kampusni yaxshilash aynan shunday — gapdan emas, birinchi qadamdan boshlanadi.\n\nSizning raqamingiz tarixda qoladi: ${KNIGHT_LIMIT} ta joy tugagach, bu nishon boshqa hech kimga berilmaydi.\n\nAgar yoningizda ham shunday birinchi qadam qo‘yadigan do‘stingiz bo‘lsa — mana sizning shaxsiy havolangiz:\n${ref}\n\nRitsarlik — zirh emas. Bu — qaror.\n<b>Black Knight Team</b>`,
+      reply_markup: openKb() }).catch(() => null);
+    const ok = !!(t && t.ok); res.knight_thanks[ok ? 0 : 1]++;
+    await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, 'knight_thanks', ok]);
   }
   await q('INSERT INTO selftest (result) VALUES ($1) RETURNING 1 x', [JSON.stringify({ remind: res })]).catch(() => {});
   return json(res);
