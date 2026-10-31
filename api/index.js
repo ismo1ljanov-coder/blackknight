@@ -262,7 +262,7 @@ async function route(req) {
   // ---- admin management (Telegram accounts)
   if (p === '/api/admins' && m === 'GET') {
     if (!admin) return bad('Ruxsat yo‘q', 403);
-    const r = await q(`SELECT u.id, u.name, u.username, a.added_at FROM admins a JOIN users u ON u.id=a.user_id ORDER BY a.added_at`);
+    const r = await q(`SELECT u.id, u.name, u.username, u.position, a.added_at FROM admins a JOIN users u ON u.id=a.user_id ORDER BY a.added_at`);
     return json({ admins: r.rows });
   }
   if (p === '/api/admins' && m === 'POST') {
@@ -272,7 +272,10 @@ async function route(req) {
     const u = await q('SELECT id, name FROM users WHERE username=$1', [uname]);
     if (!u.rowCount) return bad(`@${uname} hali ilovani ochmagan. Avval u botga kirib, ilovani bir marta ochsin.`, 404);
     await q('INSERT INTO admins (user_id, added_by) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [u.rows[0].id, uid || 'key']);
-    return json({ ok: true, name: u.rows[0].name }, 201);
+    const pos = str(body.position, 60);
+    if (pos) await q('UPDATE users SET position=$1 WHERE id=$2 RETURNING id', [pos, u.rows[0].id]);
+    await notify(u.rows[0].id, `◆ Siz Black Knight jamoasiga qo‘shildingiz.${pos ? `\nVazifangiz: <b>${esc(pos)}</b>` : ''}\n\nMas’uliyat — sharaf. Omad!`);
+    return json({ ok: true, name: u.rows[0].name, position: pos || null }, 201);
   }
   if ((mm = p.match(/^\/api\/admins\/([a-zA-Z0-9_-]+)$/)) && m === 'DELETE') {
     if (!admin) return bad('Ruxsat yo‘q', 403);

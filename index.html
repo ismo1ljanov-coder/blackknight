@@ -572,10 +572,11 @@ function viewProfil() {
   </section>` : ''}
   ${isAdmin ? `<section class="glass box">
     <h3>Adminlar</h3>
-    ${S.admins.map((a) => `<div class="match"><b>${esc(a.name)}</b><span>${a.username ? '@' + esc(a.username) : ''}${a.id !== uid ? ` <button class="admin-rm" data-rmadmin="${esc(a.id)}" aria-label="${esc(a.name)} adminligini olib tashlash">Olib tashlash</button>` : ' · siz'}</span></div>`).join('')}
-    <form id="addadmin" style="display:flex;gap:8px;margin-top:6px" novalidate>
-      <label class="field" style="flex:1"><span class="small">Yangi admin (Telegram username)</span><input id="aa-user" placeholder="@username" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
-      <button class="btn" type="submit" style="align-self:flex-end;height:48px">Qo‘shish</button>
+    ${S.admins.map((a) => `<div class="match"><b>${esc(a.name)}${a.position ? `<small style="display:block;font-weight:500;color:var(--gold-hi)">◆ ${esc(a.position)}</small>` : ''}</b><span>${a.username ? '@' + esc(a.username) : ''}${a.id !== uid ? ` <button class="admin-rm" data-rmadmin="${esc(a.id)}" aria-label="${esc(a.name)} adminligini olib tashlash">Olib tashlash</button>` : ' · siz'}</span></div>`).join('')}
+    <form id="addadmin" style="display:flex;flex-direction:column;gap:8px;margin-top:6px" novalidate>
+      <label class="field"><span class="small">Yangi admin (Telegram username)</span><input id="aa-user" placeholder="@username" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <label class="field"><span class="small">Vazifasi</span><input id="aa-pos" maxlength="60" placeholder="Masalan: Tadbirlar mas’uli" autocomplete="off"></label>
+      <button class="btn" type="submit" style="height:48px">Qo‘shish</button>
     </form>
     <div class="small">Yangi admin avval botga kirib, ilovani bir marta ochgan bo‘lishi kerak.</div>
   </section>` : ''}
@@ -806,8 +807,10 @@ document.addEventListener('submit', async (e) => {
   if (e.target.id !== 'addadmin') return;
   e.preventDefault();
   const inp = document.getElementById('aa-user'); const username = inp.value.trim();
+  const posInp = document.getElementById('aa-pos'); const position = posInp.value.trim();
   if (!username) { toast('Telegram username kiriting'); return; }
-  try { const r = await api('/api/admins', { method: 'POST', body: { username } }); toast(r.name + ' admin qilindi'); inp.value = ''; }
+  if (!position) { toast('Vazifasini yozing'); posInp.focus(); return; }
+  try { const r = await api('/api/admins', { method: 'POST', body: { username, position } }); toast(r.name + ' admin qilindi'); inp.value = ''; posInp.value = ''; }
   catch (err) { toast(err.message); }
   await loadAdmins(); render();
 });
