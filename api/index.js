@@ -102,12 +102,12 @@ async function answerRequest(id, targetUid, accept) {
     // Both sides get each other's contact: an @username with a button, or a tappable profile link.
     const rows = (await q('SELECT id, name, username FROM users WHERE id = ANY($1)', [[r.rows[0].from_id, targetUid]])).rows;
     const by = (id) => rows.find((x) => x.id === id) || { id, name: 'Talaba' };
+    // The contact itself lives in the app (Profil → Tanishlarim); the bot only tells both sides.
     const send = (toId, other, head) => {
-      const link = other.username ? `https://t.me/${other.username}` : `tg://user?id=${other.id.slice(2)}`;
       const first = String(other.name || 'Talaba').trim().split(/\s+/)[0];
       return tg('sendMessage', { chat_id: toId.slice(2), parse_mode: 'HTML',
-        text: `${head}\n\nPastdagi tugma orqali yozishingiz mumkin. Kontakt ilovadagi Profil → «Tanishlarim» bo‘limida ham saqlanadi.`,
-        reply_markup: { inline_keyboard: [[{ text: `✉️ ${first}ga yozish`, url: link }]] } }).catch(() => {});
+        text: `${head}\n\nIlovada Profil → «Tanishlarim» bo‘limidagi «${esc(first)}ga yozish» tugmasi orqali yozishingiz mumkin.`,
+        reply_markup: openKb() }).catch(() => {});
     };
     const from = by(r.rows[0].from_id), to = by(targetUid);
     await send(from.id, to, `✅ <b>${esc(to.name)}</b> tanishish so‘rovingizni qabul qildi.`);

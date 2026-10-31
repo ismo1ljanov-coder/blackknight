@@ -558,7 +558,7 @@ function viewProfil() {
   ${S.contacts.length ? `<section class="glass box" aria-label="Tanishlarim">
     <h3>Tanishlarim · ${S.contacts.length}</h3>
     ${S.contacts.map((c) => `<div class="req"><div class="row">${avatar(c)}<div style="flex:1;min-width:0;text-align:left"><button class="linkname" data-person="${esc(c.id)}">${esc(c.name)}</button><div class="small">${esc(c.major || 'Millat Umidi talabasi')}</div></div>
-      <button class="btn" data-dm="${esc(c.id)}" data-user="${esc(c.username || '')}">Yozish</button></div></div>`).join('')}
+      <button class="btn" data-dm="${esc(c.id)}" data-user="${esc(c.username || '')}">${esc(String(c.name || 'Talaba').trim().split(/\s+/)[0])}ga yozish</button></div></div>`).join('')}
   </section>` : ''}
   ${S.svc ? serviceBox(S.svc.summary, S.svc.entries, false) : ''}
   ${S.team ? pagonBox() : levelBox()}
