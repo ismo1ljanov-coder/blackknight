@@ -512,7 +512,7 @@ function levelBox() {
     <div class="small">${S.me && S.me.title === 'Founder' ? '✦ Siz — Founder. Ballar jamoa a’zolari uchun.' : ''}${S.me && S.me.title === 'Founder' ? '' : sc.next_level ? `«${esc(sc.next_level)}» darajasigacha ${sc.next_at - sc.points} ball qoldi` : 'Eng yuqori daraja — siz Qora ritsarsiz ♞'}</div>
     <div class="ladder"><span${sc.level_index >= 0 ? ' class="on"' : ''}>Navkar</span><i></i><span${sc.level_index >= 1 ? ' class="on"' : ''}>Ritsar · 100</span><i></i><span${sc.level_index >= 2 ? ' class="on"' : ''}>Qora ritsar · 300</span></div>
     <div class="small">Post — 10 ball · boshqalardan ovoz — 2 ball · taklif qilingan do‘st — 15 ball</div>
-    ${S.me && !S.me.knight_no && knightsLeft > 0 ? `<div class="small" style="color:var(--gold-hi)">♞ «Birinchi ritsar» belgisi: ${knightsLeft} ta joy qoldi. Postingiz birinchi ovozni olganda beriladi.</div>` : ''}
+    ${S.me && !S.me.knight_no && knightsLeft > 0 ? `<div class="small" style="color:var(--gold-hi)">♞ «Birinchi ritsar» belgisi: ${knightsLeft} ta joy qoldi. Shart: <a href="https://t.me/blackknightsp" style="color:inherit">@blackknightsp</a> kanaliga obuna bo‘lish va postingiz birinchi ovozni olishi.</div>` : ''}
   </section>`;
 }
 function inviteBox() {
