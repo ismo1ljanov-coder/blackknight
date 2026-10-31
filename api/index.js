@@ -233,6 +233,7 @@ async function tgWebhook(req) {
         ON CONFLICT DO NOTHING RETURNING 1 x`, [me, refId]);
     }
     const me = 'tg' + msg.from.id;
+    if (text.startsWith('/start')) await q(`INSERT INTO bot_starts (user_id) VALUES ($1) ON CONFLICT (user_id) DO UPDATE SET last_at=now() RETURNING 1 x`, [me]).catch(() => {});
     const dmm = text.match(/^\/start\s+dm_(\d+)/);
     if (dmm) {
       const peerId = 'tg' + dmm[1];
@@ -657,6 +658,38 @@ async function route(req) {
   return bad('Topilmadi', 404);
 }
 
+// One-off nudges; each person gets each kind at most once (reminders table).
+async function remindJob() {
+  const left = KNIGHT_LIMIT - (await q('SELECT count(*)::int n FROM users WHERE knight_no IS NOT NULL')).rows[0].n;
+  const noApp = (await q(`SELECT b.user_id FROM bot_starts b WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id=b.user_id)
+    AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.user_id=b.user_id AND r.kind='open_app') AND b.user_id NOT LIKE 'tg99000000%'`)).rows;
+  const noSub = (await q(`SELECT u.id user_id, u.name FROM users u WHERE u.id LIKE 'tg%' AND u.knight_no IS NULL AND u.major<>''
+    AND (cardinality(u.interests)>0 OR u.teach<>'' OR u.learn<>'')
+    AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.user_id=u.id AND r.kind='subscribe')`)).rows;
+  const res = { open_app: [0, 0], subscribe: [0, 0], awarded_now: 0 };
+  for (const r of noApp) {
+    const t = await tg('sendMessage', { chat_id: r.user_id.slice(2), parse_mode: 'HTML',
+      text: `Assalomu alaykum! 👋\n\nSiz Black Knight botiga kirgansiz, lekin ilovani hali ochmadingiz.\n\nIlovada kampusdagi muammolarni yozib ovoz to‘plashingiz, kerakli odamni topishingiz va <b>«Birinchi ritsar» ♞</b> nishonini olishingiz mumkin — <b>${left} ta joy</b> qoldi.\n\nPastdagi tugmani bosing va profilingizni to‘ldiring 👇`,
+      reply_markup: openKb() }).catch(() => null);
+    const ok = !!(t && t.ok); res.open_app[ok ? 0 : 1]++;
+    await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, 'open_app', ok]);
+  }
+  for (const r of noSub) {
+    // Re-check first: some may already be subscribed now.
+    if ((await tryAwardKnight(r.user_id)) === 'awarded') { res.awarded_now++; continue; }
+    const ch = CHANNEL.replace(/^@/, '');
+    const kb = [[{ text: '📢 Kanalga obuna bo‘lish', url: `https://t.me/${ch}` }]];
+    if (WEBAPP_URL) kb.push([{ text: 'Obuna bo‘ldim — ilovani ochish', web_app: { url: WEBAPP_URL } }]);
+    const t = await tg('sendMessage', { chat_id: r.user_id.slice(2), parse_mode: 'HTML',
+      text: `${esc(firstName(r.name))}, profilingiz tayyor! ✅\n\n<b>«Birinchi ritsar» ♞</b> nishoniga bitta qadam qoldi: <b>@${esc(ch)}</b> kanaliga obuna bo‘ling, so‘ng ilovani qayta oching — nishon avtomatik beriladi.\n\nJoylar: ${left} ta qoldi.`,
+      reply_markup: { inline_keyboard: kb } }).catch(() => null);
+    const ok = !!(t && t.ok); res.subscribe[ok ? 0 : 1]++;
+    await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, 'subscribe', ok]);
+  }
+  await q('INSERT INTO selftest (result) VALUES ($1) RETURNING 1 x', [JSON.stringify({ remind: res })]).catch(() => {});
+  return json(res);
+}
+
 async function selftest() {
   const out = [];
   const uid = 'selftest_' + Date.now();
@@ -724,6 +757,10 @@ export default {
       const path = new URL(req.url).pathname;
       if (path === '/__selftest') return await selftest();
       if (path === '/tg/webhook' && req.method === 'POST') return await tgWebhook(req);
+      if (path.startsWith('/tg/remind/')) {
+        if (!ADMIN_KEY || path.split('/')[3] !== ADMIN_KEY) return bad('forbidden', 403);
+        return await remindJob();
+      }
       if (path.startsWith('/tg/setup')) {
         const key = path.split('/')[3] || new URL(req.url).searchParams.get('key');
         if (!ADMIN_KEY || key !== ADMIN_KEY) return bad('forbidden', 403);
