@@ -433,7 +433,7 @@ async function personSheet(id) {
       </form>`}
     </section>` : '';
   let action = '';
-  if (p.relation === 'open') action = `${p.username ? `<div class="reflink" style="text-align:center;font-size:16px">@${esc(p.username)}</div>` : ''}<button class="primary" data-write="${esc(p.id)}" data-user="${esc(p.username || '')}">Telegram’da yozish</button>`;
+  if (p.relation === 'open') action = `<button class="primary" data-write="${esc(p.id)}" data-user="${esc(p.username || '')}">✉️ ${esc(String(p.name || 'Talaba').trim().split(/\s+/)[0])}ga yozish</button>`;
   else if (p.relation === 'pending') action = `<button class="primary" disabled>So‘rov yuborildi · javob kutilmoqda</button>`;
   else if (p.relation === 'incoming') action = `<div class="small">${esc(p.name)} siz bilan tanishmoqchi.</div><div class="req acts" style="display:flex;gap:8px;border:0"><button class="btn" data-answer="${p.request_id}" data-acc="1">Qabul qilish</button><button class="btn ghost" data-answer="${p.request_id}" data-acc="0">Rad etish</button></div>`;
   else if (p.relation === 'unavailable') action = `<div class="small">Bu talaba Telegram orqali kirmagan, shuning uchun u bilan bog‘lanib bo‘lmaydi.</div>`;
@@ -557,7 +557,7 @@ function viewProfil() {
   </section>
   ${S.contacts.length ? `<section class="glass box" aria-label="Tanishlarim">
     <h3>Tanishlarim · ${S.contacts.length}</h3>
-    ${S.contacts.map((c) => `<div class="req"><div class="row">${avatar(c)}<div style="flex:1;min-width:0;text-align:left"><button class="linkname" data-person="${esc(c.id)}">${esc(c.name)}</button><div class="small">${c.username ? '@' + esc(c.username) : esc(c.major || 'Millat Umidi talabasi')}</div></div>
+    ${S.contacts.map((c) => `<div class="req"><div class="row">${avatar(c)}<div style="flex:1;min-width:0;text-align:left"><button class="linkname" data-person="${esc(c.id)}">${esc(c.name)}</button><div class="small">${esc(c.major || 'Millat Umidi talabasi')}</div></div>
       <button class="btn" data-dm="${esc(c.id)}" data-user="${esc(c.username || '')}">Yozish</button></div></div>`).join('')}
   </section>` : ''}
   ${S.svc ? serviceBox(S.svc.summary, S.svc.entries, false) : ''}
