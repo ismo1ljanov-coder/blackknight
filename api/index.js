@@ -231,7 +231,7 @@ async function eventCallback(cb, eventId) {
   await sendEventLink(eventId, me);
 }
 
-const eventCaption = (e) => `🌿 <b>BlackKnight Club Picnic'ga taklif qiladi!</b>
+const eventCaption = (e) => `<b>BlackKnight Club Picnic'ga taklif qiladi!</b>
 
 Darslar, deadline'lar, imtihonlar... Bir kun hammasidan dam olamizmi? 🧺
 
