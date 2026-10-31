@@ -492,8 +492,7 @@ async function personSheet(id) {
       try { await api('/api/requests', { method: 'POST', body: { uid, to: b.dataset.request, note: ($('#rq-note', sh) || {}).value || '' } }); toast('So‘rov yuborildi'); personSheet(b.dataset.request); }
       catch (x) { err.textContent = x.message; b.disabled = false; }
     } else if (b.dataset.write) {
-      if (b.dataset.user) { const link = 'https://t.me/' + b.dataset.user; if (TG && TG.openTelegramLink) TG.openTelegramLink(link); else window.open(link, '_blank'); }
-      else { try { await api(`/api/people/${encodeURIComponent(b.dataset.write)}/write`, { method: 'POST', body: { uid } }); toast('Bot sizga uning havolasini yubordi'); } catch (x) { err.textContent = x.message; } }
+      openDm(b.dataset.write, b.dataset.user);
     } else if (b.dataset.answer) {
       b.disabled = true;
       try { await api(`/api/requests/${b.dataset.answer}`, { method: 'POST', body: { uid, action: b.dataset.acc === '1' ? 'accept' : 'decline' } }); toast(b.dataset.acc === '1' ? 'Qabul qilindi' : 'Rad etildi'); await loadRequests(); personSheet(id); }
@@ -673,6 +672,11 @@ function profileSheet(required) {
   });
 }
 
+// Opens a chat: directly when the person has a @username, otherwise through the bot relay.
+function openDm(id, user) {
+  const link = user ? 'https://t.me/' + user : 'https://t.me/blackknightsp_bot?start=dm_' + String(id).replace(/^tg/, '');
+  if (TG && TG.openTelegramLink) TG.openTelegramLink(link); else window.open(link, '_blank');
+}
 const MAJORS = ['ELT', 'Business Administration', 'IT', 'Finance'];
 const profileEmpty = (me) => !me || !(me.major || me.teach || me.learn || (me.interests || []).length);
 function welcomeSheet() {
@@ -791,8 +795,7 @@ document.addEventListener('click', async (e) => {
   if (d.act === 'profile') return profileSheet(false);
   if (d.act === 'welcome') return welcomeSheet();
   if (d.dm) {
-    if (d.user) { const link = 'https://t.me/' + d.user; if (TG && TG.openTelegramLink) TG.openTelegramLink(link); else window.open(link, '_blank'); }
-    else { try { await api(`/api/people/${encodeURIComponent(d.dm)}/write`, { method: 'POST', body: { uid } }); toast('Bot sizga uning havolasini yubordi'); } catch (x) { toast(x.message); } }
+    openDm(d.dm, d.user);
     return;
   }
   if (d.act === 'newevent') return newEventSheet();

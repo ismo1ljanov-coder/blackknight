@@ -94,6 +94,15 @@ Boshlash — 1 daqiqa: ilovani oching, profilingizni to‘ldiring va bitta muamm
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 // Target answers a contact request; on accept the requester gets a link to the target.
+// Contact link: a direct chat when the peer has a @username, otherwise a relay through the bot.
+const dmLink = (peer) => (peer.username ? `https://t.me/${peer.username}` : `https://t.me/${BOT_USERNAME}?start=dm_${peer.id.slice(2)}`);
+const firstName = (n) => String(n || 'Talaba').trim().split(/\s+/)[0];
+async function canContact(a, b) {
+  if (a === b) return false;
+  const r = await q(`SELECT 1 x FROM users u WHERE u.id=$2 AND (u.contact='open' OR EXISTS (SELECT 1 FROM contact_requests c WHERE c.status='accepted'
+    AND ((c.from_id=$1 AND c.to_id=$2) OR (c.from_id=$2 AND c.to_id=$1))))`, [a, b]);
+  return r.rowCount > 0;
+}
 async function answerRequest(id, targetUid, accept) {
   const r = await q(`UPDATE contact_requests SET status=$1, answered_at=now() WHERE id=$2 AND to_id=$3 AND status='pending'
     RETURNING from_id, to_id`, [accept ? 'accepted' : 'declined', id, targetUid]);
@@ -104,10 +113,12 @@ async function answerRequest(id, targetUid, accept) {
     const by = (id) => rows.find((x) => x.id === id) || { id, name: 'Talaba' };
     // The contact itself lives in the app (Profil → Tanishlarim); the bot only tells both sides.
     const send = (toId, other, head) => {
-      const first = String(other.name || 'Talaba').trim().split(/\s+/)[0];
+      const first = firstName(other.name);
+      const kb = [[{ text: `✉️ ${first}ga yozish`, url: dmLink(other) }]];
+      if (WEBAPP_URL) kb.push([{ text: 'Black Knight’ni ochish', web_app: { url: WEBAPP_URL } }]);
       return tg('sendMessage', { chat_id: toId.slice(2), parse_mode: 'HTML',
-        text: `${head}\n\nIlovada Profil → «Tanishlarim» bo‘limidagi «${esc(first)}ga yozish» tugmasi orqali yozishingiz mumkin.`,
-        reply_markup: openKb() }).catch(() => {});
+        text: `${head}\n\nPastdagi tugma orqali yozishingiz mumkin. Kontakt ilovada Profil → «Tanishlarim» bo‘limida ham turadi.`,
+        reply_markup: { inline_keyboard: kb } }).catch(() => {});
     };
     const from = by(r.rows[0].from_id), to = by(targetUid);
     await send(from.id, to, `✅ <b>${esc(to.name)}</b> tanishish so‘rovingizni qabul qildi.`);
@@ -207,7 +218,7 @@ async function tgWebhook(req) {
     await tg('answerCallbackQuery', { callback_query_id: cb.id, text: res.ok ? (res.accepted ? 'Qabul qilindi' : 'Rad etildi') : res.error });
     if (res.ok && cb.message) {
       await tg('editMessageReplyMarkup', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, reply_markup: { inline_keyboard: [] } }).catch(() => {});
-      await tg('sendMessage', { chat_id: cb.message.chat.id, text: res.accepted ? 'Qabul qildingiz. Endi u sizga Telegram’da yoza oladi.' : 'So‘rov rad etildi. U bu haqda xabar olmaydi.' });
+      if (!res.accepted) await tg('sendMessage', { chat_id: cb.message.chat.id, text: 'So‘rov rad etildi. U bu haqda xabar olmaydi.' });
     }
     return json({ ok: true });
   }
@@ -220,6 +231,38 @@ async function tgWebhook(req) {
       const known = await q('SELECT 1 x FROM users WHERE id=$1', [me]);
       if (!known.rowCount) await q(`INSERT INTO referrals (user_id, referrer_id) SELECT $1,$2 WHERE EXISTS (SELECT 1 FROM users WHERE id=$2)
         ON CONFLICT DO NOTHING RETURNING 1 x`, [me, refId]);
+    }
+    const me = 'tg' + msg.from.id;
+    const dmm = text.match(/^\/start\s+dm_(\d+)/);
+    if (dmm) {
+      const peerId = 'tg' + dmm[1];
+      const peer = (await q('SELECT id, name, username FROM users WHERE id=$1', [peerId])).rows[0];
+      if (!peer || !(await canContact(me, peerId))) {
+        await tg('sendMessage', { chat_id: msg.chat.id, text: 'Bu talabaga yozish uchun avval tanishish so‘rovi qabul qilinishi kerak.', reply_markup: openKb() });
+      } else if (peer.username) {
+        await tg('sendMessage', { chat_id: msg.chat.id, text: `${firstName(peer.name)} bilan yozishish:`, reply_markup: { inline_keyboard: [[{ text: `✉️ ${firstName(peer.name)}ga yozish`, url: `https://t.me/${peer.username}` }]] } });
+      } else {
+        await q(`INSERT INTO dm_sessions (user_id, peer_id) VALUES ($1,$2) ON CONFLICT (user_id) DO UPDATE SET peer_id=$2, updated_at=now() RETURNING 1 x`, [me, peerId]);
+        await tg('sendMessage', { chat_id: msg.chat.id, parse_mode: 'HTML', text: `✉️ Endi shu yerga yozgan xabarlaringiz <b>${esc(peer.name)}</b>ga bot orqali yetkaziladi (matn, rasm, ovozli xabar).\n\nYozishishni tugatish: /stop` });
+      }
+      return json({ ok: true });
+    }
+    if (text.startsWith('/stop')) {
+      await q('DELETE FROM dm_sessions WHERE user_id=$1 RETURNING 1 x', [me]);
+      await tg('sendMessage', { chat_id: msg.chat.id, text: 'Yozishish to‘xtatildi.', reply_markup: openKb() });
+      return json({ ok: true });
+    }
+    if (!text.startsWith('/')) {
+      const ses = (await q(`SELECT peer_id FROM dm_sessions WHERE user_id=$1 AND updated_at > now() - interval '7 days'`, [me])).rows[0];
+      if (ses && (await canContact(me, ses.peer_id))) {
+        const sender = (await q('SELECT id, name, username FROM users WHERE id=$1', [me])).rows[0] || { id: me, name: 'Talaba' };
+        const head = await tg('sendMessage', { chat_id: ses.peer_id.slice(2), parse_mode: 'HTML', text: `✉️ <b>${esc(sender.name)}</b> sizga yozdi:`,
+          reply_markup: { inline_keyboard: [[{ text: '↩️ Javob berish', url: dmLink(sender) }]] } });
+        const cp = await tg('copyMessage', { chat_id: ses.peer_id.slice(2), from_chat_id: msg.chat.id, message_id: msg.message_id });
+        await q('UPDATE dm_sessions SET updated_at=now() WHERE user_id=$1 RETURNING 1 x', [me]);
+        await tg('sendMessage', { chat_id: msg.chat.id, text: cp && cp.ok ? '✓ Yetkazildi' : 'Xabar yetkazilmadi: u botni to‘xtatgan bo‘lishi mumkin.' });
+        return json({ ok: true });
+      }
     }
     if (text.startsWith('/start') || text.startsWith('/qollanma')) await sendGuide(msg.chat.id);
     else await tg('sendMessage', { chat_id: msg.chat.id, text: 'Ilovani ochish uchun pastdagi tugmani bosing. Qo‘llanma videoni qayta ko‘rish: /qollanma', reply_markup: openKb() });
@@ -650,6 +693,22 @@ async function selftest() {
     await call('GET', '/api/requests?uid=' + uid);
     await call('POST', '/api/requests', { uid, to: 'tg1' });
     await call('GET', '/api/stats');
+    // Relay: two fake Telegram users with an accepted request; /start dm_ then a text message.
+    const A = 'tg990000001', B = 'tg990000002';
+    await q("INSERT INTO users (id,name) VALUES ($1,'Selftest A'),($2,'Selftest B') ON CONFLICT DO NOTHING RETURNING 1 x", [A, B]);
+    await q("INSERT INTO contact_requests (from_id,to_id,status) VALUES ($1,$2,'accepted') ON CONFLICT DO NOTHING RETURNING 1 x", [A, B]);
+    const hook = async (text) => {
+      const r = await tgWebhook(new Request('http://x/tg/webhook', { method: 'POST', headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': WEBHOOK_SECRET },
+        body: JSON.stringify({ message: { message_id: 1, chat: { id: 990000001, type: 'private' }, from: { id: 990000001 }, text } }) }));
+      out.push(['HOOK', text, r.status]);
+    };
+    await hook('/start dm_990000002');
+    out.push(['SESSION', (await q('SELECT peer_id FROM dm_sessions WHERE user_id=$1', [A])).rows]);
+    await hook('Salom');
+    await hook('/stop');
+    out.push(['SESSION_AFTER_STOP', (await q('SELECT count(*)::int n FROM dm_sessions WHERE user_id=$1', [A])).rows]);
+    await q('DELETE FROM contact_requests WHERE from_id=$1 RETURNING 1 x', [A]);
+    await q('DELETE FROM users WHERE id = ANY($1) RETURNING 1 x', [[A, B]]);
     await call('DELETE', `/api/problems/${p.id}`, null, { 'x-admin-key': ADMIN_KEY });
     await call('DELETE', `/api/events/${e.id}`, null, { 'x-admin-key': ADMIN_KEY });
     await q('DELETE FROM users WHERE id=$1 RETURNING 1 x', [uid]);
