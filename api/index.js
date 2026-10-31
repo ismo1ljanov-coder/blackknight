@@ -81,13 +81,15 @@ async function tg(method, payload) {
   return r.json();
 }
 
-const START_TEXT = `Assalomu alaykum! Bu — Black Knight Team, Millat Umidi talabalari platformasi.
+const START_TEXT = `Assalomu alaykum! Bu — Black Knight Team, Millat Umidi talabalarining o‘z platformasi.
 
-▪️ Lenta — muammo, savol yoki «kerak» postini yozing (anonim ham bo‘ladi) va ovoz bering
-▪️ Odamlar — kerakli talabani toping, faqat ruxsat bilan tanishing
-▪️ Tadbirlar — bir tugma bilan yoziling
+Nega qo‘shilish kerak?
 
-Videoda hammasi 45 soniyada ko‘rsatilgan. Boshlash uchun pastdagi tugmani bosing 👇`;
+1️⃣ Ovozingiz eshitiladi. Kampusdagi muammoni yozing (anonim ham bo‘ladi). Ko‘p ovoz to‘plaganini jamoamiz ma’muriyatga olib chiqadi, natijani sizga xabar qilamiz.
+2️⃣ Kerakli odamni topasiz. Kim nimani biladi — «Odamlar»da qidiring, bilim almashing.
+3️⃣ Ritsarga aylanasiz. Post, ovoz va do‘st taklifi uchun ball. Birinchi 229 kishiga — «Birinchi ritsar» nishoni.
+
+Boshlash — 1 daqiqa: ilovani oching, profilingizni to‘ldiring va bitta muammoga ovoz bering 👇`;
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 

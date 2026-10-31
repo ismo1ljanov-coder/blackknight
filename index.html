@@ -78,6 +78,7 @@ button{cursor:pointer}
 .ladder i{flex:1;height:1px;background:var(--line-2)}
 .ladder span.on{color:var(--gold-hi);font-weight:700}
 .pg-mark{text-align:center;font-size:40px;line-height:1;background:var(--metal);-webkit-background-clip:text;background-clip:text;color:transparent}.pg-name{text-align:center;font-family:Cinzel,serif;font-weight:700;font-size:20px;color:var(--gold-hi)}
+.why{display:flex;flex-direction:column;gap:12px}.why .w{display:flex;gap:12px;align-items:flex-start}.why .w>b{flex:0 0 32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--metal);color:#1a1406;font-size:15px}.why h3{margin:2px 0 4px;font-size:16px;color:var(--gold-hi)}.why p{margin:0;font-size:14px;line-height:1.45;color:var(--muted)}.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.4}
 .svlist{display:flex;flex-direction:column;gap:6px;margin-top:4px}.sv{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid rgba(217,180,108,.14)}.sv b{color:var(--gold-hi);min-width:38px;font-variant-numeric:tabular-nums}.sv span{flex:1;font-size:13px;line-height:1.35}.sv small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
 .reflink{font-size:13px;padding:10px 12px;border-radius:12px;border:1px dashed var(--line-2);color:var(--gold-hi);overflow-wrap:anywhere;user-select:all}
 .dot{position:absolute;top:6px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--red)}
@@ -326,7 +327,7 @@ function viewOvoz() {
   if (S.problems === null) list = '<div class="skeleton"></div><div class="skeleton"></div>';
   else if (!S.problems.length) list = `<div class="glass empty"><b>${S.ptab === 'done' ? 'Hali hal qilingan muammo yo‘q' : 'Bu yerda hali post yo‘q'}</b>Birinchi bo‘lib yozing: “+ Post yozish” tugmasini bosing.</div>`;
   else list = S.problems.map(problemCard).join('');
-  return head('Talabalar lentasi') + offlineNote() + `
+  return head('Talabalar lentasi', '<button class="iconbtn" data-act="welcome" aria-label="Black Knight nima?" style="font-family:var(--crest);font-weight:700;font-size:18px">?</button>') + offlineNote() + `
   ${showIssues ? `<section class="glass stat" aria-label="Murojaatlar statistikasi">
     <div class="row"><div><div class="small">Shu oy hal qilingan muammolar</div><div class="big">${st.done_month}</div></div>
     <div class="small" style="text-align:right">${st.total} murojaat<br>${st.progress} tasi jarayonda</div></div>
@@ -643,6 +644,22 @@ function profileSheet(required) {
   });
 }
 
+const profileEmpty = (me) => !me || !(me.major || me.teach || me.learn || (me.interests || []).length);
+function welcomeSheet() {
+  store.set('bk_welcome', '1');
+  const left = Math.max(0, (S.knightLimit || 229) - (S.knights || 0));
+  openSheet(sheetTop('Nega Black Knight?') + `
+    <div class="small" style="font-size:15px;color:var(--fg)">Bu — Millat Umidi talabalarining o‘z platformasi. Bu yerda uch narsa bor:</div>
+    <div class="why">
+      <div class="w"><b>1</b><div><h3>Ovozingiz eshitiladi</h3><p>Kampusdagi muammoni yozing — xohlasangiz anonim. Ko‘p ovoz to‘plagan muammoni Black Knight jamoasi ma’muriyatga olib chiqadi. Holati o‘zgarsa, bot sizga xabar beradi.</p></div></div>
+      <div class="w"><b>2</b><div><h3>Kerakli odamni topasiz</h3><p>Kim Python biladi, kim dizayn qiladi, kim ingliz tilida yordam beradi — «Odamlar»da qidiring. O‘zingiz nimani o‘rgata olishingizni yozsangiz, sizni ham topishadi.</p></div></div>
+      <div class="w"><b>3</b><div><h3>Ritsarga aylanasiz</h3><p>Har bir post, ovoz va taklif qilgan do‘stingiz uchun ball: Navkar → Ritsar → Qora ritsar.${left ? ` «Birinchi ritsar» nishoniga ${left} ta joy qoldi.` : ''}</p></div></div>
+    </div>
+    <div class="label" style="margin:4px 0 0">Boshlash — 1 daqiqa</div>
+    <ol class="steps"><li>Profilingizni to‘ldiring: yo‘nalish, qiziqishlar, nimani o‘rgatasiz</li><li>Lentadagi muammolarga ovoz bering yoki o‘zingiznikini yozing</li></ol>
+    ${profileEmpty(S.me) ? '<button class="primary" data-act="welcome-profile">Profilni to‘ldirish</button>' : '<button class="primary" data-close>Tushunarli</button>'}
+  `, (el) => el.addEventListener('click', (e) => { if (e.target.closest('[data-act="welcome-profile"]')) { closeSheet(); profileSheet(!S.me); } }));
+}
 let pendingAction = null;
 function needProfile(action) { if (S.me) return true; pendingAction = action; profileSheet(true); return false; }
 
@@ -741,6 +758,7 @@ document.addEventListener('click', async (e) => {
   if (d.ptab) { S.ptab = d.ptab; S.problems = null; render(); await loadProblems(); render(); return; }
   if (d.act === 'new') return newProblemSheet();
   if (d.act === 'profile') return profileSheet(false);
+  if (d.act === 'welcome') return welcomeSheet();
   if (d.act === 'newevent') return newEventSheet();
   if (d.act === 'admin') return adminSheet();
   if (d.act === 'share' && S.refLink) {
@@ -830,7 +848,7 @@ async function refresh() {
   await Promise.all([checkAdmin(), loadMe(), loadStats(), loadProblems()]);
   render();
   loadEvents(); loadMatches(); loadPeople(); loadRequests();
-  if (!S.me && !S.offline) profileSheet(true);
+  if (!S.offline) { if (!store.get('bk_welcome') && profileEmpty(S.me)) welcomeSheet(); else if (!S.me) profileSheet(true); }
   setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 20000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
 })();
