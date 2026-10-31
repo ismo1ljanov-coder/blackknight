@@ -232,18 +232,22 @@ async function eventCallback(cb, eventId) {
 }
 
 const eventCaption = (e) => `<b>BlackKnight Club Picnic'ga taklif qiladi!</b>
-
 Darslar, deadline'lar, imtihonlar... Bir kun hammasidan dam olamizmi? 🧺
 
-📅 1-noyabr, yakshanba
-📍 ${esc(e.place || '')}
-👥 Barcha talabalar uchun ochiq!
+📅 Sana: 01.11.2026
+⏰ Vaqt: 14:00
+📍 Joy: Yoshlar ijod saroyi toʻgʻrisidagi bogʻ
+💰 Ishtirok: bepul
 
-🔥 Tanishuv va suhbat, jamoaviy o‘yinlar, choy va mazali ovqat, yangi do‘stlar.
+🔥 <b>Bizda:</b>
+— Ochiq havoda tanishuv va suhbat
+— O'yinlar va jamoaviy musobaqalar
+— Mazali snacklar 🍿 va salqin ichimliklar 🥤
+— Yangi do'stlar va yaxshi atmosfera
 
-Pastdagi <b>«✅ Qatnashaman»</b> tugmasini bosing — tadbir guruhi havolasini olasiz. Vaqt va boshqa tafsilotlar o‘sha yerda 👇
+Joylar soni cheklangan! Ro'yxatdan o'tish — pastdagi <b>«✅ Qatnashaman»</b> tugmasi orqali 👇
 
-♞ <b>Black Knight Team</b>`;
+♟ <b>BlackKnight Club</b> — talabalar uchun, talabalar tomonidan.`;
 
 // Event announcement: video + caption + join button. ?to=<tg id> sends one test copy; ?to=all sends to everyone once.
 async function announceEvent(eventId, to) {
