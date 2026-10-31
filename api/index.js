@@ -145,6 +145,21 @@ async function tryAwardKnight(uid) {
   } catch { /* two awards raced for the same number; the next vote retries */ }
 }
 
+// Volunteer ladder: hours of service logged by the team, separate from the points ladder.
+const VLEVELS = [{ name: 'Volontyor', min: 0 }, { name: 'Yordamchi', min: 10 }, { name: 'Fidoyi', min: 25 }, { name: 'Xizmat ustasi', min: 50 }];
+const vlevel = (h) => {
+  let i = 0;
+  VLEVELS.forEach((l, k) => { if (h >= l.min) i = k; });
+  const next = VLEVELS[i + 1];
+  return { level: VLEVELS[i].name, next_level: next ? next.name : null, next_at: next ? next.min : null };
+};
+async function serviceOf(uid) {
+  const t = await q(`SELECT coalesce(sum(hours),0)::float hours, count(*)::int entries, count(DISTINCT event_id)::int events
+    FROM service_log WHERE user_id=$1`, [uid]);
+  const s = t.rows[0];
+  return { hours: s.hours, entries: s.entries, events: s.events, ...vlevel(s.hours) };
+}
+
 const openKb = () => (WEBAPP_URL ? { inline_keyboard: [[{ text: 'Black Knight’ni ochish', web_app: { url: WEBAPP_URL } }]] } : undefined);
 
 // Sends the guide video. The first send uploads it by URL; Telegram's file_id is then cached and reused.
@@ -287,7 +302,8 @@ async function route(req) {
       (SELECT count(*) FROM votes WHERE user_id=$1)::int votes,
       (SELECT count(*) FROM rsvps WHERE user_id=$1)::int events`, [uid]);
     const score = await scoreOf(uid);
-    return json({ user: r.rows[0], stats: s.rows[0], score, knight_limit: KNIGHT_LIMIT,
+    return json({ user: r.rows[0], stats: s.rows[0], score, service: await serviceOf(uid),
+      team: (await q('SELECT 1 x FROM admins WHERE user_id=$1', [uid])).rowCount > 0, knight_limit: KNIGHT_LIMIT,
       knights: (await q('SELECT count(*)::int n FROM users WHERE knight_no IS NOT NULL')).rows[0].n,
       ref_link: uid.startsWith('tg') ? `https://t.me/${BOT_USERNAME}?start=ref_${uid.slice(2)}` : null });
   }
@@ -307,7 +323,7 @@ async function route(req) {
   // ---- people directory and contact requests
   if (p === '/api/people' && m === 'GET') {
     const term = str(url.searchParams.get('q') || '', 60).replace(/^@/, '');
-    const r = await q(`SELECT u.id, u.name, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url, u.knight_no, u.title
+    const r = await q(`SELECT u.id, u.name, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url, u.knight_no, u.title, u.role, EXISTS(SELECT 1 FROM admins a WHERE a.user_id=u.id) team
       FROM users u WHERE u.id NOT LIKE 'selftest%' AND u.id<>$1
       AND ($2='' OR u.name ILIKE '%'||$2||'%' OR u.username ILIKE '%'||$2||'%' OR u.major ILIKE '%'||$2||'%'
            OR u.teach ILIKE '%'||$2||'%' OR array_to_string(u.interests,' ') ILIKE '%'||$2||'%')
@@ -315,7 +331,7 @@ async function route(req) {
     return json({ people: r.rows });
   }
   if ((mm = p.match(/^\/api\/people\/([a-zA-Z0-9_-]+)$/)) && m === 'GET') {
-    const r = await q(`SELECT u.id, u.name, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url, u.contact, u.knight_no, u.title,
+    const r = await q(`SELECT u.id, u.name, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url, u.contact, u.knight_no, u.title, u.role, EXISTS(SELECT 1 FROM admins a WHERE a.user_id=u.id) team,
       u.username, (u.id LIKE 'tg%') tg,
       (SELECT status FROM contact_requests WHERE from_id=$2 AND to_id=u.id) out_status,
       (SELECT json_build_object('id', id, 'status', status) FROM contact_requests WHERE from_id=u.id AND to_id=$2) incoming
@@ -327,7 +343,7 @@ async function route(req) {
     const canWrite = u.tg && u.id !== uid && (u.contact === 'open' || u.out_status === 'accepted' || (inc && inc.status === 'accepted'));
     const relation = u.id === uid ? 'me' : canWrite ? 'open' : inc && inc.status === 'pending' ? 'incoming'
       : u.out_status ? 'pending' : !u.tg ? 'unavailable' : 'none';
-    return json({ person: { title: u.title, knight_no: u.knight_no, id: u.id, name: u.name, major: u.major, year: u.year, interests: u.interests, teach: u.teach, learn: u.learn,
+    return json({ person: { role: u.role, team: u.team, service: await serviceOf(u.id), title: u.title, knight_no: u.knight_no, id: u.id, name: u.name, major: u.major, year: u.year, interests: u.interests, teach: u.teach, learn: u.learn,
       photo_url: u.photo_url, relation, username: canWrite ? u.username : null, request_id: inc ? inc.id : null } });
   }
   if ((mm = p.match(/^\/api\/people\/([a-zA-Z0-9_-]+)\/write$/)) && m === 'POST') {
@@ -382,6 +398,52 @@ async function route(req) {
     return json({ matches: r.rows });
   }
 
+  // ---- service log (xizmat daftari): only the team writes it, anyone can read it
+  if ((mm = p.match(/^\/api\/service\/([a-zA-Z0-9_-]+)$/)) && m === 'GET') {
+    const r = await q(`SELECT s.id, s.hours::float hours, s.note, s.created_at, e.title event_title
+      FROM service_log s LEFT JOIN events e ON e.id=s.event_id WHERE s.user_id=$1 ORDER BY s.created_at DESC LIMIT 50`, [mm[1]]);
+    return json({ summary: await serviceOf(mm[1]), entries: r.rows, can_edit: !!admin });
+  }
+  if (p === '/api/service' && m === 'POST') {
+    if (!admin) return bad('Xizmat daftariga faqat jamoa yozadi', 403);
+    const target = str(body.user_id, 64);
+    const hours = Math.round(parseFloat(body.hours) * 2) / 2;
+    const note = str(body.note, 200);
+    if (!(hours > 0 && hours <= 24)) return bad('Soat 0.5 dan 24 gacha bo‘lsin');
+    if (note.length < 3) return bad('Nima ish qilinganini yozing');
+    const u = await q('SELECT id, role FROM users WHERE id=$1', [target]);
+    if (!u.rowCount) return bad('Talaba topilmadi', 404);
+    const before = await serviceOf(target);
+    const eid = parseInt(body.event_id) || null;
+    await q('INSERT INTO service_log (user_id,hours,note,event_id,added_by) VALUES ($1,$2,$3,(SELECT id FROM events WHERE id=$4),$5) RETURNING id',
+      [target, hours, note, eid, uid || 'key']);
+    if (!u.rows[0].role) await q("UPDATE users SET role='volunteer' WHERE id=$1 RETURNING 1 x", [target]);
+    const after = await serviceOf(target);
+    let msg = `🤝 Xizmat daftaringizga <b>+${hours} soat</b> yozildi:\n«${esc(note)}»\n\nJami: <b>${after.hours} soat</b>. Rahmat!`;
+    if (after.level !== before.level) msg += `\n\n🎖 Tabriklaymiz! Endi siz — <b>${after.level}</b>.`;
+    await notify(target, msg);
+    return json({ ok: true, summary: after }, 201);
+  }
+  if ((mm = p.match(/^\/api\/service\/entry\/(\d+)$/)) && m === 'DELETE') {
+    if (!admin) return bad('Ruxsat yo‘q', 403);
+    await q('DELETE FROM service_log WHERE id=$1 RETURNING 1 x', [+mm[1]]);
+    return json({ ok: true });
+  }
+  if ((mm = p.match(/^\/api\/people\/([a-zA-Z0-9_-]+)\/role$/)) && m === 'POST') {
+    if (!admin) return bad('Ruxsat yo‘q', 403);
+    const role = body.role === 'volunteer' ? 'volunteer' : null;
+    const r = await q('UPDATE users SET role=$1 WHERE id=$2 RETURNING id', [role, mm[1]]);
+    if (!r.rowCount) return bad('Talaba topilmadi', 404);
+    if (role) await notify(mm[1], '✧ Siz Black Knight <b>volontyori</b> sifatida belgilandingiz. Xizmatlaringiz endi daftaringizda yozib boriladi. Xush kelibsiz!');
+    return json({ ok: true, role });
+  }
+  if (p === '/api/volunteers' && m === 'GET') {
+    const r = await q(`SELECT u.id, u.name, u.major, u.photo_url, coalesce(sum(s.hours),0)::float hours, count(s.id)::int entries
+      FROM users u LEFT JOIN service_log s ON s.user_id=u.id
+      WHERE u.role='volunteer' AND u.id NOT LIKE 'selftest%' GROUP BY u.id ORDER BY hours DESC, u.name LIMIT 200`);
+    return json({ volunteers: r.rows.map((v) => ({ ...v, level: vlevel(v.hours).level })) });
+  }
+
   // ---- problems
   if (p === '/api/problems' && m === 'GET') {
     const tab = url.searchParams.get('tab') || 'top';
@@ -391,6 +453,7 @@ async function route(req) {
     const order = tab === 'new' ? 'p.created_at DESC' : tab === 'done' ? 'p.resolved_at DESC NULLS LAST' : 'votes DESC, p.created_at DESC';
     const r = await q(`SELECT p.id, p.kind, p.title, p.body, p.category, p.status, p.created_at, p.anon,
       CASE WHEN p.anon THEN NULL ELSE u.name END author, CASE WHEN p.anon THEN NULL ELSE u.knight_no END author_knight, CASE WHEN p.anon THEN NULL ELSE u.title END author_title,
+      CASE WHEN p.anon THEN NULL ELSE u.role END author_role, (NOT p.anon AND EXISTS(SELECT 1 FROM admins a WHERE a.user_id=p.author_id)) author_team,
       (SELECT count(*) FROM votes v WHERE v.problem_id=p.id)::int votes,
       EXISTS(SELECT 1 FROM votes v WHERE v.problem_id=p.id AND v.user_id=$1) voted,
       (p.author_id=$1) mine
@@ -513,6 +576,13 @@ async function selftest() {
     await call('GET', '/api/me?uid=' + uid);
     await call('GET', '/api/people?q=Self&uid=x' );
     await call('GET', `/api/people/${uid}?uid=${uid}`);
+    await call('POST', '/api/service', { user_id: uid, hours: 2, note: 'Selftest xizmati' }, { 'x-admin-key': ADMIN_KEY });
+    await call('POST', '/api/service', { user_id: uid, hours: 9, note: 'Selftest ikkinchi' }, { 'x-admin-key': ADMIN_KEY });
+    await call('POST', '/api/service', { user_id: uid, hours: 1, note: 'ruxsatsiz' });
+    const sv2 = await call('GET', `/api/service/${uid}`);
+    if (sv2.entries && sv2.entries[0]) await call('DELETE', `/api/service/entry/${sv2.entries[0].id}`, null, { 'x-admin-key': ADMIN_KEY });
+    await call('GET', '/api/volunteers');
+    await call('POST', `/api/people/${uid}/role`, { role: null }, { 'x-admin-key': ADMIN_KEY });
     await call('GET', '/api/requests?uid=' + uid);
     await call('POST', '/api/requests', { uid, to: 'tg1' });
     await call('GET', '/api/stats');

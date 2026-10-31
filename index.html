@@ -77,6 +77,7 @@ button{cursor:pointer}
 .ladder{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
 .ladder i{flex:1;height:1px;background:var(--line-2)}
 .ladder span.on{color:var(--gold-hi);font-weight:700}
+.svlist{display:flex;flex-direction:column;gap:6px;margin-top:4px}.sv{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid rgba(217,180,108,.14)}.sv b{color:var(--gold-hi);min-width:38px;font-variant-numeric:tabular-nums}.sv span{flex:1;font-size:13px;line-height:1.35}.sv small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
 .reflink{font-size:13px;padding:10px 12px;border-radius:12px;border:1px dashed var(--line-2);color:var(--gold-hi);overflow-wrap:anywhere;user-select:all}
 .dot{position:absolute;top:6px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--red)}
 .search{display:flex}
@@ -164,7 +165,7 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 .sheet .top{display:flex;justify-content:space-between;align-items:center}
 .sheet h2{margin:0;font-family:var(--crest);font-size:22px;font-weight:700}
 .field{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:rgba(245,243,238,.8)}
-.field input,.field textarea{min-height:48px;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);font-size:16px;font-weight:500;color:var(--fg);resize:none;width:100%}
+.field input,.field textarea,.field select{min-height:48px;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);font-size:16px;font-weight:500;color:var(--fg);resize:none;width:100%}
 .field input:focus,.field textarea:focus{border-color:var(--gold-line);outline:none}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .toggle{display:flex;align-items:center;gap:12px;padding:14px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid var(--line);width:100%;text-align:left}
@@ -272,7 +273,8 @@ async function loadEvents() {
   catch (e) { S.offline = true; if (!S.events) S.events = []; }
 }
 async function loadMe() {
-  try { const r = await api(`/api/me?uid=${uid}`); S.me = r.user; S.myStats = r.stats || null; S.score = r.score || null; S.knights = r.knights || 0; S.knightLimit = r.knight_limit || 229; S.refLink = r.ref_link || null; } catch (e) {}
+  try { const r = await api(`/api/me?uid=${uid}`); S.me = r.user; S.myStats = r.stats || null; S.score = r.score || null; S.knights = r.knights || 0; S.knightLimit = r.knight_limit || 229; S.refLink = r.ref_link || null; S.service = r.service || null; S.team = !!r.team;
+    S.svc = r.user && (r.user.role === 'volunteer' || (r.service && r.service.entries)) ? await api(`/api/service/${encodeURIComponent(uid)}`) : null; } catch (e) {}
 }
 S.people = null; S.pq = ''; S.requests = [];
 async function loadPeople() { try { S.people = (await api(`/api/people?q=${encodeURIComponent(S.pq)}&uid=${uid}`)).people; S.offline = false; } catch (e) { S.offline = true; if (!S.people) S.people = []; } }
@@ -288,8 +290,27 @@ async function checkAdmin() {
   if (!isAdmin && adminKey) { adminKey = ''; store.del('bk_admin'); }
   if (isAdmin) loadAdmins();
 }
-S.admins = [];
-async function loadAdmins() { try { S.admins = (await api('/api/admins')).admins; if (S.tab === 'profil' && !document.querySelector('.scrim')) render(); } catch (e) {} }
+S.admins = []; S.vols = [];
+// Status marks next to a name: founder, team, volunteer, first-229 knight.
+const marks = (o) => (o.title === 'Founder' ? ' <span class="kn" title="Founder">✦</span>' : '') + (o.team ? ' <span class="kn" title="Jamoa">◆</span>' : '') + (o.role === 'volunteer' ? ' <span class="kn" title="Volontyor">✧</span>' : '') + (o.knight_no ? ` <span class="kn" title="Birinchi ritsar #${o.knight_no}">♞</span>` : '');
+const VLADDER = [['Volontyor', 0], ['Yordamchi', 10], ['Fidoyi', 25], ['Xizmat ustasi', 50]];
+const fmtDate = (iso) => { const d = new Date(iso); return `${d.getDate()}-${MONTHS[d.getMonth()]}`; };
+function serviceBox(sum, entries, canEdit, title) {
+  if (!sum) return '';
+  const i = VLADDER.findIndex((l) => l[0] === sum.level);
+  const prev = VLADDER[i] ? VLADDER[i][1] : 0;
+  const pct = sum.next_at ? Math.round((sum.hours - prev) / (sum.next_at - prev) * 100) : 100;
+  return `<section class="glass box" aria-label="Xizmat daftari">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><h3>${title || 'Xizmat daftari'}</h3><span class="small" style="font-variant-numeric:tabular-nums">${sum.hours} soat</span></div>
+    <div style="font-weight:600;color:var(--gold-hi)">✧ ${esc(sum.level)}</div>
+    <div class="bar" role="img" aria-label="${pct}%"><i style="width:${pct}%"></i></div>
+    <div class="small">${sum.next_level ? `«${esc(sum.next_level)}» darajasigacha ${Math.round((sum.next_at - sum.hours) * 10) / 10} soat qoldi` : 'Eng yuqori daraja — Xizmat ustasi'}</div>
+    <div class="ladder">${VLADDER.slice(1).map((l, k) => `${k ? '<i></i>' : ''}<span${sum.hours >= l[1] ? ' class="on"' : ''}>${l[0]} · ${l[1]}</span>`).join('')}</div>
+    <div class="small">${sum.entries} ta xizmat · ${sum.events} ta tadbirda</div>
+    ${(entries || []).length ? `<div class="svlist">${entries.map((e) => `<div class="sv"><b>+${e.hours}</b><span>${esc(e.note)}${e.event_title ? ' · ' + esc(e.event_title) : ''}<small>${fmtDate(e.created_at)}</small></span>${canEdit ? `<button class="admin-rm" data-delsv="${e.id}" aria-label="Yozuvni o‘chirish">×</button>` : ''}</div>`).join('')}</div>` : ''}
+  </section>`;
+}
+async function loadAdmins() { try { S.admins = (await api('/api/admins')).admins; S.vols = (await api('/api/volunteers')).volunteers; if (S.tab === 'profil' && !document.querySelector('.scrim')) render(); } catch (e) {} }
 
 // ---------- views
 function offlineNote() { return S.offline ? '<div class="offline" role="alert">Server bilan aloqa yo‘q. Internetni tekshirib, sahifani yangilang.</div>' : ''; }
@@ -319,7 +340,7 @@ function viewOvoz() {
 function problemCard(p) {
   const open = S.open[p.id];
   const kind = KINDS[p.kind] ? p.kind : 'muammo';
-  const who = kind === 'elon' ? 'Black Knight Team' : p.anon ? 'Anonim' : esc(p.author || 'Talaba') + (p.author_title === 'Founder' ? ' <span class="kn" title="Founder">✦</span>' : '') + (p.author_knight ? ` <span class="kn" title="Birinchi ritsar #${p.author_knight}">♞</span>` : '');
+  const who = kind === 'elon' ? 'Black Knight Team' : p.anon ? 'Anonim' : esc(p.author || 'Talaba') + marks({ title: p.author_title, team: p.author_team, role: p.author_role, knight_no: p.author_knight });
   const badge = kind === 'muammo'
     ? `<span class="pill s-${p.status}">${STATUS[p.status]}</span><span class="cat">${esc(p.category)}</span>`
     : `<span class="pill k-${kind}">${KINDS[kind].label}</span>`;
@@ -375,7 +396,7 @@ function peopleList() {
   if (!S.people.length) return `<div class="glass empty"><b>${S.pq ? 'Hech kim topilmadi' : 'Hali boshqa talabalar yo‘q'}</b>${S.pq ? 'Ism, @username, yo‘nalish yoki qiziqish bo‘yicha qidirib ko‘ring.' : 'Do‘stlaringizni botga taklif qiling.'}</div>`;
   return S.people.map((p) => `<button class="glass person" data-person="${esc(p.id)}">
     ${avatar(p)}
-    <span class="body"><b>${esc(p.name)}${p.title === 'Founder' ? ' <span class="kn">✦</span>' : ''}${p.knight_no ? ' <span class="kn">♞</span>' : ''}</b><span class="meta">${esc([p.major, p.year && p.year + '-kurs'].filter(Boolean).join(' · ') || 'Millat Umidi talabasi')}</span>
+    <span class="body"><b>${esc(p.name)}${marks(p)}</b><span class="meta">${esc([p.major, p.year && p.year + '-kurs'].filter(Boolean).join(' · ') || 'Millat Umidi talabasi')}</span>
     ${p.teach || p.learn ? `<span class="tags">${p.teach ? `<span class="tag">O‘rgatadi: ${esc(p.teach)}</span>` : ''}${p.learn ? `<span class="tag l">O‘rganadi: ${esc(p.learn)}</span>` : ''}</span>` : ''}</span>
   </button>`).join('');
 }
@@ -391,7 +412,22 @@ async function personSheet(id) {
   let p;
   try { p = (await api(`/api/people/${encodeURIComponent(id)}?uid=${uid}`)).person; }
   catch (err) { const sh = $('.sheet'); if (sh) sh.innerHTML = sheetTop('Talaba') + `<div class="err">${esc(err.message)}</div>`; return; }
+  const showSv = isAdmin || p.role === 'volunteer' || (p.service && p.service.entries);
+  let svc = null;
+  if (showSv) { try { svc = await api(`/api/service/${encodeURIComponent(id)}`); } catch (e) {} }
   const sh = $('.sheet'); if (!sh) return;
+  const svAdmin = isAdmin ? `<section class="glass box" aria-label="Jamoa uchun">
+      <h3>Jamoa uchun</h3>
+      ${p.team ? '<div class="small">◆ Jamoa a’zosi</div>' : `<button class="btn ghost" data-role="${p.role === 'volunteer' ? '' : 'volunteer'}">${p.role === 'volunteer' ? 'Volontyorlikdan olib tashlash' : '✧ Volontyor qilish'}</button>`}
+      <form id="svform" style="display:flex;flex-direction:column;gap:8px" novalidate>
+        <div style="display:flex;gap:8px">
+          <label class="field" style="width:96px"><span class="small">Soat</span><input id="sv-h" type="number" inputmode="decimal" min="0.5" max="24" step="0.5" value="2"></label>
+          <label class="field" style="flex:1"><span class="small">Nima ish qildi</span><input id="sv-n" maxlength="200" placeholder="Masalan: Eco hasharda tashkilotchi"></label>
+        </div>
+        ${(S.events || []).length ? `<label class="field"><span class="small">Tadbir (ixtiyoriy)</span><select id="sv-e"><option value="">—</option>${S.events.map((e) => `<option value="${e.id}">${esc(e.title)}</option>`).join('')}</select></label>` : ''}
+        <button class="btn" type="submit">+ Xizmat daftariga yozish</button>
+      </form>
+    </section>` : '';
   let action = '';
   if (p.relation === 'open') action = `<button class="primary" data-write="${esc(p.id)}" data-user="${esc(p.username || '')}">Telegram’da yozish</button>`;
   else if (p.relation === 'pending') action = `<button class="primary" disabled>So‘rov yuborildi · javob kutilmoqda</button>`;
@@ -403,13 +439,24 @@ async function personSheet(id) {
        <div class="small">U rozi bo‘lsa, bot sizga uning Telegram’ini yuboradi.</div>`
     : `<div class="small">Tanishish so‘rovini yuborish uchun ilovani Telegram bot orqali oching.</div>`;
   sh.innerHTML = sheetTop('Talaba') + `
-    <div class="psheet">${avatar(p)}<h2>${esc(p.name)}</h2>${p.title === 'Founder' ? '<span class="pill knpill">✦ Founder</span>' : ''}${p.knight_no ? `<span class="pill knpill">♞ Birinchi ritsar #${p.knight_no}</span>` : ''}
+    <div class="psheet">${avatar(p)}<h2>${esc(p.name)}</h2>${p.title === 'Founder' ? '<span class="pill knpill">✦ Founder</span>' : ''}${p.team ? '<span class="pill knpill">◆ Jamoa</span>' : ''}${p.role === 'volunteer' ? '<span class="pill knpill">✧ Volontyor</span>' : ''}${p.knight_no ? `<span class="pill knpill">♞ Birinchi ritsar #${p.knight_no}</span>` : ''}
       <div class="small">${esc([p.major, p.year && p.year + '-kurs'].filter(Boolean).join(' · ') || 'Millat Umidi talabasi')}</div>
       ${(p.interests || []).length ? `<div class="chips" style="justify-content:center">${p.interests.map((t) => `<span class="chip">${esc(t)}</span>`).join('')}</div>` : ''}
     </div>
     ${p.teach || p.learn ? `<div class="swap"><div class="t"><small>O‘rgatadi</small><b>${esc(p.teach || '—')}</b></div><div class="l"><small>O‘rganadi</small><b>${esc(p.learn || '—')}</b></div></div>` : ''}
     <div style="display:flex;flex-direction:column;gap:10px;align-items:stretch">${action}</div>
+    ${svc && (svc.summary.entries || p.role === 'volunteer') ? serviceBox(svc.summary, svc.entries, isAdmin) : ''}
+    ${svAdmin}
     <div class="err" id="ps-err" role="alert"></div>`;
+  const svf = $('#svform', sh);
+  if (svf) svf.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('button[type=submit]', svf); btn.disabled = true;
+    try {
+      await api('/api/service', { method: 'POST', body: { user_id: p.id, hours: $('#sv-h', sh).value, note: $('#sv-n', sh).value, event_id: ($('#sv-e', sh) || {}).value || null } });
+      toast('Xizmat daftariga yozildi'); loadAdmins(); personSheet(id);
+    } catch (x) { $('#ps-err', sh).textContent = x.message; btn.disabled = false; }
+  });
   sh.addEventListener('click', async (e) => {
     const b = e.target.closest('button'); if (!b) return;
     const err = $('#ps-err', sh);
@@ -423,6 +470,14 @@ async function personSheet(id) {
     } else if (b.dataset.answer) {
       b.disabled = true;
       try { await api(`/api/requests/${b.dataset.answer}`, { method: 'POST', body: { uid, action: b.dataset.acc === '1' ? 'accept' : 'decline' } }); toast(b.dataset.acc === '1' ? 'Qabul qilindi' : 'Rad etildi'); await loadRequests(); personSheet(id); }
+      catch (x) { err.textContent = x.message; b.disabled = false; }
+    } else if (b.dataset.role !== undefined) {
+      b.disabled = true;
+      try { await api(`/api/people/${encodeURIComponent(p.id)}/role`, { method: 'POST', body: { role: b.dataset.role || null } }); toast(b.dataset.role ? 'Volontyor qilindi' : 'Olib tashlandi'); loadAdmins(); personSheet(id); }
+      catch (x) { err.textContent = x.message; b.disabled = false; }
+    } else if (b.dataset.delsv) {
+      b.disabled = true;
+      try { await api(`/api/service/entry/${b.dataset.delsv}`, { method: 'DELETE' }); toast('Yozuv o‘chirildi'); loadAdmins(); personSheet(id); }
       catch (x) { err.textContent = x.message; b.disabled = false; }
     }
   });
@@ -472,10 +527,13 @@ function viewProfil() {
     <h2>${esc(me.name)}</h2>
     ${isAdmin ? '<span class="pill s-jarayonda">BlackKnight · Admin</span>' : ''}
     ${me.title === 'Founder' ? '<span class="pill knpill">✦ Founder</span>' : ''}
+    ${S.team ? '<span class="pill knpill">◆ Jamoa</span>' : ''}
+    ${me.role === 'volunteer' ? '<span class="pill knpill">✧ Volontyor</span>' : ''}
     ${me.knight_no ? `<span class="pill knpill">♞ Birinchi ritsar #${me.knight_no}</span>` : ''}
     <div class="nums"><div><b>${ms.problems}</b><span>murojaat</span></div><div><b>${ms.votes}</b><span>ovoz</span></div><div><b>${ms.events}</b><span>tadbir</span></div></div>
     <div class="small">${me.contact === 'open' ? 'Sizga hamma Telegram’da yoza oladi' : 'Sizga faqat tanishish so‘rovi orqali yozish mumkin'}</div>
   </section>
+  ${S.svc ? serviceBox(S.svc.summary, S.svc.entries, false) : ''}
   ${levelBox()}
   ${inviteBox()}
   <section class="glass box">
@@ -489,6 +547,10 @@ function viewProfil() {
     <div class="swap"><div class="t"><small>O‘rgataman</small><b>${esc(me.teach || '—')}</b></div><div class="l"><small>O‘rganaman</small><b>${esc(me.learn || '—')}</b></div></div>
     ${matches}
   </section>
+  ${isAdmin ? `<section class="glass box" aria-label="Volontyorlar">
+    <h3>Volontyorlar · ${S.vols.length}</h3>
+    ${S.vols.length ? S.vols.map((v) => `<div class="match"><button class="linkname" data-person="${esc(v.id)}">${esc(v.name)}</button><span>${v.hours} soat · ${esc(v.level)}</span></div>`).join('') : '<div class="small">Hali volontyor yo‘q. Odamlar bo‘limidan talabani ochib, «Volontyor qilish» tugmasini bosing.</div>'}
+  </section>` : ''}
   ${isAdmin ? `<section class="glass box">
     <h3>Adminlar</h3>
     ${S.admins.map((a) => `<div class="match"><b>${esc(a.name)}</b><span>${a.username ? '@' + esc(a.username) : ''}${a.id !== uid ? ` <button class="admin-rm" data-rmadmin="${esc(a.id)}" aria-label="${esc(a.name)} adminligini olib tashlash">Olib tashlash</button>` : ' · siz'}</span></div>`).join('')}
