@@ -344,10 +344,54 @@ async function liveEvent(eventId) {
   return json(res);
 }
 
+// Post-event thank-you to everyone who signed up, asking whether they came. Armed via settings 'thanks_<id>'.
+async function thanksEvent(eventId) {
+  const armed = (await q('SELECT value FROM settings WHERE key=$1', ['thanks_' + eventId])).rows[0];
+  if (!armed || armed.value !== 'armed') return bad('not armed', 403);
+  const e = (await q('SELECT * FROM events WHERE id=$1', [eventId])).rows[0];
+  if (!e) return bad('Tadbir topilmadi', 404);
+  const kind = 'thanks_' + eventId;
+  const rows = (await q(`SELECT user_id FROM rsvps WHERE event_id=$1 AND user_id LIKE 'tg%' UNION SELECT user_id FROM event_guests WHERE event_id=$1
+    EXCEPT SELECT user_id FROM reminders WHERE kind=$2`, [eventId, kind])).rows;
+  const text = `<b>Picnic'da bo‘lganingiz uchun rahmat!</b> 🧺\n\nBugun yangi tanishlar, o‘yinlar, kulgi va iliq suhbatlar bo‘ldi — bularning hammasini sizlar yaratdingiz.\n\nBu BlackKnight Club'ning birinchi ochiq tadbiri edi, va bu hali boshlanishi. Keyingi tadbirlarni birinchilardan bo‘lib bilish uchun botni o‘chirmang 😉\n\nBitta savol: bugun Picnic'ga bora oldingizmi? 👇`;
+  const kb = { inline_keyboard: [[{ text: '✅ Bordim', callback_data: `at:${eventId}:y` }, { text: '❌ Bora olmadim', callback_data: `at:${eventId}:n` }]] };
+  const res = { sent: 0, failed: 0 };
+  for (const r of rows) {
+    const t = await tg('sendMessage', { chat_id: r.user_id.slice(2), parse_mode: 'HTML', text, reply_markup: kb }).catch(() => null);
+    const ok = !!(t && t.ok); res[ok ? 'sent' : 'failed']++;
+    await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, kind, ok]);
+    await new Promise((z) => setTimeout(z, 50));
+  }
+  await q('INSERT INTO selftest (result) VALUES ($1) RETURNING 1 x', [JSON.stringify({ thanks: eventId, res })]).catch(() => {});
+  return json(res);
+}
+
+async function attendanceCallback(cb, eventId, came) {
+  const me = 'tg' + cb.from.id;
+  const e = (await q('SELECT link FROM events WHERE id=$1', [eventId])).rows[0];
+  if (!e) return tg('answerCallbackQuery', { callback_query_id: cb.id, text: 'Tadbir topilmadi' });
+  await q(`INSERT INTO event_attendance (event_id, user_id, came) VALUES ($1,$2,$3)
+    ON CONFLICT (event_id, user_id) DO UPDATE SET came=$3, at=now() RETURNING 1 x`, [eventId, me, came]);
+  await tg('answerCallbackQuery', { callback_query_id: cb.id, text: 'Javobingiz uchun rahmat!' });
+  if (cb.message) {
+    const reply = came
+      ? '✅ Kelganingizdan xursandmiz! Rasm va videolarni guruhga tashlang — xotira bo‘lib qolsin 📸'
+      : '🤝 Hechqisi yo‘q — keyingi tadbirda albatta kutamiz!';
+    const kb = came && e.link ? { inline_keyboard: [[{ text: '👥 Guruhga o‘tish', url: e.link }]] } : { inline_keyboard: [] };
+    await tg('editMessageReplyMarkup', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, reply_markup: { inline_keyboard: [] } }).catch(() => {});
+    await tg('sendMessage', { chat_id: cb.message.chat.id, text: reply, reply_markup: kb }).catch(() => {});
+  }
+}
+
 async function tgWebhook(req) {
   if (req.headers.get('x-telegram-bot-api-secret-token') !== WEBHOOK_SECRET) return bad('forbidden', 403);
   const upd = await req.json().catch(() => ({}));
   const cb = upd.callback_query;
+  if (cb && typeof cb.data === 'string' && cb.data.startsWith('at:')) {
+    const [, id, v] = cb.data.split(':');
+    await attendanceCallback(cb, +id, v === 'y');
+    return json({ ok: true });
+  }
   if (cb && typeof cb.data === 'string' && cb.data.startsWith('ev:')) {
     await eventCallback(cb, +cb.data.slice(3));
     return json({ ok: true });
@@ -923,6 +967,7 @@ export default {
       const path = new URL(req.url).pathname;
       if (path === '/__selftest') return await selftest();
       if (path === '/tg/webhook' && req.method === 'POST') return await tgWebhook(req);
+      if (path.startsWith('/tg/thanks/')) return await thanksEvent(+path.split('/')[3]);
       if (path.startsWith('/tg/live/')) return await liveEvent(+path.split('/')[3]);
       if (path.startsWith('/tg/nudge/')) return await nudgeEvent(+path.split('/')[3]);
       if (path.startsWith('/tg/announce/')) {
