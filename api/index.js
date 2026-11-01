@@ -282,6 +282,40 @@ async function announceEvent(eventId, to) {
   return json(res);
 }
 
+// Day-of nudge for an event. Only runs while settings 'nudge_<id>' = 'armed'; each person gets it once.
+async function nudgeEvent(eventId) {
+  const armed = (await q('SELECT value FROM settings WHERE key=$1', ['nudge_' + eventId])).rows[0];
+  if (!armed || armed.value !== 'armed') return bad('not armed', 403);
+  const e = (await q('SELECT * FROM events WHERE id=$1', [eventId])).rows[0];
+  if (!e) return bad('Tadbir topilmadi', 404);
+  const going = (await q('SELECT ((SELECT count(*) FROM rsvps WHERE event_id=$1) + (SELECT count(*) FROM event_guests WHERE event_id=$1))::int n', [eventId])).rows[0].n;
+  const kIn = 'nudge_in_' + eventId, kOut = 'nudge_out_' + eventId;
+  const ins = (await q(`SELECT user_id FROM rsvps WHERE event_id=$1 AND user_id LIKE 'tg%' UNION SELECT user_id FROM event_guests WHERE event_id=$1
+    EXCEPT SELECT user_id FROM reminders WHERE kind=$2`, [eventId, kIn])).rows;
+  const outs = (await q(`SELECT user_id FROM reminders WHERE kind=$1 AND ok
+    EXCEPT SELECT user_id FROM rsvps WHERE event_id=$2 EXCEPT SELECT user_id FROM event_guests WHERE event_id=$2
+    EXCEPT SELECT user_id FROM reminders WHERE kind=$3`, ['event_' + eventId, eventId, kOut])).rows;
+  const res = { in: [0, 0], out: [0, 0] };
+  const inText = `<b>Bugun ko‘rishamiz!</b> 🧺\n\n⏰ 14:00\n📍 ${esc(e.place || '')}\n\nDo‘stingizni ham olib keling. Tafsilotlar va joyni topish — guruhda 👇`;
+  const outText = `<b>Bugun 14:00 da Picnic!</b> 🧺\n\n${going} talaba allaqachon yozildi — siz ham kelasizmi?\nSnacklar, o‘yinlar va yangi tanishlar sizni kutmoqda.\n\n📍 ${esc(e.place || '')}`;
+  for (const r of ins) {
+    const kb = e.link ? { inline_keyboard: [[{ text: '👥 Guruhga o‘tish', url: e.link }]] } : undefined;
+    const t = await tg('sendMessage', { chat_id: r.user_id.slice(2), parse_mode: 'HTML', text: inText, reply_markup: kb }).catch(() => null);
+    const ok = !!(t && t.ok); res.in[ok ? 0 : 1]++;
+    await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, kIn, ok]);
+    await new Promise((z) => setTimeout(z, 50));
+  }
+  for (const r of outs) {
+    const t = await tg('sendMessage', { chat_id: r.user_id.slice(2), parse_mode: 'HTML', text: outText,
+      reply_markup: { inline_keyboard: [[{ text: '✅ Qatnashaman', callback_data: 'ev:' + eventId }]] } }).catch(() => null);
+    const ok = !!(t && t.ok); res.out[ok ? 0 : 1]++;
+    await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, kOut, ok]);
+    await new Promise((z) => setTimeout(z, 50));
+  }
+  await q('INSERT INTO selftest (result) VALUES ($1) RETURNING 1 x', [JSON.stringify({ nudge: eventId, res })]).catch(() => {});
+  return json(res);
+}
+
 async function tgWebhook(req) {
   if (req.headers.get('x-telegram-bot-api-secret-token') !== WEBHOOK_SECRET) return bad('forbidden', 403);
   const upd = await req.json().catch(() => ({}));
@@ -861,6 +895,7 @@ export default {
       const path = new URL(req.url).pathname;
       if (path === '/__selftest') return await selftest();
       if (path === '/tg/webhook' && req.method === 'POST') return await tgWebhook(req);
+      if (path.startsWith('/tg/nudge/')) return await nudgeEvent(+path.split('/')[3]);
       if (path.startsWith('/tg/announce/')) {
         const [, , , key, id] = path.split('/');
         if (!ADMIN_KEY || key !== ADMIN_KEY) return bad('forbidden', 403);
