@@ -227,6 +227,19 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 .toast{position:fixed;z-index:40;left:50%;transform:translateX(-50%);top:calc(16px + env(safe-area-inset-top,0px));padding:10px 16px;border-radius:14px;background:var(--sheet);border:1px solid var(--line-2);font-size:14px;font-weight:600;max-width:calc(100% - 32px)}
 .skeleton{height:80px;border-radius:22px;background:rgba(var(--wh),.05)}
 .offline{padding:12px 14px;border-radius:16px;background:rgba(var(--rd),.12);border:1px solid rgba(var(--rd),.35);color:var(--red);font-size:13px}
+.tm-list{display:flex;flex-direction:column;padding:0;overflow:hidden}
+.tm-row{display:grid;grid-template-columns:36px 1fr auto;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:12px 14px;color:var(--fg)}
+.tm-row:first-child{border-top:0}
+.tm-ico{width:36px;height:36px;border-radius:10px;background:var(--glass-2);display:grid;place-items:center;font-size:18px}
+.tm-t{min-width:0}.tm-t b{display:block;font-size:14.5px}.tm-t span{display:block;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tm-open{background:var(--gold-bg);color:var(--gold-hi)}.tm-taken{background:rgba(var(--wh),.08);color:var(--muted)}
+.tm-yangi{background:var(--blue-bg);color:var(--blue)}.tm-suhbat{background:var(--gold-bg);color:var(--gold-hi)}.tm-qabul{background:var(--green-bg);color:var(--green)}.tm-rad{background:rgba(var(--wh),.08);color:var(--red)}
+.tm-kv{display:flex;flex-direction:column;gap:12px;margin:12px 0}.tm-kv small{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}.tm-kv p{margin:0;font-size:14.5px}
+.tm-det{font-size:13.5px;margin:4px 0 10px}.tm-det summary{cursor:pointer;font-weight:700;color:var(--gold-hi)}.tm-det ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.tm-link{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:6px 6px 6px 10px;margin:6px 0 12px}.tm-link code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap;font-size:12px;user-select:all}
+.tm-warn{font-size:13px;color:var(--gold-hi);background:var(--gold-bg);border-radius:12px;padding:10px 12px;margin:4px 0 10px}
+.tm-case{padding:14px;display:flex;flex-direction:column;gap:8px}.tm-case h3{margin:0;font-size:15px}.tm-case.late{border-color:var(--red)}
+.tm-entry{text-align:left;width:100%;color:var(--fg)}
 </style>
 </head>
 <body>
@@ -243,7 +256,7 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-04.4';
+const BUILD = '2026-11-04.5';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
@@ -256,7 +269,7 @@ const BUILD = '2026-11-04.4';
 (() => {
 'use strict';
 const API = 'https://br-steep-haze-b9tabbet-api.compute.c-7.eu-central-1.aws.neon.tech';
-const CATS = ["O'quv jarayoni", 'Ustozlar bilan', 'Infratuzilma', 'Yotoqxona', 'Boshqa'];
+const CATS = ["O'quv jarayoni", 'Ustozlar bilan', 'Infratuzilma', 'Yotoqxona', 'Oshxona va bufet', 'Sport', 'Tadbirlar', 'Karyera va amaliyot', "Startap va g'oyalar", 'Hamkorlik va chegirma', 'Platforma (bot/sayt)', 'Huquq va adolat', 'Boshqa'];
 const STATUS = { yangi: 'Yangi', qabul: 'Qabul qilindi', jarayonda: 'Jarayonda', hal: 'Hal qilindi' };
 const KINDS = {
   muammo: { label: 'Muammo', many: 'Muammolar', ph: 'Masalan: Wi-Fi 3-qavatda ishlamaydi', bph: 'Qayerda, qachondan beri, kimga ta’sir qilyapti?', ok: 'Murojaat yuborildi' },
@@ -348,7 +361,7 @@ async function loadEvents() {
   catch (e) { S.offline = true; if (!S.events) S.events = []; }
 }
 async function loadMe() {
-  try { const r = await api(`/api/me?uid=${uid}`); S.me = r.user; S.myStats = r.stats || null; S.score = r.score || null; S.knights = r.knights || 0; S.knightLimit = r.knight_limit || 229; S.refLink = r.ref_link || null; S.service = r.service || null; S.team = !!r.team; S.leader = !!r.leader;
+  try { const r = await api(`/api/me?uid=${uid}`); S.me = r.user; S.myStats = r.stats || null; S.score = r.score || null; S.knights = r.knights || 0; S.knightLimit = r.knight_limit || 229; S.refLink = r.ref_link || null; S.service = r.service || null; S.team = !!r.team; S.leader = !!r.leader; S.head = r.head || null;
     S.svc = r.user && (r.user.role === 'volunteer' || (r.service && r.service.entries)) ? await api(`/api/service/${encodeURIComponent(uid)}`) : null; } catch (e) {}
 }
 S.people = null; S.pq = ''; S.requests = [];
@@ -862,6 +875,7 @@ function viewProfil() {
     <div class="nums"><div><b>${ms.problems}</b><span>murojaat</span></div><div><b>${ms.votes}</b><span>ovoz</span></div><div><b>${ms.events}</b><span>tadbir</span></div></div>
     <div class="small">${me.contact === 'open' ? 'Sizga hamma Telegram’da yoza oladi' : 'Sizga faqat tanishish so‘rovi orqali yozish mumkin'}</div>
   </section>
+  ${teamBoxes()}
   ${S.svc ? serviceBox(S.svc.summary, S.svc.entries, false) : ''}
   ${S.team ? pagonBox() : levelBox()}
   <section class="glass box">
@@ -880,12 +894,125 @@ function viewProfil() {
   ${!TG_INIT && location.hash === '#admin' ? `<button class="link" data-act="admin">${isAdmin ? 'Admin rejimidan chiqish' : 'Admin kirish (kalit bilan)'}</button>` : ''}`;
 }
 
+// ---------- Jamoa (Students' Parliament) and the Head's own desk
+S.teamData = null; S.headData = null; S.head = null;
+const APP_ST = { yangi: 'Ariza ko‘rilmoqda', suhbat: 'Suhbatga chaqirildingiz', qabul: 'Qabul qilindi', rad: 'Rad etildi' };
+async function loadTeamData() { try { S.teamData = await api(`/api/team?uid=${uid}`); S.offline = false; } catch (e) { S.offline = true; } }
+async function loadHead() { try { S.headData = await api(`/api/head?uid=${uid}`); } catch (e) { S.headData = { error: e.message }; } }
+const posPill = (p) => p.holder ? '<span class="pill tm-taken">Band</span>' : p.my_status ? `<span class="pill tm-${p.my_status}">${APP_ST[p.my_status]}</span>` : p.open ? '<span class="pill tm-open">Vakansiya</span>' : '<span class="pill tm-taken">Yopiq</span>';
+function viewJamoa() {
+  const D = S.teamData;
+  const back = '<button class="link" data-tab="profil" style="align-self:flex-start;padding-left:0">← Profil</button>';
+  if (!D) return head('Jamoa') + back + '<div class="glass empty">Yuklanmoqda…</div>';
+  const open = D.positions.filter((p) => p.open && !p.holder).length;
+  return head('Jamoa') + back + offlineNote() + `
+  <section class="glass box"><h3>Students' Parliament</h3>
+    <div class="small">${D.positions.length} lavozim · <b style="color:var(--gold-hi)">${open} ta vakansiya ochiq</b>. Lavozimni bosing — vazifasi, talablari va ariza formasi ochiladi.</div></section>
+  ${Object.keys(D.blocks).map((b) => { const items = D.positions.filter((p) => p.block === b); return `
+    <div class="label">${esc(D.blocks[b])}</div>
+    <div class="glass tm-list">${items.map((p) => `<button class="tm-row" data-posv="${p.id}"><span class="tm-ico" aria-hidden="true">${p.emoji}</span>
+      <span class="tm-t"><b>${esc(p.title)}</b><span>${p.holder ? esc(p.holder.name) : esc(p.duty)}</span></span>${posPill(p)}</button>`).join('')}</div>`; }).join('')}`;
+}
+function applyBlock(p) {
+  const D = S.teamData, me = S.me;
+  if (p.holder) return `Bu lavozim band: ${p.holder.name}.`;
+  if (!p.open) return 'Bu vakansiya hozircha yopiq.';
+  if (p.my_status) return 'Bu lavozimga ariza topshirgansiz. Javob botga keladi.';
+  if (!TG_INIT) return 'Ariza faqat Telegram ichida topshiriladi.';
+  if (!me || profileEmpty(me)) return 'Avval profilingizni to‘ldiring: yo‘nalish va qiziqishlar.';
+  if (D.my_pos) return 'Siz allaqachon Kengash a’zosisiz. Bir kishi bitta lavozimni egallaydi.';
+  if (p.faculty && D.my_faculty !== p.faculty) return `Bu lavozimga faqat ${p.faculty} yo‘nalishi talabalari ariza bera oladi.`;
+  if (D.positions.filter((x) => x.my_status === 'yangi' || x.my_status === 'suhbat').length >= 2) return 'Bir vaqtda ko‘pi bilan 2 ta faol ariza bo‘ladi. Avvalgilariga javobni kuting.';
+  return '';
+}
+function positionSheet(id) {
+  const p = S.teamData && S.teamData.positions.find((x) => x.id === id); if (!p) return;
+  const why = applyBlock(p), link = `https://t.me/blackknightsp_bot?startapp=job_${p.id}`;
+  openSheet(sheetTop(`${p.emoji} ${esc(p.title)}`) + `
+    <div class="small" style="margin-top:-6px">${esc(p.block_name)} · ${posPill(p)}</div>
+    <div class="tm-kv">
+      <div><small>Vazifasi</small><p>${esc(p.duty)}</p></div>
+      ${p.cats.length ? `<div><small>Sizga keladigan murojaatlar</small><p>${p.faculty ? `Faqat ${esc(p.faculty)} talabalaridan: ` : ''}${p.cats.map(esc).join(', ')}</p></div>` : ''}
+      <div><small>Talablar</small><p>${esc(p.req)}</p></div>
+      <div><small>Vaqt</small><p>Haftasiga ${esc(p.hours)}</p></div>
+      ${p.holder ? `<div><small>Lavozim egasi</small><p>${esc(p.holder.name)}</p></div>` : ''}
+    </div>
+    <details class="tm-det"><summary>Huquqlar va mas’uliyat</summary><ul>${[...p.rights, ...p.common_rights].map((r) => `<li>${esc(r)}</li>`).join('')}</ul><ul>${p.common_duty.map((r) => `<li>${esc(r)}</li>`).join('')}</ul></details>
+    <div class="small">Kanalda ulashish havolasi:</div>
+    <div class="tm-link"><code id="tm-dl">${esc(link)}</code><button class="btn ghost" id="tm-copy" type="button" style="height:34px;padding:0 12px">Nusxa</button></div>
+    ${why ? `<div class="tm-warn">${esc(why)}</div>` : ''}
+    <button class="primary" id="tm-apply" type="button" ${why ? 'disabled' : ''}>Ariza topshirish</button>`, (el) => {
+    $('#tm-copy', el).addEventListener('click', async () => { try { await navigator.clipboard.writeText(link); toast('Havola nusxalandi'); } catch (e) { const r = document.createRange(); r.selectNodeContents($('#tm-dl', el)); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Havolani belgilab nusxalang'); } });
+    if (!why) $('#tm-apply', el).addEventListener('click', () => applySheet(p));
+  });
+}
+function applySheet(p) {
+  const me = S.me || {};
+  openSheet(sheetTop('Ariza: ' + esc(p.title)) + `
+    <div class="chips"><span class="chip">👤 ${esc(me.name || '')}</span><span class="chip">🎓 ${esc(me.major || '—')}</span>${me.year ? `<span class="chip">${esc(me.year)}-kurs</span>` : ''}</div>
+    <form id="tm-f" style="display:flex;flex-direction:column;gap:14px" novalidate>
+      <label class="field">Nega aynan shu lavozim?<textarea id="tm-why" rows="3" maxlength="800" placeholder="2–3 gap"></textarea></label>
+      <label class="field">Tajribangiz<textarea id="tm-exp" rows="3" maxlength="800" placeholder="Loyiha, klub, ish, kurs…"></textarea></label>
+      <label class="field">Haftasiga necha soat bera olasiz?<select id="tm-hours"><option value="">— tanlang —</option><option>2–3</option><option>4–5</option><option>6–8</option><option>10+</option></select></label>
+      <label class="field">Portfolio yoki havola (ixtiyoriy)<input id="tm-link" maxlength="200" placeholder="github, instagram, behance…"></label>
+      <div class="err" id="tm-err" role="alert"></div>
+      <button class="primary" type="submit">Yuborish</button>
+    </form>`, (el) => {
+    $('#tm-f', el).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const why = $('#tm-why', el).value.trim(), exp = $('#tm-exp', el).value.trim(), hours = $('#tm-hours', el).value;
+      if (why.length < 10 || !exp || !hours) { $('#tm-err', el).textContent = 'Birinchi uchta savolga javob bering («Nega» kamida 10 belgi).'; return; }
+      const btn = $('button[type=submit]', el); btn.disabled = true;
+      try {
+        await api(`/api/team/${p.id}/apply`, { method: 'POST', body: { uid, why, exp, hours, link: $('#tm-link', el).value.trim() } });
+        closeSheet(); toast('Ariza yuborildi — javob botga keladi'); await loadTeamData(); render();
+      } catch (err) { $('#tm-err', el).textContent = err.message; btn.disabled = false; }
+    });
+  });
+}
+const H_ST = [['qabul', 'Qabul qildim'], ['jarayonda', 'Jarayonda'], ['hal', 'Hal qilindi']];
+function viewBolim() {
+  const D = S.headData;
+  const back = '<button class="link" data-tab="profil" style="align-self:flex-start;padding-left:0">← Profil</button>';
+  if (!D) return head('Mening bo‘limim') + back + '<div class="glass empty">Yuklanmoqda…</div>';
+  if (D.error) return head('Mening bo‘limim') + back + `<div class="glass empty"><b>Bo‘lim topilmadi</b>${esc(D.error)}</div>`;
+  const p = D.position, inbox = D.inbox || [];
+  const c = (s) => inbox.filter((x) => x.status === s).length, late = inbox.filter((x) => x.overdue).length;
+  return head('Mening bo‘limim') + back + `
+  <section class="glass box"><h3>${p.emoji} ${esc(p.title)}</h3>
+    <div class="small">${esc(p.duty)}</div>
+    <div class="nums"><div><b>${c('yangi')}</b><span>yangi</span></div><div><b>${c('qabul') + c('jarayonda')}</b><span>ishda</span></div><div><b${late ? ' style="color:var(--red)"' : ''}>${late}</b><span>48 soatdan o‘tgan</span></div></div>
+    ${late ? '<div class="tm-warn">Muddati o‘tgan murojaatlar bor. 48 soat ichida ko‘rib chiqilmasa strike qayd etiladi (51-modda).</div>' : ''}
+  </section>
+  <div class="label">Sizga kelgan murojaatlar</div>
+  ${inbox.length ? inbox.map((x) => `<article class="glass tm-case${x.overdue ? ' late' : ''}">
+    <div class="small">${esc(x.category || '—')} · ${ago(x.routed_at || x.created_at)} · ▲ ${x.votes}${x.overdue ? ' · <b style="color:var(--red)">muddat o‘tdi</b>' : ''}</div>
+    <h3>${esc(x.title)}</h3>
+    ${x.body ? `<div class="small" style="white-space:pre-wrap">${esc(x.body)}</div>` : ''}
+    <div class="small">${x.anon ? 'Anonim' : esc(x.author || '') + (x.author_major ? ' · ' + esc(x.author_major) : '')} · Holat: <b>${esc(STATUS[x.status])}</b></div>
+    ${x.status !== 'hal' ? `<div class="chips">${H_ST.map(([k, l]) => `<button class="chip" data-hst="${x.id}:${k}" aria-pressed="${x.status === k}">${l}</button>`).join('')}</div>
+    <label class="field" style="font-weight:500">Boshqa Head’ga yo‘naltirish<select data-hroute="${x.id}"><option value="">— tanlang —</option>${D.route_to.map((r) => `<option value="${r.id}">${esc(r.title)}</option>`).join('')}</select></label>` : ''}
+  </article>`).join('') : '<div class="glass empty"><b>Hozircha murojaat yo‘q</b>Yangi murojaat tushishi bilan bot sizga yozadi.</div>'}
+  <section class="glass box"><h3>Vazifam va huquqlarim</h3>
+    ${p.cats.length ? `<div class="small"><b>Sizga keladi:</b> ${p.faculty ? `faqat ${esc(p.faculty)} talabalaridan — ` : ''}${p.cats.map(esc).join(', ')}</div>` : '<div class="small">Sizga murojaatlar avtomatik kelmaydi; boshqa Head’lar yo‘naltirishi mumkin.</div>'}
+    <details class="tm-det" open><summary>Mas’uliyat</summary><ul>${p.common_duty.map((r) => `<li>${esc(r)}</li>`).join('')}</ul></details>
+    <details class="tm-det"><summary>Huquqlar</summary><ul>${[...p.rights, ...p.common_rights].map((r) => `<li>${esc(r)}</li>`).join('')}</ul></details>
+    <div class="small">Dastlabki 30 kun — sinov muddati. Bir semestrda 3 strike — lavozimdan ozod qilinish.</div>
+    <button class="btn ghost" data-act="hremind">Eslatmani botga qayta yuborish</button>
+  </section>`;
+}
+function teamBoxes() {
+  const h = S.head;
+  return (h ? `<button class="glass box tm-entry" data-tab="bolim"><h3>🎖 Mening bo‘limim</h3><div class="small">${esc(h.emoji + ' ' + h.title)}${h.open ? ` · <b style="color:var(--gold-hi)">${h.open} ta yangi murojaat</b>` : ' · yangi murojaat yo‘q'}</div></button>` : '')
+    + `<button class="glass box tm-entry" data-tab="jamoa"><h3>Jamoa va vakansiyalar</h3><div class="small">Students' Parliament tarkibi. Bo‘sh lavozimga ariza topshiring.</div></button>`;
+}
+
 function render() {
   const app = $('#app');
   const y = window.scrollY;
-  app.innerHTML = S.tab === 'ovoz' ? viewOvoz() : S.tab === 'odamlar' ? viewOdamlar() : S.tab === 'tadbirlar' ? viewTadbirlar() : S.tab === 'market' ? viewMarket() : viewProfil();
+  app.innerHTML = S.tab === 'ovoz' ? viewOvoz() : S.tab === 'odamlar' ? viewOdamlar() : S.tab === 'tadbirlar' ? viewTadbirlar() : S.tab === 'market' ? viewMarket() : S.tab === 'jamoa' ? viewJamoa() : S.tab === 'bolim' ? viewBolim() : viewProfil();
   window.scrollTo(0, y);
-  document.querySelectorAll('nav button').forEach((b) => b.toggleAttribute('aria-current', false) || (b.dataset.tab === S.tab && b.setAttribute('aria-current', 'page')));
+  document.querySelectorAll('nav button').forEach((b) => b.toggleAttribute('aria-current', false) || (b.dataset.tab === (S.tab === 'jamoa' || S.tab === 'bolim' ? 'profil' : S.tab) && b.setAttribute('aria-current', 'page')));
 }
 
 // ---------- sheets
@@ -984,7 +1111,7 @@ function openDm(id, user) {
   const link = user ? 'https://t.me/' + user : 'https://t.me/blackknightsp_bot?start=dm_' + String(id).replace(/^tg/, '');
   if (TG && TG.openTelegramLink) TG.openTelegramLink(link); else window.open(link, '_blank');
 }
-const MAJORS = ['ELT', 'Business Administration', 'IT', 'Finance'];
+const MAJORS = ['Business Management', 'Business Administration', 'ELT', 'Tourism Management', 'Accounting & Finance', 'IT'];
 const profileEmpty = (me) => !me || !(me.major || me.teach || me.learn || (me.interests || []).length);
 function welcomeSheet() {
   store.set('bk_welcome', '1');
@@ -1113,6 +1240,13 @@ document.addEventListener('click', async (e) => {
   if (d.mview) { S.mmine = d.mview === 'mine'; S.mhidden = d.mview === 'hidden'; S.market = null; render(); await loadMarket(); render(); return; }
   if (d.act === 'mkintro') return marketIntro();
   if (d.act === 'admin') return adminSheet();
+  if (d.posv) return positionSheet(d.posv);
+  if (d.act === 'hremind') { try { await api('/api/head/remind', { method: 'POST', body: { uid } }); toast('Eslatma botga yuborildi'); } catch (err) { toast(err.message); } return; }
+  if (d.hst) {
+    const [id, st] = d.hst.split(':'); t.disabled = true;
+    try { await api(`/api/problems/${id}`, { method: 'PATCH', body: { status: st } }); toast('Holat: ' + STATUS[st] + ' — muallifga xabar ketdi'); } catch (err) { toast(err.message); }
+    await Promise.all([loadHead(), loadMe()]); render(); return;
+  }
   if (d.act === 'share' && S.refLink) {
     const text = 'Black Knight — Millat Umidi talabalari platformasi. Muammo yoz, ovoz ber, kerakli odamni top:';
     const url = 'https://t.me/share/url?url=' + encodeURIComponent(S.refLink) + '&text=' + encodeURIComponent(text);
@@ -1185,6 +1319,12 @@ document.addEventListener('input', (e) => {
     const box = document.getElementById('ppl-list'); if (box) box.innerHTML = peopleList();
   }, 300);
 });
+document.addEventListener('change', async (e) => {
+  const id = e.target.dataset && e.target.dataset.hroute; if (!id || !e.target.value) return;
+  const to = e.target.value, name = e.target.selectedOptions[0].textContent;
+  try { await api(`/api/problems/${id}/route`, { method: 'POST', body: { uid, to } }); toast('Yo‘naltirildi: ' + name); } catch (err) { toast(err.message); }
+  await Promise.all([loadHead(), loadMe()]); render();
+});
 document.addEventListener('submit', async (e) => {
   if (e.target.id !== 'addadmin') return;
   e.preventDefault();
@@ -1203,6 +1343,8 @@ async function refresh() {
   else if (S.tab === 'tadbirlar') await loadEvents();
   else if (S.tab === 'odamlar') await loadPeople();
   else if (S.tab === 'market') await loadMarket();
+  else if (S.tab === 'jamoa') await Promise.all([loadTeamData(), loadMe()]);
+  else if (S.tab === 'bolim') await Promise.all([loadHead(), loadMe()]);
   else await Promise.all([loadMe(), loadMatches(), loadRequests(), loadContacts()]);
   const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('form');
   if (!$('.scrim') && !typing) render();
@@ -1213,7 +1355,12 @@ async function refresh() {
   await Promise.all([checkAdmin(), loadMe(), loadStats(), loadProblems()]);
   render();
   loadEvents(); loadMatches(); loadPeople(); loadRequests(); loadContacts();
-  if (!S.offline) { if (!store.get('bk_welcome') && profileEmpty(S.me)) welcomeSheet(); else if (!S.me) profileSheet(true); }
+  // Deep links: ?startapp=job_<seat> opens that vacancy; #bolim opens the Head's desk.
+  const sp = (TG && TG.initDataUnsafe && TG.initDataUnsafe.start_param) || new URLSearchParams(location.search).get('tgWebAppStartParam') || '';
+  if (sp.startsWith('job_')) { S.tab = 'jamoa'; await loadTeamData(); render(); positionSheet(sp.slice(4)); }
+  else if (location.hash === '#bolim' && S.head) { S.tab = 'bolim'; await loadHead(); render(); }
+  else if (location.hash === '#jamoa') { S.tab = 'jamoa'; await loadTeamData(); render(); }
+  if (!S.offline && !sp.startsWith('job_')) { if (!store.get('bk_welcome') && profileEmpty(S.me)) welcomeSheet(); else if (!S.me) profileSheet(true); }
   setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 20000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
 })();

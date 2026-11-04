@@ -158,10 +158,10 @@ let adminKey = store.get('bk_admin') || '';
 
 const STATUS = { yangi: 'Yangi', qabul: 'Qabul qilindi', jarayonda: 'Jarayonda', hal: 'Hal qilindi' };
 const KIND = { muammo: 'Muammo', savol: 'Savol', kerak: 'Kerak', elon: 'E’lon' };
-const CATS = ["O'quv jarayoni", 'Ustozlar bilan', 'Infratuzilma', 'Yotoqxona', 'Boshqa'];
+const CATS = ["O'quv jarayoni", 'Ustozlar bilan', 'Infratuzilma', 'Yotoqxona', 'Oshxona va bufet', 'Sport', 'Tadbirlar', 'Karyera va amaliyot', "Startap va g'oyalar", 'Hamkorlik va chegirma', 'Platforma (bot/sayt)', 'Huquq va adolat', 'Boshqa'];
 const MONTHS = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', 'okt', 'noy', 'dek'];
 const WD = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
-const TABS = [['home', 'Umumiy'], ['posts', 'Murojaatlar'], ['people', 'Odamlar'], ['events', 'Tadbirlar'], ['market', 'Market'], ['send', 'Xabar yuborish'], ['team', 'Jamoa']];
+const TABS = [['home', 'Umumiy'], ['posts', 'Murojaatlar'], ['people', 'Odamlar'], ['events', 'Tadbirlar'], ['market', 'Market'], ['send', 'Xabar yuborish'], ['vacancy', 'Vakansiyalar'], ['team', 'Jamoa']];
 
 const HASH = decodeURIComponent(location.hash.slice(1)).split(':');
 const S = { tab: HASH[0] || 'home', openUser: HASH[0] === 'people' ? HASH.slice(1).join(':') : '', market: null, mk: { status: '', q: '', reported: false }, days: 30, dash: null, posts: null, pf: { status: '', kind: '', cat: '', q: '' }, users: null, botOnly: [], uf: { filter: 'all', q: '', sort: 'created_at', dir: -1 }, admins: null, segs: null, bc: { text: '', segment: 'all', button: true }, sending: false };
@@ -254,7 +254,7 @@ function hbars(rows, label, val, opts = {}) {
 // ---------- shell
 function shell(inner) {
   const d = S.dash && S.dash.kpi;
-  const badge = { posts: d ? d.problems_new : 0, market: d ? d.listings_hidden + d.listings_reported : 0 };
+  const badge = { posts: d ? d.problems_new : 0, market: d ? d.listings_hidden + d.listings_reported : 0, vacancy: S.apps ? S.apps.filter((a) => a.status === 'yangi').length : 0 };
   return `<header class="top"><img src="logo.jpg" alt=""><div class="t"><div class="k">BlackKnight Club</div><h1>Admin panel</h1></div>
     <button class="ibtn" data-act="refresh" aria-label="Yangilash" title="Yangilash"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg></button>
     <a class="ibtn" href="./" title="Ilovaga qaytish" style="text-decoration:none">Ilova</a>
@@ -263,7 +263,7 @@ function shell(inner) {
   <main id="view">${inner}</main>`;
 }
 function render() {
-  const views = { home: viewHome, posts: viewPosts, people: viewPeople, events: viewEvents, market: viewMarket, send: viewSend, team: viewTeam };
+  const views = { home: viewHome, posts: viewPosts, people: viewPeople, events: viewEvents, market: viewMarket, send: viewSend, vacancy: viewVacancy, team: viewTeam };
   $('#app').innerHTML = shell(views[S.tab]());
 }
 function setTab(t) { S.tab = t; history.replaceState(null, '', '#' + t); render(); load(t); window.scrollTo(0, 0); }
@@ -535,7 +535,7 @@ function viewSend() {
 function viewTeam() {
   const a = S.admins;
   return `<div class="grid g2"><section class="card"><h2>Jamoa (adminlar)</h2>
-    ${!a ? '<div class="skel"></div>' : `<div class="list">${a.map((x) => `<div class="li">${avatar(x)}<div class="m"><b>${esc(x.name)}</b><small>${x.position ? '◆ ' + esc(x.position) + ' · ' : ''}${x.username ? '@' + esc(x.username) : ''} · ${fdate(x.added_at)}</small></div>
+    ${!a ? '<div class="skel"></div>' : `<div class="list">${a.map((x) => `<div class="li">${avatar(x)}<div class="m"><b>${esc(x.name)}</b><small>${x.scope ? '🎖 faqat o‘z bo‘limi · ' : ''}${x.position ? '◆ ' + esc(x.position) + ' · ' : ''}${x.username ? '@' + esc(x.username) : ''} · ${fdate(x.added_at)}</small></div>
       <button class="ibtn" data-pos="${esc(x.id)}" title="Mas’uliyat">✏️</button>${a.length > 1 ? `<button class="ibtn" data-rmadmin="${esc(x.id)}" style="color:var(--red)" title="Olib tashlash">✕</button>` : ''}</div>`).join('')}</div>`}
     <form class="form" id="addadmin" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
       <div class="row2"><label class="field">Telegram username<input class="in" name="username" placeholder="@username" autocomplete="off" autocapitalize="off" required></label>
@@ -546,6 +546,35 @@ function viewTeam() {
       <div class="small muted" style="margin-bottom:12px">Ma’muriyatga hisobot yoki Excel’da tahlil uchun. Anonim postlar muallifi ko‘rsatilmaydi.</div>
       <div style="display:flex;flex-direction:column;gap:8px">${[['users', 'Barcha a’zolar'], ['problems', 'Barcha postlar va ovozlar'], ['referrals', 'Takliflar (kim kimni)'], ['requests', 'Tanishish so‘rovlari'], ['market', 'Market e’lonlari']].map(([k, l]) => `<button class="btn ghost" data-export="${k}" style="justify-content:flex-start;text-align:left">⬇ ${l} (CSV)</button>`).join('')}</div>
       <div class="small dim" style="margin-top:14px">Panel manzili: <b style="color:var(--gold-hi)">${esc(location.origin + location.pathname)}</b> — Telegram ichida yoki admin kaliti bilan ochiladi.</div></section></div>`;
+}
+
+
+// ---------- VACANCIES (Students' Parliament)
+const AST = { yangi: 'Yangi', suhbat: 'Suhbat', qabul: 'Qabul qilindi', rad: 'Rad etildi' };
+const APILL = { yangi: 'p-yangi', suhbat: 'p-jarayonda', qabul: 'p-hal', rad: '' };
+S.apps = null; S.team2 = null; S.af = 'open';
+function viewVacancy() {
+  const A = S.apps, T = S.team2;
+  const list = A ? A.filter((a) => S.af === 'all' || (S.af === 'open' ? ['yangi', 'suhbat'].includes(a.status) : a.status === S.af)) : null;
+  return `<div class="grid g2"><section class="card"><h2>Arizalar</h2>
+    <div class="toolbar"><div class="chips">${[['open', 'Ko‘rib chiqilmagan'], ['qabul', 'Qabul'], ['rad', 'Rad'], ['all', 'Hammasi']].map(([k, l]) => `<button class="chip" data-af="${k}" aria-pressed="${S.af === k}">${l}</button>`).join('')}</div></div>
+    ${!list ? '<div class="skel"></div>' : !list.length ? '<div class="empty">Ariza yo‘q</div>' : `<div class="list">${list.map((a) => `<div class="li" style="align-items:flex-start;flex-direction:column;gap:6px">
+      <div style="display:flex;gap:10px;align-items:center;width:100%">${avatar(a)}<div class="m"><b>${esc(a.name)}${a.knight_no ? ' ♞' : ''}</b><small>${esc(a.pos_emoji + ' ' + a.pos_title)} · ${esc(a.major || '—')}${a.year ? ', ' + esc(a.year) + '-kurs' : ''}${a.username ? ' · @' + esc(a.username) : ''} · ${ago(a.created_at)}</small></div><span class="pill ${APILL[a.status]}">${AST[a.status]}</span></div>
+      <div class="small"><span class="dim">Nega:</span> ${esc(a.why)}</div>
+      <div class="small"><span class="dim">Tajriba:</span> ${esc(a.exp)} · <span class="dim">Vaqt:</span> ${esc(a.hours)} soat/hafta${a.link ? ` · <span class="dim">Havola:</span> ${esc(a.link)}` : ''}</div>
+      ${a.note ? `<div class="small dim">Izoh: ${esc(a.note)}</div>` : ''}
+      ${['yangi', 'suhbat'].includes(a.status) ? `<div class="chips">${a.status === 'yangi' ? `<button class="btn ghost" data-ap="${a.id}:suhbat">Suhbatga chaqirish</button>` : ''}<button class="btn" data-ap="${a.id}:qabul:${a.position_id}">Qabul qilish</button><button class="btn red" data-ap="${a.id}:rad">Rad etish</button></div>` : ''}
+    </div>`).join('')}</div>`}
+    <div class="small dim" style="margin-top:12px">«Qabul qilish» bosilganda: lavozim band bo‘ladi, odam faqat o‘z bo‘limini ko‘radigan Head bo‘ladi (Prezident, VP va HR — to‘liq admin), botga vazifa va huquqlari yuboriladi, qolgan nomzodlarga javob ketadi.</div></section>
+  <section class="card"><h2>Lavozimlar</h2>
+    ${!T ? '<div class="skel"></div>' : `<div class="list">${T.positions.map((p) => `<div class="li"><span class="av" aria-hidden="true">${p.emoji}</span><div class="m"><b>${esc(p.title)}</b>
+      <small>${p.holder ? '◆ ' + esc(p.holder.name) + (p.full ? ' · to‘liq admin' : ' · faqat o‘z bo‘limi') : p.open ? `Vakansiya ochiq${p.pending ? ' · ' + p.pending + ' ariza' : ''}` : 'Yopiq'}</small></div>
+      ${p.holder ? `<button class="ibtn" data-pa="${p.id}:remind" title="Vazifa eslatmasini qayta yuborish">📨</button><button class="ibtn" data-pa="${p.id}:release" title="Lavozimdan bo‘shatish" style="color:var(--red)">✕</button>`
+        : `<button class="ibtn" data-pa="${p.id}:assign" title="Odamni to‘g‘ridan-to‘g‘ri tayinlash">＋</button><button class="chip" data-pa="${p.id}:${p.open ? 'close' : 'open'}" aria-pressed="${p.open}">${p.open ? 'Ochiq' : 'Yopiq'}</button>`}</div>`).join('')}</div>`}
+  </section></div>`;
+}
+async function loadVacancy() {
+  try { const [a, t] = await Promise.all([api('/api/admin/applications'), api('/api/team')]); S.apps = a.applications; S.team2 = t; } catch (e) { toast(e.message); S.apps = S.apps || []; }
 }
 
 // ---------- sheet
@@ -565,6 +594,7 @@ async function load(t, force) {
   if (t === 'posts' && (!S.posts || force)) jobs.push(loadPosts());
   if (t === 'people' && (!S.users || force)) jobs.push(loadUsers());
   if (t === 'team' && (!S.admins || force)) jobs.push(loadTeam());
+  if (t === 'vacancy' && (!S.apps || force)) jobs.push(loadVacancy());
   if (t === 'send' && (!S.segs || force)) jobs.push(loadSegs());
   if (t === 'market' && (!S.market || force)) jobs.push(loadMarket());
   if (!jobs.length) return;
@@ -616,6 +646,25 @@ document.addEventListener('click', async (e) => {
     if (!confirm('◇ belgisi olib tashlansinmi?')) return;
     try { await api(`/api/people/${encodeURIComponent(d.ldoff)}/leader`, { method: 'POST', body: { name: '' } }); toast('Belgi olib tashlandi'); await loadUsers(); userSheet(d.ldoff); } catch (err) { toast(err.message); }
     return;
+  }
+  if (d.af) { S.af = d.af; return render(); }
+  if (d.ap) {
+    const [id, action, pid] = d.ap.split(':');
+    let note = '', founder_ok = false;
+    if (action === 'suhbat') { note = prompt('Suhbat vaqti va joyi (nomzodga botda boradi):', ''); if (note === null) return; }
+    if (action === 'rad') { note = prompt('Qisqa izoh (ixtiyoriy, nomzodga boradi):', ''); if (note === null) return; }
+    if (action === 'qabul') { if (!confirm('Qabul qilinsinmi? Lavozim band bo‘ladi va botga vazifalari yuboriladi.')) return; if (pid === 'cto') { founder_ok = confirm('CTO uchun Asoschi roziligi kerak (34-modda). Asoschi rozimi?'); if (!founder_ok) return; } }
+    b.disabled = true;
+    try { await api('/api/admin/applications/' + id, { method: 'POST', body: { action, note, founder_ok } }); haptic(); toast(action === 'qabul' ? 'Qabul qilindi — botga vazifalari yuborildi' : 'Nomzodga xabar ketdi'); } catch (err) { toast(err.message); }
+    await loadVacancy(); return render();
+  }
+  if (d.pa) {
+    const [pid, action] = d.pa.split(':');
+    const body = { action };
+    if (action === 'assign') { const u = prompt('Telegram username (@siz) — odam avval ilovani ochgan bo‘lishi kerak:', ''); if (!u) return; body.username = u; body.notify = confirm('Unga vazifa va huquqlari haqida bot xabari yuborilsinmi?'); }
+    if (action === 'release' && !confirm('Lavozimdan bo‘shatilsinmi? Head kirish huquqi olinadi va vakansiya qayta ochiladi.')) return;
+    try { await api('/api/admin/positions/' + pid, { method: 'POST', body }); haptic(); toast(action === 'remind' ? 'Eslatma yuborildi' : action === 'assign' ? 'Tayinlandi' : action === 'release' ? 'Bo‘shatildi' : 'Saqlandi'); } catch (err) { toast(err.message); }
+    await loadVacancy(); return render();
   }
   if (d.act === 'newelon') return elonForm();
   if (d.act === 'refresh') { toast('Yangilanmoqda…'); S.segs = null; return load(S.tab, true); }

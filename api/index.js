@@ -2,7 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 const DB_URL = process.env.DATABASE_URL || '';
 const DB_HOST = DB_URL ? new URL(DB_URL).hostname : '';
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
-const CATS = ["O'quv jarayoni", 'Ustozlar bilan', 'Infratuzilma', 'Yotoqxona', 'Boshqa'];
+const CATS = ["O'quv jarayoni", 'Ustozlar bilan', 'Infratuzilma', 'Yotoqxona', 'Oshxona va bufet', 'Sport', 'Tadbirlar', 'Karyera va amaliyot', "Startap va g'oyalar", 'Hamkorlik va chegirma', 'Platforma (bot/sayt)', 'Huquq va adolat', 'Boshqa'];
 const STATUSES = ['yangi', 'qabul', 'jarayonda', 'hal'];
 const KINDS = ['muammo', 'savol', 'kerak', 'elon'];
 const MARKET_CATS = ['Kitoblar', 'Darsliklar', 'Kanselyariya', 'Sport', 'Boshqa'];
@@ -516,6 +516,13 @@ async function tgWebhook(req) {
         return json({ ok: true });
       }
     }
+    if (text.startsWith('/vazifam')) {
+      await ensurePositions();
+      const hp = (await q('SELECT p.id, u.name FROM positions p JOIN users u ON u.id=p.holder_id WHERE p.holder_id=$1', [me])).rows[0];
+      if (hp) await sendOnboard(me, hp.id, hp.name);
+      else await tg('sendMessage', { chat_id: msg.chat.id, text: 'Siz hozircha Kengash lavozimida emassiz. Vakansiyalar: ilova → Profil → Jamoa.', reply_markup: openKb() });
+      return json({ ok: true });
+    }
     if (text.startsWith('/start') || text.startsWith('/qollanma')) await sendGuide(msg.chat.id);
     else await tg('sendMessage', { chat_id: msg.chat.id, text: 'Ilovani ochish uchun pastdagi tugmani bosing. Qo‘llanma videoni qayta ko‘rish: /qollanma', reply_markup: openKb() });
   }
@@ -527,7 +534,7 @@ async function tgSetup() {
   out.before = await tg('getWebhookInfo', {});
   out.webhook = await tg('setWebhook', { url: SELF_URL + '/tg/webhook', secret_token: WEBHOOK_SECRET, allowed_updates: ['message', 'callback_query'] });
   if (WEBAPP_URL) out.menu = await tg('setChatMenuButton', { menu_button: { type: 'web_app', text: 'Ochish', web_app: { url: WEBAPP_URL } } });
-  out.commands = await tg('setMyCommands', { commands: [{ command: 'start', description: 'Black Knight ilovasini ochish' }, { command: 'qollanma', description: 'Qo‘llanma video' }] });
+  out.commands = await tg('setMyCommands', { commands: [{ command: 'start', description: 'Black Knight ilovasini ochish' }, { command: 'qollanma', description: 'Qo‘llanma video' }, { command: 'vazifam', description: 'Lavozimim: vazifa va huquqlar' }] });
   out.desc = await tg('setMyShortDescription', { short_description: 'Millat Umidi talabalari ovozi: muammolar, tadbirlar, Skill Swap.' });
   out.me = await tg('getMe', {});
   try { const r = await fetch(SELF_URL + '/api/health'); out.selfcall = r.status + ' ' + (await r.text()).slice(0, 100); } catch (e) { out.selfcall = 'ERR ' + e.message; }
@@ -680,7 +687,7 @@ async function adminRoute(p, m, url, body, uid, tu) {
     const kind = KINDS.includes(url.searchParams.get('kind')) ? url.searchParams.get('kind') : '';
     const cat = CATS.includes(url.searchParams.get('cat')) ? url.searchParams.get('cat') : '';
     const term = str(url.searchParams.get('q') || '', 80);
-    const r = await q(`SELECT p.id, p.kind, p.title, p.body, p.category, p.status, p.created_at, p.resolved_at, p.anon,
+    const r = await q(`SELECT p.id, p.kind, p.title, p.body, p.category, p.status, p.created_at, p.resolved_at, p.anon, p.assigned_pos,
       CASE WHEN p.anon THEN NULL ELSE u.name END author, CASE WHEN p.anon THEN NULL ELSE u.username END author_username, CASE WHEN p.anon THEN NULL ELSE u.id END author_id,
       (SELECT count(*) FROM votes v WHERE v.problem_id=p.id)::int votes
       FROM problems p LEFT JOIN users u ON u.id=p.author_id
@@ -791,6 +798,276 @@ async function adminRoute(p, m, url, body, uid, tu) {
   return null;
 }
 
+// ---- Students' Parliament: positions, vacancies, heads (Konstitutsiya, 2-tahrir)
+// Each muammo category routes to one position; '@fac' means the author's faculty Head.
+const CAT_ROUTE = {
+  "O'quv jarayoni": '@fac', 'Ustozlar bilan': '@fac', Infratuzilma: 'dorm', Yotoqxona: 'dorm', 'Oshxona va bufet': 'dorm',
+  Sport: 'sport', Tadbirlar: 'culture', 'Karyera va amaliyot': 'career', "Startap va g'oyalar": 'startup',
+  'Hamkorlik va chegirma': 'pr', 'Platforma (bot/sayt)': 'cto', 'Huquq va adolat': 'legal', Boshqa: 'vp',
+};
+const FACULTIES = [
+  ['bm', 'BM', 'Business Management', /^(bm|business management|biznes boshqaruv)/i],
+  ['ba', 'BA', 'Business Administration', /^(ba|business administration)/i],
+  ['elt', 'ELT', 'ELT', /^(elt|english)/i],
+  ['tm', 'TM', 'Tourism Management', /^(tm|tour|turizm|turozm)/i],
+  ['aaf', 'AAF', 'Accounting & Finance', /^(aaf|accounting|finance|moliya)/i],
+  ['it', 'IT', 'IT', /^(it|information)/i],
+];
+const facultyOf = (major) => { const f = FACULTIES.find((x) => x[3].test(String(major || '').trim())); return f ? f[1] : null; };
+const facPos = (major) => { const f = FACULTIES.find((x) => x[3].test(String(major || '').trim())); return f ? f[0] : null; };
+const EVENT_POS = ['culture', 'sport', 'startup', 'career', 'vol', 'pr'];
+
+const P_ = (id, block, emoji, title, o) => ({ id, block, emoji, title, faculty: null, full: false, rights: [], ...o });
+const FAC_DUTY = (name) => `${name} talabalarining akademik va kundalik masalalari, o‘quv jarayoni va ustozlar bilan bog‘liq murojaatlar, fakultet ichidagi amaliy loyihalar.`;
+const POSITIONS = [
+  P_('president', 'exec', '🔥', 'Prezident', { full: true, hours: '8–10 soat', req: 'Ritsar unvoni, kamida 2-kurs, akademik qarzdorlik yo‘q.',
+    duty: 'Parlamentning umumiy strategiyasi, rektorat oldida vakillik, Kengash yig‘ilishlarini olib borish, oylik ochiq hisobot.',
+    rights: ['Barcha bo‘limlarni ko‘rish va boshqarish (to‘liq admin)', 'Kengash yig‘ilishini chaqirish; ovozlar teng bo‘lsa hal qiluvchi ovoz', '500 000 – 3 000 000 so‘mgacha xarajatni AAF Head bilan tasdiqlash'] }),
+  P_('vp', 'exec', '🛡', 'Vitse-prezident', { full: true, hours: '6–8 soat', req: 'Ritsar unvoni, kamida 2-kurs.',
+    duty: 'Head’lar faoliyati va muddatlar nazorati, «Boshqa» toifasidagi murojaatlarni saralash, Prezident o‘rnini bosish.',
+    rights: ['Barcha bo‘limlarni ko‘rish va boshqarish (to‘liq admin)', 'Bo‘sh lavozim murojaatlarini vaqtincha yuritish', 'Head’lar o‘rtasidagi nizoda vositachilik (80-modda)'] }),
+  ...FACULTIES.map(([id, code, name], i) => P_(id, 'fac', ['💣', '💼', '⚡️', '✈️', '📥', '💻'][i], code === 'IT' ? 'IT Faculty Head' : code + ' Head', {
+    faculty: code, hours: '4–5 soat', req: `${name} yo‘nalishi talabasi, Ritsar unvoni.`,
+    duty: FAC_DUTY(name) + (code === 'AAF' ? ' Qo‘shimcha: Parlament g‘aznachisi — byudjet va oylik moliya reyestri.' : code === 'ELT' ? ' Debating va speaking klublar.' : code === 'TM' ? ' Amaliyot, mehmondo‘stlik va sayohat loyihalari.' : code === 'IT' ? ' Laboratoriyalar holati va texnik to‘garaklar.' : ''),
+    rights: code === 'AAF' ? ['Faqat o‘z fakultetingiz talabalarining O‘quv va Ustoz murojaatlari sizga keladi', '500 000 so‘mgacha xarajatni Head bilan birga tasdiqlash (66-modda)', 'O‘z xarajatingizni o‘zingiz tasdiqlay olmaysiz'] : ['Faqat o‘z fakultetingiz talabalarining O‘quv va Ustoz murojaatlari sizga keladi'] })),
+  P_('legal', 'tech', '⚖️', 'Legal & Ethics Head', { hours: '3–4 soat', req: 'Ritsar unvoni, xolis, Prezident juftligi a’zosi emas.',
+    duty: 'Konstitutsiya va odob-axloq nazorati, saylov xolisligi, strike shikoyatlari va «Huquq va adolat» murojaatlari.',
+    rights: ['Prezident va Asoschiga bo‘ysunmaysiz (47-modda)', 'Qarorga 48 soat ichida asosli veto qo‘yish (48-modda)', 'Admin harakatlari jurnalini ko‘rish (5-modda)', 'Strike shikoyatlarini ko‘rib chiqish (53-modda)'] }),
+  P_('hr', 'tech', '🎖', 'HR & Talent Head', { full: true, hours: '5–6 soat', req: 'Muloqotchan, adolatli, jadval bilan ishlay oladi.',
+    duty: 'Jamoa intizomi, strike reyestri, vakansiyalar va nomzodlar zaxirasi.',
+    rights: ['Barcha bo‘limlarni ko‘rish (to‘liq admin)', 'Vakansiya ochish, arizalarni ko‘rish, suhbatga chaqirish', 'Strike qayd etish (51-modda)'] }),
+  P_('cto', 'tech', '🛠', 'Platform Tech Lead (CTO)', { hours: '8–10 soat', req: 'JavaScript/Node.js, Git; Telegram Bot API tajribasi afzal. Asoschi roziligi kerak.',
+    duty: 'Bot va sayt kodi, serverlar xavfsizligi, ovoz berish daxlsizligi, «Platforma» murojaatlari.',
+    rights: ['Platforma texnik xatolari bo‘yicha murojaatlar sizga keladi', 'Fors-majorda platformani zaxira nusxadan tiklash (78-modda)'] }),
+  P_('data', 'tech', '📊', 'Analytics & Data Head', { hours: '4–5 soat', req: 'Excel / Google Sheets, raqamlar bilan ishlash.',
+    duty: 'Murojaatlar va ovozlar statistikasi, Head’larning oylik KPI bali, moliya reyestrini tekshirish.',
+    rights: ['Oylik KPI’ni e’lon qilish (57-modda)', 'AAF reyestrini tekshirib xulosa berish (67-modda)'] }),
+  P_('vol', 'tech', '🔗', 'Volunteer Head', { hours: '4–5 soat', req: 'Tadbir tashkil qilish tajribasi.',
+    duty: 'Volontyorlar bazasi, ularni tadbir va vazifalarga taqsimlash.', rights: ['Tadbir yaratish va ishtirokchilarni ko‘rish'] }),
+  P_('dorm', 'life', '🏡', 'Dormitory & Social Head', { hours: '4–5 soat', req: 'Yotoqxonada yashovchi talaba afzal.',
+    duty: 'Yotoqxona, infratuzilma, oshxona va bufet narxlari, tozalik va maishiy muammolar.',
+    rights: ['Yotoqxona, Infratuzilma, Oshxona murojaatlari sizga keladi'] }),
+  P_('sport', 'life', '🏆', 'Sport Head', { hours: '4–5 soat', req: 'Sportga qiziqish, tashkilotchilik.',
+    duty: 'Universitet sport ligalari, turnirlar, sog‘lom turmush loyihalari.', rights: ['Sport murojaatlari sizga keladi', 'Tadbir yaratish'] }),
+  P_('culture', 'life', '🎭', 'Culture & Events Head', { hours: '5–6 soat', req: 'Tadbir tashkil qilish tajribasi.',
+    duty: 'Festivallar, konsertlar, Zakovat va madaniy kechalar.', rights: ['Tadbirlar murojaatlari sizga keladi', 'Tadbir yaratish va e’lon qilish'] }),
+  P_('startup', 'grow', '🚀', 'Innovation & Startups Head', { hours: '4–5 soat', req: 'Startap yoki xakaton tajribasi.',
+    duty: 'Talabalarning startap g‘oyalari, xakatonlar va pitch day’lar.', rights: ['Startap murojaatlari sizga keladi', 'Tadbir yaratish'] }),
+  P_('pr', 'grow', '🤝', 'Partnership & PR Head', { hours: '5–6 soat', req: 'Muzokara qila oladi, ishonchli muloqot.',
+    duty: 'Kafe, o‘quv markazlari va brendlar bilan hamkorlik, chegirmalar va homiylik.', rights: ['Hamkorlik murojaatlari sizga keladi', 'Homiylik shartnomasini tayyorlash (68-modda)', 'Tadbir yaratish'] }),
+  P_('career', 'grow', '💼', 'Career & Internship Head', { hours: '3–4 soat', req: 'Kompaniyalar bilan aloqa, LinkedIn.',
+    duty: 'Bo‘sh ish o‘rinlari, stajirovkalar va rezyume bazasi.', rights: ['Karyera murojaatlari sizga keladi', 'Tadbir yaratish'] }),
+  P_('media', 'grow', '💡', 'Media Head', { hours: '5–6 soat', req: 'Portfolio: SMM, foto, video yoki dizayn.',
+    duty: 'SMM, foto/video hisobotlar, Parlament ishini ochiq yoritish.', rights: ['Kanal uchun kontent tayyorlash va e’lon qilish'] }),
+];
+const POS = Object.fromEntries(POSITIONS.map((p, i) => [p.id, { ...p, sort: i }]));
+const BLOCKS = { exec: 'Oliy boshqaruv', fac: 'Fakultet yetakchilari', tech: 'Nazorat, tizim va intizom', life: 'Talabalar hayoti', grow: 'Biznes va rivojlanish' };
+const COMMON_DUTY = [
+  'Sizga kelgan murojaatni <b>48 soat</b> ichida ko‘rib chiqing: «Qabul qilindi» yoki asosli rad (50-modda).',
+  '5 ish kunida reja va talabaga javob, 30 kunda hal qiling yoki rektoratga uzating.',
+  'Sizga tegishli bo‘lmagan murojaatni 24 soatda tegishli Head’ga yo‘naltiring.',
+  'Oyiga kamida bitta yozma hisobot, Kengash yig‘ilishlarining kamida 75 foiziga qatnashish.',
+  'O‘z o‘rningizga bitta zaxira nomzod tayyorlang.',
+  'Anonim muallifni aniqlashga urinmang, shaxsiy ma’lumotni sir saqlang (18–20-moddalar).',
+];
+const COMMON_RIGHTS = [
+  'O‘z murojaatlaringiz holatini o‘zgartirish — muallifga bot o‘zi xabar beradi',
+  'Murojaatni boshqa Head’ga yo‘naltirish',
+  'Kengashda ovoz berish va masala kiritish',
+  'Strike ustidan 72 soat ichida shikoyat (53-modda)',
+  'Imtihon, kasallik va ta’tilda muddatlar to‘xtaydi (52-modda)',
+  '14 kun oldin xabar berib iste’foga chiqish (37-modda)',
+];
+const catsOf = (pid) => Object.keys(CAT_ROUTE).filter((c) => CAT_ROUTE[c] === pid || (CAT_ROUTE[c] === '@fac' && POS[pid] && POS[pid].faculty));
+function posBrief(pid) {
+  const p = POS[pid];
+  return { ...p, block_name: BLOCKS[p.block], cats: catsOf(pid), common_duty: COMMON_DUTY.map((s) => s.replace(/<\/?b>/g, '')), common_rights: COMMON_RIGHTS };
+}
+function onboardText(pid, name) {
+  const p = POS[pid], cats = catsOf(pid);
+  return `🎖 <b>Tabriklaymiz, ${esc(firstName(name))}!</b>\nSiz Students' Parliament'ning <b>${esc(p.emoji + ' ' + p.title)}</b> lavozimiga tayinlandingiz.
+
+<b>Vazifangiz</b>
+${esc(p.duty)}
+
+<b>Sizga keladigan murojaatlar</b>
+${p.full ? 'Siz to‘liq adminsiz: barcha murojaatlarni ko‘rasiz.' : cats.length ? (p.faculty ? `Faqat ${p.faculty} talabalaridan: ` : '') + cats.map((c) => '«' + esc(c) + '»').join(', ') : 'Sizga murojaatlar avtomatik kelmaydi; boshqa Head’lar sizga yo‘naltirishi mumkin.'}
+Yangi murojaat tushishi bilan bot sizga yozadi.
+
+<b>Mas’uliyatingiz</b>
+${COMMON_DUTY.map((s) => '• ' + s).join('\n')}
+
+<b>Huquqlaringiz</b>
+${[...p.rights.map(esc), ...COMMON_RIGHTS].map((s) => '• ' + s).join('\n')}
+
+⚠️ Dastlabki 30 kun — sinov muddati (36-modda). Bir semestrda 3 strike — lavozimdan avtomatik ozod qilinish (54-modda).
+
+Ishni boshlash: ilovada <b>Profil → Mening bo‘limim</b>. Bu eslatmani qayta olish: /vazifam`;
+}
+const headKb = () => (WEBAPP_URL ? { inline_keyboard: [[{ text: '🎖 Mening bo‘limim', web_app: { url: WEBAPP_URL.replace(/#.*$/, '') + '#bolim' } }]] } : undefined);
+const sendOnboard = (uid, pid, name) => (uid && uid.startsWith('tg') ? tg('sendMessage', { chat_id: uid.slice(2), parse_mode: 'HTML', text: onboardText(pid, name), reply_markup: headKb() }).catch(() => {}) : null);
+
+let posReady = false;
+async function ensurePositions() {
+  if (posReady) return;
+  const L = POSITIONS;
+  await q(`INSERT INTO positions (id,block,emoji,title,duty,req,hours,faculty,full_access,sort)
+    SELECT * FROM unnest($1::text[],$2::text[],$3::text[],$4::text[],$5::text[],$6::text[],$7::text[],$8::text[],$9::bool[],$10::int[])
+    ON CONFLICT (id) DO UPDATE SET block=EXCLUDED.block, emoji=EXCLUDED.emoji, title=EXCLUDED.title, duty=EXCLUDED.duty, req=EXCLUDED.req,
+      hours=EXCLUDED.hours, faculty=EXCLUDED.faculty, full_access=EXCLUDED.full_access, sort=EXCLUDED.sort RETURNING 1 x`,
+  [L.map((p) => p.id), L.map((p) => p.block), L.map((p) => p.emoji), L.map((p) => p.title), L.map((p) => p.duty), L.map((p) => p.req), L.map((p) => p.hours),
+    L.map((p) => p.faculty), L.map((p) => !!p.full), L.map((p, i) => i)]);
+  posReady = true;
+}
+async function holderOf(pid) { return pid ? (await q('SELECT holder_id FROM positions WHERE id=$1', [pid])).rows[0]?.holder_id || null : null; }
+async function fullAdmins() { return (await q("SELECT user_id FROM admins WHERE scope IS NULL AND user_id LIKE 'tg%'")).rows.map((r) => r.user_id); }
+
+// Picks the Head for a new muammo and tells them; vacant seats fall back to the Vitse-prezident.
+async function routeProblem(id, category, authorId, title) {
+  let pid = CAT_ROUTE[category] || 'vp';
+  if (pid === '@fac') pid = facPos((await q('SELECT major FROM users WHERE id=$1', [authorId])).rows[0]?.major) || 'vp';
+  await q('UPDATE problems SET assigned_pos=$1, routed_at=now() WHERE id=$2 RETURNING 1 x', [pid, id]);
+  await pingHead(pid, id, title, category);
+  return pid;
+}
+async function pingHead(pid, id, title, category, from) {
+  const holder = (await holderOf(pid)) || (pid !== 'vp' ? await holderOf('vp') : null);
+  if (!holder) return;
+  await tg('sendMessage', { chat_id: holder.slice(2), parse_mode: 'HTML', reply_markup: headKb(),
+    text: `📥 <b>Sizga yangi murojaat</b>${from ? ` (${esc(from)} yo‘naltirdi)` : ''}\n«${esc(title)}»\nToifa: ${esc(category || '—')}${holder !== (await holderOf(pid)) ? `\n\n${esc(POS[pid].title)} lavozimi bo‘sh, shuning uchun sizga keldi.` : ''}\n\n⏱ 48 soat ichida ko‘rib chiqing.` }).catch(() => {});
+}
+
+async function assignHolder(pid, userId, by, notifyIt = true) {
+  const p = POS[pid];
+  const cur = (await q('SELECT holder_id FROM positions WHERE id=$1', [pid])).rows[0];
+  if (cur && cur.holder_id && cur.holder_id !== userId) await releaseHolder(pid, false);
+  // One seat per person (25-modda): leaving any other seat first.
+  for (const o of (await q('SELECT id FROM positions WHERE holder_id=$1 AND id<>$2', [userId, pid])).rows) await releaseHolder(o.id, false);
+  await q('UPDATE positions SET holder_id=$1, holder_since=now(), open=false WHERE id=$2 RETURNING 1 x', [userId, pid]);
+  await q('UPDATE users SET position=$1 WHERE id=$2 RETURNING 1 x', [p.title, userId]);
+  // Full-access seats are plain admins; every other Head is scoped to their own seat (the Founder stays full).
+  await q(`INSERT INTO admins (user_id, added_by, scope) VALUES ($1,$2,$3)
+    ON CONFLICT (user_id) DO UPDATE SET scope = CASE WHEN (SELECT title FROM users WHERE id=$1)='Founder' THEN NULL ELSE EXCLUDED.scope END RETURNING 1 x`, [userId, by || 'key', p.full ? null : pid]);
+  if (p.full) await q('UPDATE admins SET scope=NULL WHERE user_id=$1 RETURNING 1 x', [userId]);
+  const others = (await q(`UPDATE applications SET status='rad', decided_at=now(), decided_by=$2 WHERE position_id=$1 AND user_id<>$3 AND status IN ('yangi','suhbat') RETURNING user_id`, [pid, by || 'key', userId])).rows;
+  for (const o of others) await notify(o.user_id, `Rahmat! «${esc(p.title)}» lavozimiga boshqa nomzod tanlandi.\nSiz zaxira ro‘yxatidasiz — boshqa vakansiyalarga ham ariza bera olasiz.`);
+  const u = (await q('SELECT name FROM users WHERE id=$1', [userId])).rows[0];
+  if (notifyIt) await sendOnboard(userId, pid, u && u.name);
+  return u;
+}
+async function releaseHolder(pid, reopen = true) {
+  const cur = (await q('SELECT holder_id FROM positions WHERE id=$1', [pid])).rows[0];
+  if (!cur || !cur.holder_id) return;
+  await q('UPDATE positions SET holder_id=NULL, holder_since=NULL, open=$2 WHERE id=$1 RETURNING 1 x', [pid, reopen]);
+  // Losing the seat ends the access it gave; the Founder always stays a full admin.
+  await q(`DELETE FROM admins WHERE user_id=$1 AND (scope=$2 OR ($3 AND scope IS NULL))
+    AND coalesce((SELECT title FROM users WHERE id=$1),'')<>'Founder' RETURNING 1 x`, [cur.holder_id, pid, !!POS[pid].full]);
+  await q('UPDATE users SET position=NULL WHERE id=$1 AND position=$2 RETURNING 1 x', [cur.holder_id, POS[pid].title]);
+}
+
+const APP_ST = { yangi: 'Yangi', suhbat: 'Suhbat', qabul: 'Qabul qilindi', rad: 'Rad etildi' };
+async function teamRoute(p, m, url, body, uid, tu, admin, myPos) {
+  let mm;
+  await ensurePositions();
+  if (p === '/api/team' && m === 'GET') {
+    const r = await q(`SELECT p.id, p.open, p.holder_since, u.id holder_id, u.name holder_name, u.photo_url holder_photo,
+      (SELECT a.status FROM applications a WHERE a.position_id=p.id AND a.user_id=$1) my_status,
+      (SELECT count(*) FROM applications a WHERE a.position_id=p.id AND a.status IN ('yangi','suhbat'))::int pending
+      FROM positions p LEFT JOIN users u ON u.id=p.holder_id ORDER BY p.sort`, [uid || '']);
+    const me = uid ? (await q('SELECT major FROM users WHERE id=$1', [uid])).rows[0] : null;
+    return json({ blocks: BLOCKS, my_faculty: me ? facultyOf(me.major) : null, my_pos: myPos,
+      positions: r.rows.map((x) => ({ ...posBrief(x.id), open: x.open, holder: x.holder_id ? { id: x.holder_id, name: x.holder_name, photo_url: x.holder_photo, since: x.holder_since } : null,
+        my_status: x.my_status, pending: admin ? x.pending : undefined })) });
+  }
+  if ((mm = p.match(/^\/api\/team\/([a-z]+)\/apply$/)) && m === 'POST') {
+    if (!tu || !tu.id) return bad('Ariza faqat Telegram ichida topshiriladi', 401);
+    const pos = POS[mm[1]]; if (!pos) return bad('Lavozim topilmadi', 404);
+    const st = (await q('SELECT open, holder_id FROM positions WHERE id=$1', [pos.id])).rows[0];
+    if (!st.open || st.holder_id) return bad('Bu vakansiya hozir yopiq');
+    const me = (await q('SELECT * FROM users WHERE id=$1', [uid])).rows[0];
+    if (!profileFilled(me)) return bad('Avval profilingizni to‘ldiring: yo‘nalish va qiziqishlar', 400);
+    if (pos.faculty && facultyOf(me.major) !== pos.faculty) return bad(`Bu lavozimga faqat ${pos.faculty} yo‘nalishi talabalari ariza bera oladi`, 403);
+    if (myPos) return bad('Siz allaqachon Kengash a’zosisiz. Bir kishi bitta lavozimni egallaydi (25-modda)');
+    const active = (await q("SELECT count(*)::int n FROM applications WHERE user_id=$1 AND status IN ('yangi','suhbat')", [uid])).rows[0].n;
+    if (active >= 2) return bad('Bir vaqtda ko‘pi bilan 2 ta faol ariza bo‘ladi. Avvalgilariga javobni kuting.', 429);
+    const why = str(body.why, 800), exp = str(body.exp, 800), hours = str(body.hours, 20), link = str(body.link, 200);
+    if (why.length < 10 || !exp || !hours) return bad('Birinchi uchta savolga javob bering');
+    const ins = await q(`INSERT INTO applications (position_id,user_id,why,exp,hours,link) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING id`, [pos.id, uid, why, exp, hours, link]);
+    if (!ins.rowCount) return bad('Bu lavozimga ariza topshirgansiz');
+    await notify(uid, `✅ «${esc(pos.emoji + ' ' + pos.title)}» lavozimiga arizangiz qabul qilindi.\nJamoa 3 ish kuni ichida ko‘rib chiqadi va natijani shu yerga yozadi.`);
+    for (const a of await fullAdmins()) await tg('sendMessage', { chat_id: a.slice(2), parse_mode: 'HTML',
+      text: `🆕 <b>Yangi ariza</b>\n${esc(me.name)} (${esc(me.major || '—')}${me.year ? ', ' + esc(me.year) + '-kurs' : ''}) → ${esc(pos.emoji + ' ' + pos.title)}\n\nAdmin panel → Vakansiyalar bo‘limida ko‘ring.`,
+      reply_markup: WEBAPP_URL ? { inline_keyboard: [[{ text: 'Arizani ko‘rish', web_app: { url: WEBAPP_URL.replace(/\/?(#.*)?$/, '') + '/admin.html#vacancy' } }]] } : undefined }).catch(() => {});
+    return json({ ok: true, id: ins.rows[0].id }, 201);
+  }
+
+  // Head's own desk: duties, rights and the murojaatlar routed to their seat.
+  if (p === '/api/head' && m === 'GET') {
+    const pid = url.searchParams.get('pos') && admin ? url.searchParams.get('pos') : myPos;
+    if (!pid || !POS[pid]) return bad('Siz Kengash a’zosi emassiz', 403);
+    const r = await q(`SELECT p.id, p.kind, p.title, p.body, p.category, p.status, p.created_at, p.routed_at, p.anon,
+      CASE WHEN p.anon THEN NULL ELSE u.name END author, CASE WHEN p.anon THEN NULL ELSE u.major END author_major,
+      (SELECT count(*) FROM votes v WHERE v.problem_id=p.id)::int votes,
+      (p.status='yangi' AND coalesce(p.routed_at,p.created_at) < now() - interval '48 hours') overdue
+      FROM problems p LEFT JOIN users u ON u.id=p.author_id WHERE p.assigned_pos=$1 ORDER BY (p.status='hal'), overdue DESC, p.created_at DESC LIMIT 200`, [pid]);
+    const since = (await q('SELECT holder_since FROM positions WHERE id=$1', [pid])).rows[0]?.holder_since;
+    return json({ position: posBrief(pid), since, inbox: r.rows,
+      route_to: POSITIONS.filter((x) => x.id !== pid).map((x) => ({ id: x.id, title: x.emoji + ' ' + x.title })) });
+  }
+  if ((mm = p.match(/^\/api\/problems\/(\d+)\/route$/)) && m === 'POST') {
+    const pr = (await q('SELECT id, title, category, assigned_pos FROM problems WHERE id=$1', [+mm[1]])).rows[0];
+    if (!pr) return bad('Murojaat topilmadi', 404);
+    if (!admin && (!myPos || pr.assigned_pos !== myPos)) return bad('Bu murojaat sizga tegishli emas', 403);
+    if (!POS[body.to]) return bad('Lavozimni tanlang');
+    await q('UPDATE problems SET assigned_pos=$1, routed_at=now() WHERE id=$2 RETURNING 1 x', [body.to, pr.id]);
+    await pingHead(body.to, pr.id, pr.title, pr.category, POS[myPos || 'vp'] ? POS[myPos || 'vp'].title : 'Admin');
+    return json({ ok: true });
+  }
+  if (p === '/api/head/remind' && m === 'POST') {
+    if (!myPos) return bad('Siz Kengash a’zosi emassiz', 403);
+    await sendOnboard(uid, myPos, (await q('SELECT name FROM users WHERE id=$1', [uid])).rows[0]?.name);
+    return json({ ok: true });
+  }
+
+  // ---- full admins: vacancies and applications
+  if (p.startsWith('/api/admin/applications') || p.startsWith('/api/admin/positions')) {
+    if (!admin) return bad('Ruxsat yo‘q', 403);
+    if (p === '/api/admin/applications' && m === 'GET') {
+      const r = await q(`SELECT a.*, u.name, u.username, u.major, u.year, u.photo_url, u.knight_no, po.title pos_title, po.emoji pos_emoji
+        FROM applications a JOIN users u ON u.id=a.user_id JOIN positions po ON po.id=a.position_id ORDER BY (a.status IN ('yangi','suhbat')) DESC, a.created_at DESC LIMIT 300`);
+      return json({ applications: r.rows });
+    }
+    if ((mm = p.match(/^\/api\/admin\/applications\/(\d+)$/)) && m === 'POST') {
+      const a = (await q('SELECT a.*, u.name FROM applications a JOIN users u ON u.id=a.user_id WHERE a.id=$1', [+mm[1]])).rows[0];
+      if (!a) return bad('Ariza topilmadi', 404);
+      const act = body.action, pos = POS[a.position_id], note = str(body.note, 300);
+      if (!['suhbat', 'qabul', 'rad'].includes(act)) return bad('Noto‘g‘ri amal');
+      if (!['yangi', 'suhbat'].includes(a.status)) return bad('Bu arizaga allaqachon javob berilgan');
+      if (act === 'qabul' && pos.id === 'cto' && !body.founder_ok) return bad('CTO uchun Asoschi roziligi kerak (34-modda)');
+      await q('UPDATE applications SET status=$1, note=$2, decided_at=now(), decided_by=$3 WHERE id=$4 RETURNING 1 x', [act, note || null, uid || 'key', a.id]);
+      if (act === 'suhbat') await notify(a.user_id, `📅 Salom, ${esc(firstName(a.name))}! «${esc(pos.title)}» bo‘yicha arizangiz yoqdi — sizni suhbatga taklif qilamiz.${note ? '\n\n' + esc(note) : '\nJamoa a’zosi siz bilan bog‘lanadi.'}`);
+      if (act === 'rad') await notify(a.user_id, `Rahmat, ${esc(firstName(a.name))}. «${esc(pos.title)}» uchun boshqa nomzod tanlandi.${note ? '\n\n' + esc(note) : ''}\nSiz zaxira ro‘yxatidasiz — boshqa vakansiyalarga ham ariza bera olasiz.`);
+      if (act === 'qabul') await assignHolder(pos.id, a.user_id, uid);
+      return json({ ok: true });
+    }
+    if ((mm = p.match(/^\/api\/admin\/positions\/([a-z]+)$/)) && m === 'POST') {
+      const pos = POS[mm[1]]; if (!pos) return bad('Lavozim topilmadi', 404);
+      if (body.action === 'open' || body.action === 'close') { await q('UPDATE positions SET open=$1 WHERE id=$2 AND holder_id IS NULL RETURNING 1 x', [body.action === 'open', pos.id]); return json({ ok: true }); }
+      if (body.action === 'release') { await releaseHolder(pos.id, true); return json({ ok: true }); }
+      if (body.action === 'remind') { const h = await holderOf(pos.id); if (!h) return bad('Lavozim bo‘sh'); await sendOnboard(h, pos.id, (await q('SELECT name FROM users WHERE id=$1', [h])).rows[0]?.name); return json({ ok: true }); }
+      if (body.action === 'assign') {
+        const uname = str(body.username, 40).replace(/^@/, '').toLowerCase();
+        const u = (await q('SELECT id, name FROM users WHERE username=$1 OR id=$1', [uname])).rows[0];
+        if (!u) return bad(`@${uname} hali ilovani ochmagan`, 404);
+        await assignHolder(pos.id, u.id, uid, body.notify !== false);
+        return json({ ok: true, name: u.name });
+      }
+      return bad('Noto‘g‘ri amal');
+    }
+  }
+  return null;
+}
+
 async function route(req) {
   const url = new URL(req.url);
   const p = url.pathname.replace(/\/+$/, '') || '/';
@@ -821,16 +1098,22 @@ async function route(req) {
   // Admin = the server key (scripts) or a Telegram account listed in admins.
   let mm;
   let admin = isAdmin(req);
-  if (!admin && tu && tu.id) admin = (await q('SELECT 1 x FROM admins WHERE user_id=$1', [uid])).rowCount > 0;
-  // Leaders (◇): recognized rival teams — may post announcements and run events, nothing else.
-  const leader = !admin && tu && tu.id ? (await q("SELECT 1 x FROM users WHERE id=$1 AND role='leader'", [uid])).rowCount > 0 : false;
+  // Scoped admins (Heads) are not full admins: they only get their own seat's desk.
+  if (!admin && tu && tu.id) admin = (await q('SELECT 1 x FROM admins WHERE user_id=$1 AND scope IS NULL', [uid])).rowCount > 0;
+  const myPos = tu && tu.id ? (await q('SELECT id FROM positions WHERE holder_id=$1', [uid]).catch(() => ({ rows: [] }))).rows[0]?.id || null : null;
+  // Leaders (◇): recognized rival teams — may post announcements and run events, nothing else. Event-type Heads may too.
+  const leader = !admin && tu && tu.id ? ((await q("SELECT 1 x FROM users WHERE id=$1 AND role='leader'", [uid])).rowCount > 0 || EVENT_POS.includes(myPos)) : false;
 
   if (p === '/' || p === '/api/health') {
     const r = await q('SELECT 1 AS one');
     return json({ ok: r.rows[0].one === 1, name: 'BlackKnight API' });
   }
 
-  if (p === '/api/admin/check' && m === 'GET') return json({ admin: !!admin });
+  if (p === '/api/admin/check' && m === 'GET') return json({ admin: !!admin, head: myPos });
+  if (p.startsWith('/api/team') || p.startsWith('/api/head') || /^\/api\/problems\/\d+\/route$/.test(p) || p.startsWith('/api/admin/applications') || p.startsWith('/api/admin/positions')) {
+    const r = await teamRoute(p, m, url, body, uid, tu, admin, myPos);
+    if (r) return r;
+  }
   if (p.startsWith('/api/admin/')) {
     if (!admin) return bad('Ruxsat yo‘q', 403);
     const r = await adminRoute(p, m, url, body, uid, tu);
@@ -840,7 +1123,7 @@ async function route(req) {
   // ---- admin management (Telegram accounts)
   if (p === '/api/admins' && m === 'GET') {
     if (!admin) return bad('Ruxsat yo‘q', 403);
-    const r = await q(`SELECT u.id, u.name, u.username, u.position, a.added_at FROM admins a JOIN users u ON u.id=a.user_id ORDER BY a.added_at`);
+    const r = await q(`SELECT u.id, u.name, u.username, u.position, a.added_at, a.scope FROM admins a JOIN users u ON u.id=a.user_id ORDER BY a.scope NULLS FIRST, a.added_at`);
     return json({ admins: r.rows });
   }
   if (p === '/api/admins' && m === 'POST') {
@@ -857,8 +1140,10 @@ async function route(req) {
   }
   if ((mm = p.match(/^\/api\/admins\/([a-zA-Z0-9_-]+)$/)) && m === 'DELETE') {
     if (!admin) return bad('Ruxsat yo‘q', 403);
-    const c = await q('SELECT count(*)::int n FROM admins');
-    if (c.rows[0].n <= 1) return bad('Oxirgi adminni o‘chirib bo‘lmaydi');
+    const c = await q('SELECT count(*)::int n FROM admins WHERE scope IS NULL AND user_id<>$1', [mm[1]]);
+    if (!c.rows[0].n) return bad('Oxirgi adminni o‘chirib bo‘lmaydi');
+    await ensurePositions();
+    for (const o of (await q('SELECT id FROM positions WHERE holder_id=$1', [mm[1]])).rows) await releaseHolder(o.id, true);
     await q('DELETE FROM admins WHERE user_id=$1 RETURNING 1 x', [mm[1]]);
     return json({ ok: true });
   }
@@ -886,6 +1171,8 @@ async function route(req) {
     const score = await scoreOf(uid);
     return json({ user: r.rows[0], stats: s.rows[0], score, service: await serviceOf(uid),
       team: (await q('SELECT 1 x FROM admins WHERE user_id=$1', [uid])).rowCount > 0, leader: r.rows[0].role === 'leader', knight_limit: KNIGHT_LIMIT,
+      head: myPos ? { id: myPos, title: POS[myPos].title, emoji: POS[myPos].emoji,
+        open: (await q("SELECT count(*)::int n FROM problems WHERE assigned_pos=$1 AND status='yangi'", [myPos])).rows[0].n } : null,
       knights: (await q('SELECT count(*)::int n FROM users WHERE knight_no IS NOT NULL')).rows[0].n,
       ref_link: uid.startsWith('tg') ? `https://t.me/${BOT_USERNAME}?start=ref_${uid.slice(2)}` : null });
   }
@@ -1091,6 +1378,7 @@ async function route(req) {
     const r = await q('INSERT INTO problems (title,body,category,anon,author_id,kind) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
       [title, str(body.body, 2000), category, anon, body.uid, kind]);
     await q('INSERT INTO votes VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [r.rows[0].id, body.uid]);
+    if (kind === 'muammo') { await ensurePositions(); await routeProblem(r.rows[0].id, category, body.uid, title).catch((e) => console.error('route', e)); }
     return json({ id: r.rows[0].id }, 201);
   }
   if ((mm = p.match(/^\/api\/problems\/(\d+)\/vote$/)) && m === 'POST') {
@@ -1114,7 +1402,7 @@ async function route(req) {
     return json({ voted: !del.rowCount, votes: n });
   }
   if ((mm = p.match(/^\/api\/problems\/(\d+)$/)) && m === 'PATCH') {
-    if (!admin) return bad('Ruxsat yo‘q', 403);
+    if (!admin && !(myPos && (await q('SELECT 1 x FROM problems WHERE id=$1 AND assigned_pos=$2', [+mm[1], myPos])).rowCount)) return bad('Ruxsat yo‘q', 403);
     if (!STATUSES.includes(body.status)) return bad('Noto‘g‘ri holat');
     const up = await q("UPDATE problems SET status=$1, resolved_at = CASE WHEN $1='hal' THEN now() ELSE NULL END WHERE id=$2 RETURNING author_id, title", [body.status, +mm[1]]);
     if (up.rowCount) {
@@ -1224,7 +1512,7 @@ async function route(req) {
       hidden = (await q("UPDATE listings SET status='yashirin', updated_at=now() WHERE id=$1 AND status='faol' RETURNING 1 x", [l.id])).rowCount > 0;
       if (hidden) await notify(l.seller_id, `⚠️ «${esc(l.title)}» e’loningiz bir nechta shikoyat sababli vaqtincha yashirildi. Black Knight jamoasi ko‘rib chiqadi.`);
     }
-    const admins = (await q("SELECT user_id FROM admins WHERE user_id LIKE 'tg%'")).rows;
+    const admins = (await q("SELECT user_id FROM admins WHERE scope IS NULL AND user_id LIKE 'tg%'")).rows;
     for (const a of admins) await tg('sendMessage', { chat_id: a.user_id.slice(2), parse_mode: 'HTML',
       text: `🚩 Market shikoyati (${n}-chi): «${esc(l.title)}»\nSabab: <b>${esc(reason)}</b>${hidden ? '\n\nE’lon avtomatik yashirildi.' : ''}\n\nAdmin panel → Market bo‘limida ko‘rib chiqing.`,
       reply_markup: openKb() }).catch(() => {});
