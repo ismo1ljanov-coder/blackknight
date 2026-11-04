@@ -793,8 +793,8 @@ function inviteBox() {
   if (!S.refLink) return '';
   const inv = S.score ? S.score.invites : 0;
   return `<section class="glass box" aria-label="Do‘stlarni taklif qilish">
-    <h3>${S.team ? 'Talabalarni taklif qilish' : 'Do‘stingni olib kel'}</h3>
-    <div class="small">${S.team ? 'Shu havola orqali kirganlar sizning taklifingiz sifatida hisoblanadi. Taklif qilganlaringiz' : 'Do‘stingiz qo‘shilib, profilini to‘ldirsa — +15 ball. Hisoblangan'}: <b style="color:var(--fg)">${inv}</b>${S.score && S.score.invites_pending ? ` · profil kutilmoqda: <b style="color:var(--fg)">${S.score.invites_pending}</b>` : ''}</div>
+    <h3>Do‘stingni olib kel</h3>
+    <div class="small">Do‘stingiz qo‘shilib, profilini to‘ldirsa — +15 ball. Hisoblangan: <b style="color:var(--fg)">${inv}</b>${S.score && S.score.invites_pending ? ` · profil kutilmoqda: <b style="color:var(--fg)">${S.score.invites_pending}</b>` : ''}</div>
     <div class="reflink" id="reflink">${esc(S.refLink)}</div>
     <div style="display:flex;gap:8px"><button class="btn" style="flex:1" data-act="share">Ulashish</button><button class="btn ghost" style="flex:1" data-act="copyref">Nusxa olish</button></div>
   </section>`;
@@ -833,7 +833,7 @@ function viewProfil() {
   </section>` : ''}
   ${S.svc ? serviceBox(S.svc.summary, S.svc.entries, false) : ''}
   ${S.team ? pagonBox() : levelBox()}
-  ${inviteBox()}
+  ${S.team ? '' : inviteBox()}
   <section class="glass box">
     <div class="small">Yo‘nalish</div>
     <div style="font-weight:600">${esc([me.major, me.year && me.year + '-kurs'].filter(Boolean).join(' · ') || '—')}</div>
