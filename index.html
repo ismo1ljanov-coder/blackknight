@@ -171,7 +171,7 @@ button.chip[aria-pressed="true"]{background:var(--gold-bg);border-color:var(--go
 .match span{color:var(--muted);text-align:right}
 .link{background:none;border:0;color:var(--muted);font-size:13px;text-decoration:underline;padding:8px;align-self:center}
 nav{border-color:var(--line-2)!important;background:var(--nav)!important;position:fixed;z-index:20;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));width:min(448px,calc(100% - 32px));height:64px;border-radius:26px;background:rgba(var(--wh),.1);border:1px solid rgba(var(--wh),.2);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);display:flex;align-items:center;justify-content:space-around;padding:0 8px}
-nav button{position:relative;border:0;background:none;padding:10px 8px;border-radius:16px;font-weight:600;font-size:12.5px;color:var(--muted)}
+nav button{position:relative;border:0;background:none;padding:10px 5px;border-radius:16px;font-weight:600;font-size:12.5px;color:var(--muted)}
 /* market */
 .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .mcard{display:flex;flex-direction:column;padding:0;overflow:hidden;text-align:left;width:100%;min-width:0;border-radius:20px}
@@ -250,13 +250,14 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
   <button data-tab="odamlar">Odamlar</button>
   <button data-tab="tadbirlar">Tadbirlar</button>
   <button data-tab="market">Market</button>
+  <button data-tab="jamoa">Jamoa</button>
   <button data-tab="profil">Profil<span class="dot" id="reqdot" hidden></span></button>
 </nav>
 <div id="layer"></div>
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-04.5';
+const BUILD = '2026-11-04.6';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
@@ -902,12 +903,12 @@ async function loadHead() { try { S.headData = await api(`/api/head?uid=${uid}`)
 const posPill = (p) => p.holder ? '<span class="pill tm-taken">Band</span>' : p.my_status ? `<span class="pill tm-${p.my_status}">${APP_ST[p.my_status]}</span>` : p.open ? '<span class="pill tm-open">Vakansiya</span>' : '<span class="pill tm-taken">Yopiq</span>';
 function viewJamoa() {
   const D = S.teamData;
-  const back = '<button class="link" data-tab="profil" style="align-self:flex-start;padding-left:0">← Profil</button>';
-  if (!D) return head('Jamoa') + back + '<div class="glass empty">Yuklanmoqda…</div>';
+  if (!D) return head('Jamoa') + '<div class="glass empty">Yuklanmoqda…</div>';
   const open = D.positions.filter((p) => p.open && !p.holder).length;
-  return head('Jamoa') + back + offlineNote() + `
+  return head('Jamoa') + offlineNote() + `
   <section class="glass box"><h3>Students' Parliament</h3>
-    <div class="small">${D.positions.length} lavozim · <b style="color:var(--gold-hi)">${open} ta vakansiya ochiq</b>. Lavozimni bosing — vazifasi, talablari va ariza formasi ochiladi.</div></section>
+    <div class="small">${D.positions.length} lavozim · <b style="color:var(--gold-hi)">${open} ta vakansiya ochiq</b>. Lavozimni bosing — vazifasi, talablari va ariza formasi ochiladi.</div>
+    ${isAdmin ? '<a class="btn ghost" href="admin.html#vacancy" style="display:flex;align-items:center;justify-content:center;text-decoration:none">Lavozim va arizalarni boshqarish</a>' : ''}</section>
   ${Object.keys(D.blocks).map((b) => { const items = D.positions.filter((p) => p.block === b); return `
     <div class="label">${esc(D.blocks[b])}</div>
     <div class="glass tm-list">${items.map((p) => `<button class="tm-row" data-posv="${p.id}"><span class="tm-ico" aria-hidden="true">${p.emoji}</span>
@@ -1004,7 +1005,7 @@ function viewBolim() {
 function teamBoxes() {
   const h = S.head;
   return (h ? `<button class="glass box tm-entry" data-tab="bolim"><h3>🎖 Mening bo‘limim</h3><div class="small">${esc(h.emoji + ' ' + h.title)}${h.open ? ` · <b style="color:var(--gold-hi)">${h.open} ta yangi murojaat</b>` : ' · yangi murojaat yo‘q'}</div></button>` : '')
-    + `<button class="glass box tm-entry" data-tab="jamoa"><h3>Jamoa va vakansiyalar</h3><div class="small">Students' Parliament tarkibi. Bo‘sh lavozimga ariza topshiring.</div></button>`;
+;
 }
 
 function render() {
@@ -1012,7 +1013,7 @@ function render() {
   const y = window.scrollY;
   app.innerHTML = S.tab === 'ovoz' ? viewOvoz() : S.tab === 'odamlar' ? viewOdamlar() : S.tab === 'tadbirlar' ? viewTadbirlar() : S.tab === 'market' ? viewMarket() : S.tab === 'jamoa' ? viewJamoa() : S.tab === 'bolim' ? viewBolim() : viewProfil();
   window.scrollTo(0, y);
-  document.querySelectorAll('nav button').forEach((b) => b.toggleAttribute('aria-current', false) || (b.dataset.tab === (S.tab === 'jamoa' || S.tab === 'bolim' ? 'profil' : S.tab) && b.setAttribute('aria-current', 'page')));
+  document.querySelectorAll('nav button').forEach((b) => b.toggleAttribute('aria-current', false) || (b.dataset.tab === (S.tab === 'bolim' ? 'profil' : S.tab) && b.setAttribute('aria-current', 'page')));
 }
 
 // ---------- sheets
@@ -1343,7 +1344,7 @@ async function refresh() {
   else if (S.tab === 'tadbirlar') await loadEvents();
   else if (S.tab === 'odamlar') await loadPeople();
   else if (S.tab === 'market') await loadMarket();
-  else if (S.tab === 'jamoa') await Promise.all([loadTeamData(), loadMe()]);
+  else if (S.tab === 'jamoa') await Promise.all([loadTeamData(), loadMe(), checkAdmin()]);
   else if (S.tab === 'bolim') await Promise.all([loadHead(), loadMe()]);
   else await Promise.all([loadMe(), loadMatches(), loadRequests(), loadContacts()]);
   const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('form');
