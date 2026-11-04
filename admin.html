@@ -161,9 +161,10 @@ const KIND = { muammo: 'Muammo', savol: 'Savol', kerak: 'Kerak', elon: 'E’lon'
 const CATS = ["O'quv jarayoni", 'Ustozlar bilan', 'Infratuzilma', 'Yotoqxona', 'Boshqa'];
 const MONTHS = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', 'okt', 'noy', 'dek'];
 const WD = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
-const TABS = [['home', 'Umumiy'], ['posts', 'Murojaatlar'], ['people', 'Odamlar'], ['events', 'Tadbirlar'], ['send', 'Xabar yuborish'], ['team', 'Jamoa']];
+const TABS = [['home', 'Umumiy'], ['posts', 'Murojaatlar'], ['people', 'Odamlar'], ['events', 'Tadbirlar'], ['market', 'Market'], ['send', 'Xabar yuborish'], ['team', 'Jamoa']];
 
-const S = { tab: (location.hash.slice(1) || 'home'), days: 30, dash: null, posts: null, pf: { status: '', kind: '', cat: '', q: '' }, users: null, botOnly: [], uf: { filter: 'all', q: '', sort: 'created_at', dir: -1 }, admins: null, segs: null, bc: { text: '', segment: 'all', button: true }, sending: false };
+const HASH = decodeURIComponent(location.hash.slice(1)).split(':');
+const S = { tab: HASH[0] || 'home', openUser: HASH[0] === 'people' ? HASH.slice(1).join(':') : '', market: null, mk: { status: '', q: '', reported: false }, days: 30, dash: null, posts: null, pf: { status: '', kind: '', cat: '', q: '' }, users: null, botOnly: [], uf: { filter: 'all', q: '', sort: 'created_at', dir: -1 }, admins: null, segs: null, bc: { text: '', segment: 'all', button: true }, sending: false };
 if (!TABS.some((t) => t[0] === S.tab)) S.tab = 'home';
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -253,7 +254,7 @@ function hbars(rows, label, val, opts = {}) {
 // ---------- shell
 function shell(inner) {
   const d = S.dash && S.dash.kpi;
-  const badge = { posts: d ? d.problems_new : 0 };
+  const badge = { posts: d ? d.problems_new : 0, market: d ? d.listings_hidden + d.listings_reported : 0 };
   return `<header class="top"><img src="logo.jpg" alt=""><div class="t"><div class="k">BlackKnight Club</div><h1>Admin panel</h1></div>
     <button class="ibtn" data-act="refresh" aria-label="Yangilash" title="Yangilash"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg></button>
     <a class="ibtn" href="./" title="Ilovaga qaytish" style="text-decoration:none">Ilova</a>
@@ -262,7 +263,7 @@ function shell(inner) {
   <main id="view">${inner}</main>`;
 }
 function render() {
-  const views = { home: viewHome, posts: viewPosts, people: viewPeople, events: viewEvents, send: viewSend, team: viewTeam };
+  const views = { home: viewHome, posts: viewPosts, people: viewPeople, events: viewEvents, market: viewMarket, send: viewSend, team: viewTeam };
   $('#app').innerHTML = shell(views[S.tab]());
 }
 function setTab(t) { S.tab = t; history.replaceState(null, '', '#' + t); render(); load(t); window.scrollTo(0, 0); }
@@ -273,6 +274,7 @@ function alertsOf(D) {
   const k = D.kpi, a = [];
   if (k.problems_new) a.push(['r', '📥', `<b>${k.problems_new}</b> ta yangi muammo ko‘rib chiqilmagan${k.stale_new ? ` (${k.stale_new} tasi 3 kundan ortiq)` : ''}`, 'Ko‘rish', 'go:posts:yangi']);
   if (k.hot) a.push(['', '🔥', `<b>${k.hot}</b> ta post 10+ ovoz to‘pladi — ma’muriyatga olib chiqish vaqti`, 'Ko‘rish', 'go:posts:']);
+  if (k.listings_hidden || k.listings_reported) a.push(['r', '🚩', `Market: <b>${k.listings_hidden}</b> ta e’lon tekshiruvda${k.listings_reported ? `, ${k.listings_reported} tasiga shikoyat bor` : ''}`, 'Ko‘rib chiqish', 'go:market:']);
   if (k.noapp) a.push(['', '🤖', `<b>${k.noapp}</b> kishi botga kirgan, lekin ilovani ochmagan`, 'Xabar yozish', 'seg:noapp']);
   if (k.nofill) a.push(['', '📝', `<b>${k.nofill}</b> kishining profili to‘lmagan — ritsar nishoniga yaqin turibdi`, 'Xabar yozish', 'seg:nofill']);
   if (k.stale_requests) a.push(['', '🤝', `<b>${k.stale_requests}</b> ta tanishish so‘rovi 2 kundan beri javobsiz`, '', '']);
@@ -314,6 +316,7 @@ function viewHome() {
       ${kp('Tadbir yozilishlari', nf(k.rsvps), `${k.events} tadbir · ${k.events_upcoming} oldinda`)}
       ${kp('Volontyorlar', nf(k.volunteers), `${nf(k.service_hours)} soat xizmat`)}
       ${kp('Botga kirganlar', nf(k.bot_starts), `${k.bot_active_1d} bugun faol`)}
+      ${kp('Market', nf(k.listings_active), `${k.listings_sold} sotildi · ${k.market_wants} so‘rov`)}
     </div>
     <section class="card"><h2>O‘sish<span class="sp"></span><span class="chips">${[7, 30, 90].map((d) => `<button class="chip" aria-pressed="${S.days === d}" data-days="${d}">${d} kun</button>`).join('')}</span></h2>
       ${lineChart(D.series, [{ key: 'users', label: 'Yangi a’zolar', color: '#f2d9a0' }, { key: 'starts', label: 'Botga kirish', color: '#b9c6ff', dash: 1 }, { key: 'posts', label: 'Postlar', color: '#a6ecbc' }])}</section>
@@ -361,7 +364,7 @@ function viewPosts() {
   return `<section class="card">
     <div class="toolbar"><input class="in grow" id="pq" type="search" placeholder="Sarlavha yoki matn bo‘yicha qidirish" value="${esc(f.q)}" aria-label="Qidirish">
       <select class="in" id="pcat" aria-label="Yo‘nalish"><option value="">Barcha yo‘nalish</option>${CATS.map((c) => `<option ${f.cat === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
-      <button class="btn ghost" data-act="csv-posts">CSV</button></div>
+      <button class="btn ghost" data-act="csv-posts">CSV</button><button class="btn" data-act="newelon">+ E’lon joylash</button></div>
     <div class="toolbar">${chips('status', [['', 'Hammasi'], ...Object.entries(STATUS)])}</div>
     <div class="toolbar">${chips('kind', [['', 'Barcha tur'], ...Object.entries(KIND)])}</div>
     ${!list ? '<div class="skel"></div>' : !list.length ? '<div class="empty">Hech narsa topilmadi</div>' : `<div class="small dim" style="margin-bottom:10px">${list.length} ta post · ${list.reduce((a, p) => a + p.votes, 0)} ovoz</div>
@@ -411,6 +414,11 @@ async function userSheet(id) {
     <div style="display:flex;gap:8px;flex-wrap:wrap">${link ? `<a class="btn" href="${esc(link)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none">✉️ Yozish</a>` : ''}
       ${u.team ? '' : `<button class="btn ghost" data-role="${esc(u.id)}:${u.role === 'volunteer' ? '' : 'volunteer'}">${u.role === 'volunteer' ? 'Volontyorlikdan olish' : '✧ Volontyor qilish'}</button>`}
       ${!u.team && u.username ? `<button class="btn ghost" data-mkadmin="${esc(u.username)}">◆ Jamoaga qo‘shish</button>` : ''}</div>
+    ${!u.team && u.id.startsWith('tg') ? `<form class="form" id="ldform" data-uid="${esc(u.id)}" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+      <div class="small" style="color:var(--gold);font-weight:700;letter-spacing:.1em;text-transform:uppercase">◇ Yetakchi belgisi</div>
+      <div class="small dim">Tan olingan boshqa jamoa yetakchisi: ilovada e’lon joylay oladi va tadbir qo‘sha oladi.</div>
+      <label class="field">Nomi (masalan: Debate Club)<input class="in" name="name" maxlength="60" value="${esc(u.role === 'leader' ? u.position || '' : '')}"></label>
+      <div style="display:flex;gap:8px"><button class="btn" type="submit">${u.role === 'leader' ? 'Saqlash' : '◇ Belgilash'}</button>${u.role === 'leader' ? `<button type="button" class="btn red" data-ldoff="${esc(u.id)}">Olib tashlash</button>` : ''}</div></form>` : ''}
     ${u.id.startsWith('tg') ? `<form class="form" id="svform" data-uid="${esc(u.id)}" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
       <div class="small" style="color:var(--gold);font-weight:700;letter-spacing:.1em;text-transform:uppercase">Xizmat daftariga yozish</div>
       <div class="row2"><label class="field">Soat<input class="in" name="hours" type="number" min="0.5" max="24" step="0.5" value="2" required></label>
@@ -455,6 +463,43 @@ async function attendees(id) {
     <div style="display:flex;gap:8px;margin-bottom:10px"><span class="small muted" style="flex:1">${r.attendees.length} kishi</span><button class="btn ghost" data-csvatt="${id}">CSV</button></div>
     <div class="list">${r.attendees.map((a) => `<div class="li">${avatar(a)}<div class="m"><b>${esc(a.name)}</b><small>${[a.username && '@' + a.username, a.major, a.year && a.year + '-kurs'].filter(Boolean).map(esc).join(' · ')}</small></div><span class="pill">${a.src === 'bot' ? 'bot' : 'ilova'}</span></div>`).join('') || '<div class="empty">Hali hech kim yo‘q</div>'}</div>`);
   S.lastAtt = r.attendees;
+}
+
+// ---------- MARKET (moderation)
+const MST = { faol: 'Sotuvda', yashirin: 'Tekshiruvda', sotildi: 'Sotildi' };
+const mprice = (p) => (p === null || p === undefined ? 'Kelishiladi' : +p === 0 ? 'Bepul' : nf(p) + ' so‘m');
+const mimg = (id) => `${API}/api/market/img/${id}`;
+function viewMarket() {
+  const f = S.mk, list = S.market;
+  return `<section class="card">
+    <div class="toolbar"><input class="in grow" id="mq" type="search" placeholder="Buyum, matn yoki sotuvchi" value="${esc(f.q)}" aria-label="Qidirish"><button class="btn ghost" data-export="market">CSV</button></div>
+    <div class="toolbar"><div class="chips">${[['', 'Hammasi'], ['yashirin', '🚩 Tekshiruvda'], ['faol', 'Sotuvda'], ['sotildi', 'Sotilgan']].map(([v, l]) => `<button class="chip" aria-pressed="${f.status === v && !f.reported}" data-mks="${v}">${l}</button>`).join('')}<button class="chip" aria-pressed="${f.reported}" data-mkr="1">Shikoyat bor</button></div></div>
+    ${!list ? '<div class="skel"></div>' : !list.length ? '<div class="empty">E’lon topilmadi</div>' : `<div class="grid g2" style="gap:10px">${list.map((l) => `<article class="post">
+      <div class="h">${l.photos[0] ? `<img src="${mimg(l.photos[0])}" alt="" loading="lazy" style="width:64px;height:64px;border-radius:10px;object-fit:cover;flex:none;cursor:pointer" data-mkview="${l.id}">` : ''}
+        <div style="flex:1;min-width:0"><b style="display:block">${esc(l.title)}</b><div class="dim" style="font-size:12px">${mprice(l.price)} · ${esc(l.category)} · ${ago(l.created_at)}</div>
+        <div class="dim" style="font-size:12px">Sotuvchi: ${esc(l.seller)}${l.seller_username ? ` <a href="https://t.me/${esc(l.seller_username)}" target="_blank" rel="noopener" style="color:var(--gold)">@${esc(l.seller_username)}</a>` : ''} · ${l.wants} xaridor</div></div>
+        <span class="pill ${l.status === 'yashirin' ? 'p-yangi' : l.status === 'sotildi' ? 'p-hal' : 'p-qabul'}">${MST[l.status] || l.status}</span></div>
+      ${l.reports.length ? `<div style="font-size:12.5px;color:var(--red)">🚩 ${l.reports.length} shikoyat: ${esc([...new Set(l.reports.map((r) => r.reason))].join(', '))}</div>` : ''}
+      <div class="acts"><button data-mkview="${l.id}">Ko‘rish</button>${l.status !== 'faol' || l.reports.length ? `<button data-mka="${l.id}:reopen">✓ Tekshirildi — ochish</button>` : ''}${l.status !== 'yashirin' ? `<button data-mka="${l.id}:hide">Yashirish</button>` : ''}<button class="d" data-mkdel="${l.id}">O‘chirish</button></div></article>`).join('')}</div>`}
+  </section>`;
+}
+function listingSheet(id) {
+  const l = (S.market || []).find((x) => x.id === id); if (!l) return;
+  openSheet(`<div class="sh"><h3>${esc(l.title)}</h3><button class="ibtn" data-close aria-label="Yopish">✕</button></div>
+    <div style="display:flex;gap:8px;overflow-x:auto;margin-bottom:12px">${l.photos.map((p) => `<img src="${mimg(p)}" alt="" style="height:200px;border-radius:12px;flex:none">`).join('')}</div>
+    <div style="font-family:var(--crest);font-size:20px;color:var(--gold-hi)">${mprice(l.price)}</div>
+    <div class="small dim">${esc(l.category)} · ${MST[l.status]} · ${fdate(l.created_at, 1)}</div>
+    ${l.description ? `<p class="muted" style="white-space:pre-wrap">${esc(l.description)}</p>` : ''}
+    <div class="small">Sotuvchi: <b>${esc(l.seller)}</b>${l.seller_username ? ' @' + esc(l.seller_username) : ''}</div>
+    ${l.reports.length ? `<div class="list" style="margin-top:10px">${l.reports.map((r) => `<div class="li"><span class="pill" style="color:var(--red)">🚩</span><div class="m"><b>${esc(r.reason)}</b><small>${ago(r.at)}</small></div></div>`).join('')}</div>` : ''}`);
+}
+async function loadMarket() { const f = S.mk; try { S.market = (await api('/api/admin/market?' + new URLSearchParams({ status: f.status, q: f.q, reported: f.reported ? '1' : '' }))).listings; } catch (e) { toast(e.message); S.market = []; } }
+function elonForm() {
+  openSheet(`<div class="sh"><h3>E’lon joylash</h3><button class="ibtn" data-close aria-label="Yopish">✕</button></div>
+    <form class="form" id="elonform"><label class="field">Sarlavha<input class="in" name="title" maxlength="140" required></label>
+    <label class="field">Matn<textarea class="in" name="body" maxlength="2000"></textarea></label>
+    <div class="small dim">E’lon ilovadagi lentada «Black Knight Team» nomidan chiqadi. Botdagi hammaga yuborish uchun «Xabar yuborish» bo‘limidan foydalaning.</div>
+    <button class="btn" type="submit" style="height:44px">Joylash</button></form>`);
 }
 
 // ---------- SEND (broadcast)
@@ -521,6 +566,7 @@ async function load(t, force) {
   if (t === 'people' && (!S.users || force)) jobs.push(loadUsers());
   if (t === 'team' && (!S.admins || force)) jobs.push(loadTeam());
   if (t === 'send' && (!S.segs || force)) jobs.push(loadSegs());
+  if (t === 'market' && (!S.market || force)) jobs.push(loadMarket());
   if (!jobs.length) return;
   await Promise.all(jobs);
   if (S.tab === t) { const keep = document.activeElement && document.activeElement.id; render(); if (keep && $('#' + keep)) { const el = $('#' + keep); el.focus(); if (el.setSelectionRange && el.value) el.setSelectionRange(el.value.length, el.value.length); } }
@@ -531,6 +577,7 @@ let qT;
 document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.id === 'pq') { S.pf.q = t.value; clearTimeout(qT); qT = setTimeout(() => load('posts', true), 350); }
+  if (t.id === 'mq') { S.mk.q = t.value; clearTimeout(qT); qT = setTimeout(() => load('market', true), 350); }
   if (t.id === 'uq') { S.uf.q = t.value; clearTimeout(qT); qT = setTimeout(() => load('people', true), 350); }
   if (t.id === 'bctext') { S.bc.text = t.value; const pv = $('.preview'); if (pv) pv.innerHTML = (S.bc.text ? fmtPreview(S.bc.text) : '<span class="dim">Matn shu yerda ko‘rinadi</span>') + (S.bc.button ? '<div class="pb">Black Knight’ni ochish</div>' : ''); }
 });
@@ -550,9 +597,31 @@ document.addEventListener('click', async (e) => {
   if (d.uf) { S.uf.filter = d.uf; S.users = null; render(); return load('people', true); }
   if (d.sort) { if (S.uf.sort === d.sort) S.uf.dir *= -1; else { S.uf.sort = d.sort; S.uf.dir = ['name', 'major'].includes(d.sort) ? 1 : -1; } return render(); }
   if (d.user) return userSheet(d.user);
+  if (d.mks !== undefined) { S.mk.status = d.mks; S.mk.reported = false; S.market = null; render(); return load('market', true); }
+  if (d.mkr) { S.mk.reported = !S.mk.reported; S.mk.status = ''; S.market = null; render(); return load('market', true); }
+  if (d.mkview) return listingSheet(+d.mkview);
+  if (d.mka) {
+    const [id, action] = d.mka.split(':');
+    let reason = '';
+    if (action === 'hide') { reason = prompt('Yashirish sababi (sotuvchiga yuboriladi):', ''); if (reason === null) return; }
+    try { await api('/api/admin/market/' + id, { method: 'POST', body: { action, reason } }); toast(action === 'reopen' ? 'Qayta ochildi, sotuvchiga xabar ketdi' : 'Yashirildi, sotuvchiga xabar ketdi'); haptic(); await loadMarket(); S.dash = null; loadDash().then(render); render(); } catch (err) { toast(err.message); }
+    return;
+  }
+  if (d.mkdel) {
+    if (!confirm('E’lon butunlay o‘chirilsinmi?')) return;
+    try { await api('/api/market/' + d.mkdel, { method: 'DELETE' }); toast('O‘chirildi'); await loadMarket(); render(); } catch (err) { toast(err.message); }
+    return;
+  }
+  if (d.ldoff) {
+    if (!confirm('◇ belgisi olib tashlansinmi?')) return;
+    try { await api(`/api/people/${encodeURIComponent(d.ldoff)}/leader`, { method: 'POST', body: { name: '' } }); toast('Belgi olib tashlandi'); await loadUsers(); userSheet(d.ldoff); } catch (err) { toast(err.message); }
+    return;
+  }
+  if (d.act === 'newelon') return elonForm();
   if (d.act === 'refresh') { toast('Yangilanmoqda…'); S.segs = null; return load(S.tab, true); }
   if (d.act === 'logout') { store.del('bk_admin'); adminKey = ''; return boot(); }
-  if (d.act && d.act.startsWith('go:')) { const [, t, st] = d.act.split(':'); if (t === 'posts') { S.pf = { status: st, kind: st ? 'muammo' : '', cat: '', q: '' }; S.posts = null; } return setTab(t); }
+  if (d.act && d.act.startsWith('go:')) { const [, t, st] = d.act.split(':'); if (t === 'posts') { S.pf = { status: st, kind: st ? 'muammo' : '', cat: '', q: '' }; S.posts = null; }
+    if (t === 'market') { S.mk = { status: '', q: '', reported: false }; S.market = null; } return setTab(t); }
   if (d.act && d.act.startsWith('seg:')) { S.bc.segment = d.act.slice(4); if (!S.bc.text && ['noapp', 'nofill'].includes(S.bc.segment)) S.bc.text = TEMPLATES[0][1]; return setTab('send'); }
   if (d.act === 'newevent') { if (S.tab !== 'events') setTab('events'); return eventForm(); }
   if (d.act === 'csv-posts') return csv('postlar', S.posts || [], ['id', 'kind', 'category', 'status', 'title', 'body', 'author', 'votes', 'created_at', 'resolved_at']);
@@ -633,6 +702,13 @@ document.addEventListener('submit', async (e) => {
       closeSheet(); toast(f.dataset.id ? 'Saqlandi' : 'Tadbir qo‘shildi'); haptic(); await loadDash(); render();
     } catch (err) { toast(err.message); }
   }
+  if (f.id === 'ldform') {
+    try { await api(`/api/people/${encodeURIComponent(f.dataset.uid)}/leader`, { method: 'POST', body: { name: fd.name } }); toast('◇ Belgi berildi'); haptic(); await loadUsers(); userSheet(f.dataset.uid); } catch (err) { toast(err.message); }
+  }
+  if (f.id === 'elonform') {
+    try { await api('/api/problems', { method: 'POST', body: { kind: 'elon', title: fd.title, body: fd.body } }); closeSheet(); toast('E’lon joylandi'); haptic(); S.posts = null; load('posts', true); }
+    catch (err) { toast(err.status === 401 ? 'E’lon joylash uchun panelni Telegram ichida oching' : err.message); }
+  }
   if (f.id === 'svform') {
     try { await api('/api/service', { method: 'POST', body: { user_id: f.dataset.uid, ...fd } }); toast('Xizmat daftariga yozildi'); haptic(); await loadUsers(); userSheet(f.dataset.uid); } catch (err) { toast(err.message); }
   }
@@ -679,6 +755,7 @@ async function boot() {
   render();
   await load(S.tab, true);
   render();
+  if (S.openUser) { const id = S.openUser; S.openUser = ''; userSheet(id); }
 }
 boot();
 setInterval(() => { if (S.tab === 'home' && !document.hidden && !$('.scrim')) load('home', true); }, 60000);

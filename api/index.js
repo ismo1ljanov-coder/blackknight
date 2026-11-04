@@ -547,7 +547,12 @@ async function dashboard(days) {
       (SELECT count(*) FROM contact_requests WHERE status='pending' AND created_at < now() - interval '2 days')::int stale_requests,
       (SELECT count(*) FROM bot_starts b WHERE user_id NOT LIKE 'tg99000000%' AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id=b.user_id))::int noapp,
       (SELECT count(*) FROM users WHERE id LIKE 'tg%' AND ${REAL} AND NOT ${FILLED})::int nofill,
-      (SELECT count(*) FROM problems p WHERE p.status<>'hal' AND (SELECT count(*) FROM votes v WHERE v.problem_id=p.id) >= 10)::int hot`),
+      (SELECT count(*) FROM problems p WHERE p.status<>'hal' AND (SELECT count(*) FROM votes v WHERE v.problem_id=p.id) >= 10)::int hot,
+      (SELECT count(*) FROM listings WHERE status='faol')::int listings_active,
+      (SELECT count(*) FROM listings WHERE status='yashirin')::int listings_hidden,
+      (SELECT count(*) FROM listings WHERE status='sotildi')::int listings_sold,
+      (SELECT count(*) FROM market_wants)::int market_wants,
+      (SELECT count(*) FROM listings l WHERE l.status='faol' AND EXISTS (SELECT 1 FROM market_reports r WHERE r.listing_id=l.id))::int listings_reported`),
     all(`SELECT to_char(g.dd,'YYYY-MM-DD') AS day,
       (SELECT count(*) FROM users u WHERE ${REAL.replace(/id/g, 'u.id')} AND (u.created_at AT TIME ZONE '${TZ}')::date = g.dd::date)::int users,
       (SELECT count(*) FROM bot_starts b WHERE (b.first_at AT TIME ZONE '${TZ}')::date = g.dd::date)::int starts,
@@ -645,6 +650,42 @@ async function adminRoute(p, m, url, body, uid, tu) {
       [str(body.title, 120), str(body.description, 1000), starts ? starts.toISOString() : null, str(body.place, 80), Math.max(0, parseInt(body.capacity) || 0), link, +mm[1]]);
     if (!r.rowCount) return bad('Tadbir topilmadi', 404);
     return json({ ok: true });
+  }
+
+  // Market moderation: every listing with its reports; the team reopens, hides, or deletes.
+  if (p === '/api/admin/market' && m === 'GET') {
+    const st = ['faol', 'yashirin', 'sotildi'].includes(url.searchParams.get('status')) ? url.searchParams.get('status') : '';
+    const rep = url.searchParams.get('reported') === '1';
+    const term = str(url.searchParams.get('q') || '', 60);
+    const r = await q(`SELECT l.id, l.title, l.description, l.price, l.category, l.condition, l.status, l.created_at, l.sold_at,
+      u.id seller_id, u.name seller, u.username seller_username,
+      (SELECT coalesce(json_agg(id ORDER BY pos), '[]') FROM listing_photos ph WHERE ph.listing_id=l.id) photos,
+      (SELECT count(*) FROM market_wants w WHERE w.listing_id=l.id)::int wants,
+      (SELECT coalesce(json_agg(json_build_object('reason', mr.reason, 'at', mr.created_at) ORDER BY mr.created_at DESC), '[]') FROM market_reports mr WHERE mr.listing_id=l.id) reports
+      FROM listings l JOIN users u ON u.id=l.seller_id
+      WHERE ($1='' OR l.status=$1) AND (NOT $2 OR EXISTS (SELECT 1 FROM market_reports mr WHERE mr.listing_id=l.id))
+        AND ($3='' OR l.title ILIKE '%'||$3||'%' OR l.description ILIKE '%'||$3||'%' OR u.name ILIKE '%'||$3||'%')
+      ORDER BY (l.status='yashirin') DESC, l.created_at DESC LIMIT 300`, [st, rep, term]);
+    return json({ listings: r.rows });
+  }
+  if ((mm = p.match(/^\/api\/admin\/market\/(\d+)$/)) && m === 'POST') {
+    const id = +mm[1];
+    const l = (await q('SELECT id, title, seller_id, status FROM listings WHERE id=$1', [id])).rows[0];
+    if (!l) return bad('E’lon topilmadi', 404);
+    if (body.action === 'reopen') {
+      // Reviewed and fine: back on the market, old reports cleared so they don't re-hide it.
+      await q("UPDATE listings SET status='faol', sold_at=NULL, updated_at=now() WHERE id=$1 RETURNING 1 x", [id]);
+      await q('DELETE FROM market_reports WHERE listing_id=$1 RETURNING 1 x', [id]);
+      if (l.status === 'yashirin') await notify(l.seller_id, `✅ «${esc(l.title)}» e’loningiz jamoa tomonidan tekshirildi va qayta Market’ga chiqdi.`);
+      return json({ ok: true, status: 'faol' });
+    }
+    if (body.action === 'hide') {
+      await q("UPDATE listings SET status='yashirin', updated_at=now() WHERE id=$1 RETURNING 1 x", [id]);
+      const why = str(body.reason, 200);
+      await notify(l.seller_id, `⚠️ «${esc(l.title)}» e’loningiz Black Knight jamoasi tomonidan yashirildi.${why ? '\nSabab: ' + esc(why) : ''}`);
+      return json({ ok: true, status: 'yashirin' });
+    }
+    return bad('Noto‘g‘ri amal');
   }
 
   // Segment sizes for the broadcast form.
@@ -1135,7 +1176,7 @@ async function route(req) {
     }
     const admins = (await q("SELECT user_id FROM admins WHERE user_id LIKE 'tg%'")).rows;
     for (const a of admins) await tg('sendMessage', { chat_id: a.user_id.slice(2), parse_mode: 'HTML',
-      text: `🚩 Market shikoyati (${n}-chi): «${esc(l.title)}»\nSabab: <b>${esc(reason)}</b>${hidden ? '\n\nE’lon avtomatik yashirildi.' : ''}\n\nIlovada Market → e’lonni ochib, o‘chirish yoki qayta ochish mumkin.`,
+      text: `🚩 Market shikoyati (${n}-chi): «${esc(l.title)}»\nSabab: <b>${esc(reason)}</b>${hidden ? '\n\nE’lon avtomatik yashirildi.' : ''}\n\nAdmin panel → Market bo‘limida ko‘rib chiqing.`,
       reply_markup: openKb() }).catch(() => {});
     return json({ ok: true, hidden });
   }

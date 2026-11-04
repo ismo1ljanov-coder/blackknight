@@ -345,7 +345,7 @@ async function checkAdmin() {
   if (!TG_INIT && !adminKey) { isAdmin = false; return; }
   try { isAdmin = (await api('/api/admin/check')).admin; } catch (e) { isAdmin = false; }
   if (!isAdmin && adminKey) { adminKey = ''; store.del('bk_admin'); }
-  if (isAdmin) loadAdmins();
+
 }
 S.admins = []; S.vols = [];
 // Status marks next to a name: founder, team, volunteer, first-229 knight.
@@ -403,7 +403,7 @@ function problemCard(p) {
     ? `<span class="pill s-${p.status}">${STATUS[p.status]}</span><span class="cat">${esc(p.category)}</span>`
     : `<span class="pill ${leaderPost ? 'ldpill' : 'k-' + kind}">${KINDS[kind].label}</span>`;
   const statusBtns = kind === 'muammo' ? Object.keys(STATUS).map((k) => `<button data-status="${k}" data-id="${p.id}" class="${p.status === k ? 'on' : ''}">${STATUS[k]}</button>`).join('') : '';
-  const adminRow = isAdmin ? `<div class="admin">${statusBtns}<button class="del" data-delp="${p.id}">O‘chirish</button></div>` : (S.leader && p.mine && kind === 'elon') ? `<div class="admin"><button class="del" data-delp="${p.id}">O‘chirish</button></div>` : '';
+  const adminRow = (S.leader && p.mine && kind === 'elon') ? `<div class="admin"><button class="del" data-delp="${p.id}">O‘chirish</button></div>` : '';
   return `<article class="glass card${kind === 'elon' ? (leaderPost ? ' elon ld' : ' elon') : ''}">
     <button class="vote" data-vote="${p.id}" aria-pressed="${p.voted}" aria-label="Ovoz berish, ${p.votes} ovoz">▲<br>${p.votes}</button>
     <div class="body">
@@ -418,7 +418,7 @@ function problemCard(p) {
 
 function viewTadbirlar() {
   const evs = S.events;
-  const addBtn = isAdmin || S.leader ? '<button class="iconbtn" data-act="newevent" aria-label="Tadbir qo‘shish"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>' : '';
+  const addBtn = S.leader ? '<button class="iconbtn" data-act="newevent" aria-label="Tadbir qo‘shish"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>' : '';
   let body;
   if (evs === null) body = '<div class="skeleton" style="height:200px"></div>';
   else if (!evs.length) body = `<div class="glass empty"><b>Yaqin kunlarda tadbir yo‘q</b>Yangi tadbirlar e’lon qilinganda shu yerda chiqadi.</div>`;
@@ -437,14 +437,14 @@ function viewTadbirlar() {
       <div class="foot"><span class="small">${cap ? `${first.going} / ${cap} joy band` : `${first.going} kishi qatnashadi`}</span>
       <button class="btn ${first.joined ? 'done' : ''}" data-rsvp="${first.id}" ${full ? 'disabled' : ''}>${first.joined ? '✓ Yozildingiz' : full ? 'Joy qolmadi' : 'Qatnashaman'}</button></div>
       ${first.joined && first.link ? `<button class="btn" data-glink="${esc(first.link)}" style="width:100%">👥 Tadbir guruhiga qo‘shilish</button>` : ''}
-      ${isAdmin || first.mine ? `<div class="admin"><button class="del" data-att="${first.id}" style="color:inherit">Ishtirokchilar (${first.going}) · E’lon</button><button class="del" data-dele="${first.id}">O‘chirish</button></div>` : ''}
+      ${S.leader && first.mine ? `<div class="admin"><button class="del" data-att="${first.id}" style="color:inherit">Ishtirokchilar (${first.going})</button><button class="del" data-dele="${first.id}">O‘chirish</button></div>` : ''}
     </section>
     ${rest.length ? '<div class="label">Keyingi tadbirlar</div>' : ''}
     <div class="list">${rest.map((e) => {
       const dd = new Date(e.starts_at);
       return `<article class="glass ev"><div class="date"><b>${dd.getDate()}</b><span>${MONTHS[dd.getMonth()]}</span></div>
         <div class="body"><h3>${esc(e.title)}</h3><div class="meta small" style="font-size:12px">${e.date_only ? dd.getDate() + '-' + MONTHS[dd.getMonth()] : hhmm(dd)}${e.place ? ' · ' + esc(e.place) : ''} · ${e.capacity ? e.going + '/' + e.capacity : e.going + ' kishi'}${e.organizer ? ` · <span class="ldname">◇ ${esc(e.organizer.position || e.organizer.name)}</span>` : ''}</div>
-        ${isAdmin || e.mine ? `<div class="admin"><button class="del" data-att="${e.id}" style="color:inherit">Ishtirokchilar</button><button class="del" data-dele="${e.id}">O‘chirish</button></div>` : ''}</div>
+        ${S.leader && e.mine ? `<div class="admin"><button class="del" data-att="${e.id}" style="color:inherit">Ishtirokchilar</button><button class="del" data-dele="${e.id}">O‘chirish</button></div>` : ''}</div>
         <button class="join" data-rsvp="${e.id}" aria-pressed="${e.joined}" aria-label="${e.joined ? 'Yozilishni bekor qilish' : 'Qatnashish'}">${e.joined ? '✓' : '+'}</button></article>`;
     }).join('')}</div>`;
   }
@@ -479,7 +479,7 @@ function marketList() {
 }
 function viewMarket() {
   const cats = [['', 'Hammasi']].concat(MCATS.map((c) => [c, c]));
-  const segs = [['all', 'Barchasi', !S.mmine && !S.mhidden], ['mine', 'Meniki', S.mmine]].concat(isAdmin ? [['hidden', '🚩 Tekshiruv', S.mhidden]] : []);
+  const segs = [['all', 'Barchasi', !S.mmine && !S.mhidden], ['mine', 'Meniki', S.mmine]];
   return head('Talabalar marketi', '<button class="iconbtn" data-act="mkintro" aria-label="Market qanday ishlaydi?" style="font-family:var(--crest);font-weight:700;font-size:18px">?</button>') + offlineNote() + `
   <button class="cta" data-act="newlisting">+ E’lon berish</button>
   <form class="search" role="search" onsubmit="return false"><label for="mk-q" style="position:absolute;left:-9999px">Marketda qidirish</label>
@@ -497,12 +497,12 @@ async function listingSheet(id) {
   const sh = $('.sheet'); if (!sh) return;
   const s = l.seller;
   const sold = l.status === 'sotildi', hidden = l.status === 'yashirin';
-  const canManage = l.mine || isAdmin;
+  const canManage = l.mine;
   const act = l.mine ? '' : hidden ? '<button class="primary" disabled>Tekshiruvda</button>' : sold ? '<button class="primary" disabled>Sotilgan</button>'
     : l.wanted ? `<button class="primary" data-mk="chat">✉️ ${esc(firstName(s.name))}ga yozish</button><div class="small" style="text-align:center">So‘rovingiz sotuvchiga yuborilgan.</div>`
     : '<button class="primary" data-mk="want">Olish</button>';
   sh.innerHTML = sheetTop(hidden ? 'Tekshiruvda' : sold ? 'Sotilgan' : 'E’lon') + `
-    ${hidden ? `<div class="offline" role="status">Bu e’lon shikoyatlar sababli yashirilgan.${l.reports && l.reports.length ? ' Sabablar: ' + esc([...new Set(l.reports.map((r) => r.reason))].join(', ')) + '.' : ''}${l.mine && !isAdmin ? ' Jamoa ko‘rib chiqadi.' : ''}</div>` : ''}
+    ${hidden ? `<div class="offline" role="status">Bu e’lon shikoyatlar sababli yashirilgan.${l.reports && l.reports.length ? ' Sabablar: ' + esc([...new Set(l.reports.map((r) => r.reason))].join(', ')) + '.' : ''}${l.mine ? ' Jamoa ko‘rib chiqadi.' : ''}</div>` : ''}
     <div class="gallery${l.photos.length > 1 ? ' multi' : ''}">${l.photos.map((p) => `<img src="${imgUrl(p)}" alt="${esc(l.title)}">`).join('')}</div>
     <div><div class="lprice">${price(l.price)}</div><h2 style="font-family:var(--font);font-size:19px;font-weight:700;margin:4px 0 0;overflow-wrap:anywhere">${esc(l.title)}</h2>
       <div class="small" style="margin-top:4px">${esc(l.category)} · Holati: ${MCOND[l.condition] || 'Yaxshi'} · ${ago(l.created_at)}${l.wants ? ` · ${l.wants} kishi so‘radi` : ''}</div></div>
@@ -511,7 +511,7 @@ async function listingSheet(id) {
     ${act}
     ${l.mine && l.buyers && l.buyers.length ? `<section class="glass box"><h3>Olmoqchilar (${l.buyers.length})</h3>${l.buyers.map((b) => `<div class="match"><b>${esc(b.name)}<small style="display:block;font-weight:500;color:var(--dim)">${esc([b.major, b.year && b.year + '-kurs'].filter(Boolean).join(', '))} · ${ago(b.created_at)}</small></b>${b.link ? `<button class="btn" data-mklink="${esc(b.link)}" style="height:36px;padding:0 12px">Yozish</button>` : ''}</div>`).join('')}</section>` : ''}
     ${l.mine && !l.buyers.length && !sold ? '<div class="small" style="text-align:center">Kimdir «Olish»ni bossa, bot sizga xabar beradi.</div>' : ''}
-    ${canManage ? `<div class="admin" style="justify-content:center">${hidden ? (isAdmin ? '<button data-mk="reopen" class="on">✓ Tekshirildi — qayta ochish</button>' : '') : l.mine ? `<button data-mk="${sold ? 'reopen' : 'sold'}" class="${sold ? '' : 'on'}">${sold ? 'Qayta sotuvga qo‘yish' : '✅ Sotildi deb belgilash'}</button>` : ''}<button class="del" data-mk="del">O‘chirish</button></div>` : ''}
+    ${canManage ? `<div class="admin" style="justify-content:center">${hidden ? '' : l.mine ? `<button data-mk="${sold ? 'reopen' : 'sold'}" class="${sold ? '' : 'on'}">${sold ? 'Qayta sotuvga qo‘yish' : '✅ Sotildi deb belgilash'}</button>` : ''}<button class="del" data-mk="del">O‘chirish</button></div>` : ''}
     ${!l.mine ? `<div class="rules"><b style="color:var(--fg)">Xavfsiz savdo:</b> kampusda, odamlar bor joyda uchrashing. Buyumni ko‘rib, tekshirib, keyin pul bering. Oldindan pul yoki karta ma’lumotini yubormang.</div>
     ${l.reported ? '<div class="small" style="text-align:center">🚩 Shikoyatingiz qabul qilingan</div>' : '<button class="link" data-mk="report">🚩 Shikoyat qilish</button>'}` : ''}`;
   sh.addEventListener('click', async (e) => {
@@ -674,11 +674,11 @@ async function personSheet(id) {
   let p;
   try { p = (await api(`/api/people/${encodeURIComponent(id)}?uid=${uid}`)).person; }
   catch (err) { const sh = $('.sheet'); if (sh) sh.innerHTML = sheetTop('Talaba') + `<div class="err">${esc(err.message)}</div>`; return; }
-  const showSv = isAdmin || p.role === 'volunteer' || (p.service && p.service.entries);
+  const showSv = p.role === 'volunteer' || (p.service && p.service.entries);
   let svc = null;
   if (showSv) { try { svc = await api(`/api/service/${encodeURIComponent(id)}`); } catch (e) {} }
   const sh = $('.sheet'); if (!sh) return;
-  const svAdmin = isAdmin ? `<section class="glass box" aria-label="Jamoa uchun">
+  const svAdmin = false ? `<section class="glass box" aria-label="Jamoa uchun">
       <h3>Jamoa uchun</h3>
       ${p.team ? `<form id="pgform" style="display:flex;gap:8px" novalidate><label class="field" style="flex:1"><span class="small">Mas’uliyati</span><input id="pg-pos" maxlength="60" value="${esc(p.position || '')}" placeholder="Masalan: Tadbirlar mas’uli"></label><button class="btn" type="submit" style="align-self:flex-end;height:48px">Saqlash</button></form>` : `${p.role === 'leader' ? '' : `<button class="btn ghost" data-role="${p.role === 'volunteer' ? '' : 'volunteer'}">${p.role === 'volunteer' ? 'Volontyorlikdan olib tashlash' : '✧ Volontyor qilish'}</button>`}
       <form id="ldform" style="display:flex;flex-direction:column;gap:8px" novalidate>
@@ -711,8 +711,9 @@ async function personSheet(id) {
     </div>
     ${p.teach || p.learn ? `<div class="swap"><div class="t"><small>O‘rgatadi</small><b>${esc(p.teach || '—')}</b></div><div class="l"><small>O‘rganadi</small><b>${esc(p.learn || '—')}</b></div></div>` : ''}
     <div style="display:flex;flex-direction:column;gap:10px;align-items:stretch">${action}</div>
-    ${svc && (svc.summary.entries || p.role === 'volunteer') ? serviceBox(svc.summary, svc.entries, isAdmin) : ''}
+    ${svc && (svc.summary.entries || p.role === 'volunteer') ? serviceBox(svc.summary, svc.entries, false) : ''}
     ${svAdmin}
+    ${isAdmin ? `<a class="btn ghost" href="admin.html#people:${encodeURIComponent(p.id)}" style="display:flex;align-items:center;justify-content:center;text-decoration:none">📊 Admin panelda boshqarish</a>` : ''}
     <div class="err" id="ps-err" role="alert"></div>`;
   const ldf = $('#ldform', sh);
   if (ldf) {
@@ -817,7 +818,6 @@ function viewProfil() {
   <section class="glass prof">
     <div class="ava" aria-hidden="true">${esc((me.name || '?').trim().charAt(0).toUpperCase())}</div>
     <h2>${esc(me.name)}</h2>
-    ${isAdmin ? '<span class="pill s-jarayonda">BlackKnight · Admin</span>' : ''}
     ${me.title === 'Founder' ? '<span class="pill knpill">✦ Founder</span>' : ''}
     ${S.team ? '<span class="pill knpill">◆ Jamoa</span>' : ''}
     ${me.role === 'volunteer' ? '<span class="pill knpill">✧ Volontyor</span>' : ''}
@@ -845,21 +845,7 @@ function viewProfil() {
     <div class="swap"><div class="t"><small>O‘rgataman</small><b>${esc(me.teach || '—')}</b></div><div class="l"><small>O‘rganaman</small><b>${esc(me.learn || '—')}</b></div></div>
     ${matches}
   </section>
-  ${isAdmin ? `<section class="glass box" aria-label="Volontyorlar">
-    <h3>Volontyorlar · ${S.vols.length}</h3>
-    ${S.vols.length ? S.vols.map((v) => `<div class="match"><button class="linkname" data-person="${esc(v.id)}">${esc(v.name)}</button><span>${v.hours} soat · ${esc(v.level)}</span></div>`).join('') : '<div class="small">Hali volontyor yo‘q. Odamlar bo‘limidan talabani ochib, «Volontyor qilish» tugmasini bosing.</div>'}
-  </section>` : ''}
-  ${isAdmin ? `<a class="cta" href="admin.html" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none">📊 Admin panel · statistika</a>` : ''}
-  ${isAdmin ? `<section class="glass box">
-    <h3>Adminlar</h3>
-    ${S.admins.map((a) => `<div class="match"><b>${esc(a.name)}${a.position ? `<small style="display:block;font-weight:500;color:var(--gold-hi)">◆ ${esc(a.position)}</small>` : ''}</b><span>${a.username ? '@' + esc(a.username) : ''}${a.id !== uid ? ` <button class="admin-rm" data-rmadmin="${esc(a.id)}" aria-label="${esc(a.name)} adminligini olib tashlash">Olib tashlash</button>` : ' · siz'}</span></div>`).join('')}
-    <form id="addadmin" style="display:flex;flex-direction:column;gap:8px;margin-top:6px" novalidate>
-      <label class="field"><span class="small">Yangi admin (Telegram username)</span><input id="aa-user" placeholder="@username" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
-      <label class="field"><span class="small">Vazifasi</span><input id="aa-pos" maxlength="60" placeholder="Masalan: Tadbirlar mas’uli" autocomplete="off"></label>
-      <button class="btn" type="submit" style="height:48px">Qo‘shish</button>
-    </form>
-    <div class="small">Yangi admin avval botga kirib, ilovani bir marta ochgan bo‘lishi kerak.</div>
-  </section>` : ''}
+  ${isAdmin ? `<a class="cta" href="admin.html" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none">📊 Admin panel</a>` : ''}
   ${!TG_INIT && location.hash === '#admin' ? `<button class="link" data-act="admin">${isAdmin ? 'Admin rejimidan chiqish' : 'Admin kirish (kalit bilan)'}</button>` : ''}`;
 }
 
@@ -894,7 +880,7 @@ async function attendeesSheet(id) {
       <span>${i + 1}. ${esc(r.name || 'Nomaʼlum')}${r.major ? ` <span class="small">· ${esc(r.major)}${r.year ? ', ' + esc(r.year) : ''}</span>` : ''}</span>
       <span class="small">${r.username ? '@' + esc(r.username) : esc(r.contact || '')}</span></div>`).join('')}</div>
     ${rows.length ? '<button class="btn" id="att-copy" style="width:100%;margin-top:12px">Ro‘yxatni nusxalash (Excel uchun)</button>' : ''}
-    ${isAdmin ? `<div class="label" style="margin-top:18px">Botda e’lon qilish</div>
+    ${false ? `<div class="label" style="margin-top:18px">Botda e’lon qilish</div>
       <button class="btn" id="ann-test" style="width:100%">1. O‘zimga sinov yuborish</button>
       <button class="btn" id="ann-all" style="width:100%;margin-top:8px">2. Barcha a’zolarga yuborish</button>
       <div class="small" id="ann-res" style="margin-top:8px">Avval sinovni ko‘ring. Hammaga yuborish har bir kishiga bir martadan boradi.</div>` : ''}`;
@@ -989,7 +975,7 @@ function needProfile(action) { if (S.me) return true; pendingAction = action; pr
 
 function newProblemSheet() {
   if (!needProfile(newProblemSheet)) return;
-  const canElon = isAdmin || S.leader;
+  const canElon = S.leader;
   let kind = S.kind && (S.kind !== 'elon' || canElon) ? S.kind : 'muammo', cat = 'Infratuzilma', anon = true;
   const kindKeys = Object.keys(KINDS).filter((k) => k !== 'elon' || canElon);
   openSheet(sheetTop('Post yozish') + `
