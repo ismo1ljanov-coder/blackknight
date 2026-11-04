@@ -243,7 +243,7 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-04.3';
+const BUILD = '2026-11-04.4';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
@@ -472,7 +472,7 @@ function viewTadbirlar() {
 }
 
 // ---------- market
-const MCATS = ['Kitoblar', 'Darsliklar', 'Konspektlar', 'Kanselyariya', 'O‘quv texnikasi', 'Boshqa'];
+const MCATS = ['Kitoblar', 'Darsliklar', 'Kanselyariya', 'Sport', 'Boshqa'];
 const MCOND = { yangi: 'Yangi', yaxshi: 'Yaxshi', ortacha: 'O‘rtacha' };
 const price = (p) => (p === null || p === undefined ? 'Kelishiladi' : +p === 0 ? 'Bepul' : Number(p).toLocaleString('ru-RU').replace(/ /g, ' ') + ' so‘m');
 const imgUrl = (id) => `${API}/api/market/img/${id}`;
@@ -583,7 +583,7 @@ function reportSheet(id) {
 // Shown on the first visit to Market (and from the "?" button): how it works plus the safety rules.
 function marketIntro(next) {
   openSheet(sheetTop('Market qanday ishlaydi?') + `
-    <div class="small" style="font-size:15px;color:var(--fg)">Bu do‘kon emas — faqat o‘qishga kerakli narsalar: kitob, darslik, konspekt, kanselyariya, kalkulyator kabi o‘quv texnikasi. Talabalar o‘zaro sotadi yoki bepul beradi, pul to‘g‘ridan-to‘g‘ri sizlar o‘rtasida.</div>
+    <div class="small" style="font-size:15px;color:var(--fg)">Bu do‘kon emas — talaba hayotida eng ko‘p kerak bo‘ladigan narsalar: kitob, darslik, kanselyariya, sport anjomlari. Talabalar o‘zaro sotadi yoki bepul beradi, pul to‘g‘ridan-to‘g‘ri sizlar o‘rtasida.</div>
     <div class="why">
       <div class="w"><b>1</b><div><h3>E’lon bering</h3><p>Buyumning rasmini oling (3 tagacha), narx yozing yoki «Bepul» deb belgilang. Avval profilingiz to‘liq bo‘lishi kerak.</p></div></div>
       <div class="w"><b>2</b><div><h3>«Olish»ni bosing</h3><p>Yoqqan buyumda «Olish» tugmasini bosing — sotuvchiga bot orqali xabar boradi, siz esa darhol unga yoza olasiz.</p></div></div>
@@ -594,7 +594,7 @@ function marketIntro(next) {
       <li>Oldindan pul o‘tkazmang — buyumni ko‘rib, keyin to‘lang</li>
       <li>Karta raqami, SMS kod yoki parolni hech kimga bermang</li>
       <li>Kampusda, odamlar bor joyda uchrashing</li>
-      <li>Faqat o‘qishga oid buyumlar. Kiyim, yotoqxona buyumlari, oziq-ovqat va boshqa savdo uchun emas</li>
+      <li>Faqat talabalarga kerakli buyumlar — bu do‘kon emas, qayta sotish uchun mol joylanmaydi</li>
       <li>Taqiqlangan: tayyor kurs ishi va imtihon javoblari, sigaret/vape, dori, birovning narsasi</li>
       <li>Shubhali e’lonni 🚩 «Shikoyat» bilan belgilang — 3 ta shikoyatdan keyin u yashiriladi</li>
     </ol>
@@ -649,7 +649,7 @@ function newListingSheet() {
       <label class="field">Narxi (so‘m)<input id="nl-price" type="number" inputmode="numeric" min="0" step="1000" placeholder="Bo‘sh qolsa — kelishiladi"></label>
       <button type="button" class="toggle" id="nl-free" role="switch" aria-checked="false"><span style="flex:1"><b style="display:block">Bepul beraman</b><span class="small">Sovg‘a qilmoqchi bo‘lsangiz</span></span><span class="sw" aria-hidden="true"></span></button>
       <label class="field">Batafsil<textarea id="nl-desc" rows="3" maxlength="1500" placeholder="Qancha ishlatilgan, nuqsoni bormi, qayerda ko‘rish mumkin"></textarea></label>
-      <div class="rules">Faqat o‘qishga oid buyumlar (kitob, darslik, konspekt, kanselyariya, o‘quv texnikasi). Kiyim, yotoqxona buyumlari, tayyor kurs ishi va imtihon javoblari mumkin emas — bunday e’lonlar o‘chiriladi.</div>
+      <div class="rules">Faqat talabalarga kerakli buyumlar (kitob, darslik, kanselyariya, sport anjomlari). Tayyor kurs ishi, imtihon javoblari, sigaret/vape, dori va birovning narsasi mumkin emas — bunday e’lonlar o‘chiriladi.</div>
       <div class="err" id="nl-err" role="alert"></div>
       <button class="primary" type="submit">Joylash</button>
     </form>`, (el) => {
