@@ -257,7 +257,7 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-05.1';
+const BUILD = '2026-11-05.2';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
@@ -895,7 +895,7 @@ function viewProfil() {
   ${!TG_INIT && location.hash === '#admin' ? `<button class="link" data-act="admin">${isAdmin ? 'Admin rejimidan chiqish' : 'Admin kirish (kalit bilan)'}</button>` : ''}`;
 }
 
-// ---------- Jamoa (Students' Parliament) and the Head's own desk
+// ---------- Jamoa (BlackKnight) and the Head's own desk
 S.teamData = null; S.headData = null; S.head = null;
 const APP_ST = { yangi: 'Ariza ko‘rilmoqda', suhbat: 'Suhbatga chaqirildingiz', qabul: 'Qabul qilindi', rad: 'Rad etildi' };
 async function loadTeamData() { try { S.teamData = await api(`/api/team?uid=${uid}`); S.offline = false; } catch (e) { S.offline = true; } }
@@ -906,7 +906,7 @@ function viewJamoa() {
   if (!D) return head('Jamoa') + '<div class="glass empty">Yuklanmoqda…</div>';
   const open = D.positions.filter((p) => p.open && !p.holder).length;
   return head('Jamoa') + offlineNote() + `
-  <section class="glass box"><h3>Students' Parliament</h3>
+  <section class="glass box"><h3>BlackKnight jamoasi</h3>
     <div class="small">${D.positions.length} lavozim · <b style="color:var(--gold-hi)">${open} ta vakansiya ochiq</b>. Lavozimni bosing — vazifasi, talablari va ariza formasi ochiladi. Ariza faqat <b>♞ Ritsarlar</b> uchun: profil to‘liq va klub kanaliga obuna.</div>
     ${isAdmin ? '<a class="btn ghost" href="admin.html#vacancy" style="display:flex;align-items:center;justify-content:center;text-decoration:none">Lavozim va arizalarni boshqarish</a>' : ''}</section>
   ${Object.keys(D.blocks).map((b) => { const items = D.positions.filter((p) => p.block === b); return `

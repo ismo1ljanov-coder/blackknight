@@ -798,7 +798,7 @@ async function adminRoute(p, m, url, body, uid, tu) {
   return null;
 }
 
-// ---- Students' Parliament: positions, vacancies, heads (Konstitutsiya, 2-tahrir)
+// ---- BlackKnight jamoasi: positions, vacancies, heads (Konstitutsiya, 2-tahrir)
 // Each muammo category routes to one position; '@fac' means the author's faculty Head.
 const CAT_ROUTE = {
   "O'quv jarayoni": '@fac', 'Ustozlar bilan': '@fac', Infratuzilma: 'dorm', Yotoqxona: 'dorm', 'Oshxona va bufet': 'dorm',
@@ -885,7 +885,7 @@ function posBrief(pid) {
 }
 function onboardText(pid, name) {
   const p = POS[pid], cats = catsOf(pid);
-  return `🎖 <b>Tabriklaymiz, ${esc(firstName(name))}!</b>\nSiz Students' Parliament'ning <b>${esc(p.emoji + ' ' + p.title)}</b> lavozimiga tayinlandingiz.
+  return `🎖 <b>Tabriklaymiz, ${esc(firstName(name))}!</b>\nSiz BlackKnight jamoasining <b>${esc(p.emoji + ' ' + p.title)}</b> lavozimiga tayinlandingiz.
 
 <b>Vazifangiz</b>
 ${esc(p.duty)}
