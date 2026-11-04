@@ -568,7 +568,7 @@ function viewVacancy() {
     <div class="small dim" style="margin-top:12px">«Qabul qilish» bosilganda: lavozim band bo‘ladi, odam faqat o‘z bo‘limini ko‘radigan Head bo‘ladi (Prezident, VP va HR — to‘liq admin), botga vazifa va huquqlari yuboriladi, qolgan nomzodlarga javob ketadi.</div></section>
   <section class="card"><h2>Lavozimlar</h2>
     ${!T ? '<div class="skel"></div>' : `<div class="list">${T.positions.map((p) => `<div class="li"><span class="av" aria-hidden="true">${p.emoji}</span><div class="m"><b>${esc(p.title)}</b>
-      <small>${p.holder ? '◆ ' + esc(p.holder.name) + (p.full ? ' · to‘liq admin' : ' · faqat o‘z bo‘limi') : p.open ? `Vakansiya ochiq${p.pending ? ' · ' + p.pending + ' ariza' : ''}` : 'Yopiq'}</small></div>
+      <small>${p.holder ? '◆ ' + esc(p.holder.name) + (p.team ? ' · ✧ media jamoasi' : p.full ? ' · to‘liq admin' : ' · faqat o‘z bo‘limi') : p.open ? `Vakansiya ochiq${p.pending ? ' · ' + p.pending + ' ariza' : ''}` : 'Yopiq'}</small></div>
       ${p.holder ? `<button class="ibtn" data-pa="${p.id}:remind" title="Vazifa eslatmasini qayta yuborish">📨</button><button class="ibtn" data-pa="${p.id}:release" title="Lavozimdan bo‘shatish" style="color:var(--red)">✕</button>`
         : `<button class="ibtn" data-pa="${p.id}:assign" title="Odamni to‘g‘ridan-to‘g‘ri tayinlash">＋</button><button class="chip" data-pa="${p.id}:${p.open ? 'close' : 'open'}" aria-pressed="${p.open}">${p.open ? 'Ochiq' : 'Yopiq'}</button>`}</div>`).join('')}</div>`}
   </section></div>`;

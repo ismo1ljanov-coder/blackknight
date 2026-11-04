@@ -518,7 +518,7 @@ async function tgWebhook(req) {
     }
     if (text.startsWith('/vazifam')) {
       await ensurePositions();
-      const hp = (await q('SELECT p.id, u.name FROM positions p JOIN users u ON u.id=p.holder_id WHERE p.holder_id=$1', [me])).rows[0];
+      const hp = (await q("SELECT p.id, u.name FROM positions p JOIN users u ON u.id=p.holder_id WHERE p.holder_id=$1 ORDER BY (p.id LIKE 'm\\_%')", [me])).rows[0];
       if (hp) await sendOnboard(me, hp.id, hp.name);
       else await tg('sendMessage', { chat_id: msg.chat.id, text: 'Siz hozircha Kengash lavozimida emassiz. Vakansiyalar: ilova → Profil → Jamoa.', reply_markup: openKb() });
       return json({ ok: true });
@@ -860,8 +860,19 @@ const POSITIONS = [
   P_('media', 'grow', '💡', 'Media Head', { hours: '5–6 soat', req: 'Portfolio: SMM, foto, video yoki dizayn.',
     duty: 'SMM, foto/video hisobotlar, Parlament ishini ochiq yoritish.', rights: ['Kanal uchun kontent tayyorlash va e’lon qilish'] }),
 ];
+// Media jamoasi: team seats under Media Head. Not Kengash seats, no admin access; only full admins decide on them.
+const T_ = (id, emoji, title, duty, req) => P_(id, 'mteam', emoji, title, { team: 'media', hours: '3–5 soat', duty, req });
+POSITIONS.push(
+  T_('m_video', '🎬', 'Videograf / montajchi', 'Reels va tadbir videolarini suratga olish va montaj qilish.', 'Telefon yoki kamerada video olish, CapCut / Premiere. Ishlaringizdan namuna.'),
+  T_('m_photo', '📸', 'Fotograf', 'Tadbirlardan foto hisobot, jamoa va kampus suratlari.', 'Foto olish va qayta ishlash (Lightroom). Portfolio.'),
+  T_('m_design', '🎨', 'Dizayner', 'Postlar, afishalar, stikerlar va brend materiallari.', 'Figma / Canva / Photoshop. Ishlaringizdan namuna.'),
+  T_('m_smm', '📱', 'SMM menejer', 'Kanal va Instagram, post jadvali, auditoriya o‘sishi.', 'SMM tajribasi yoki o‘z sahifangiz natijalari.'),
+  T_('m_copy', '✍️', 'Kopirayter', 'Post matnlari, e’lonlar va bot xabarlari.', 'Savodli va qiziqarli yozish. 2–3 ta matn namunasi.'),
+);
 const POS = Object.fromEntries(POSITIONS.map((p, i) => [p.id, { ...p, sort: i }]));
-const BLOCKS = { exec: 'Oliy boshqaruv', fac: 'Fakultet yetakchilari', tech: 'Nazorat, tizim va intizom', life: 'Talabalar hayoti', grow: 'Biznes va rivojlanish' };
+const BLOCKS = { exec: 'Oliy boshqaruv', fac: 'Fakultet yetakchilari', tech: 'Nazorat, tizim va intizom', life: 'Talabalar hayoti', grow: 'Biznes va rivojlanish', mteam: 'Media jamoasi' };
+const TEAM_DUTY = ['Media jamoasi topshiriqlarini kelishilgan muddatda bajarish', 'Haftalik kontent rejasiga qatnashish', 'Ishlarni faqat BlackKnight nomidan, kelishilgan uslubda e’lon qilish', 'Talabalar suratini ularning roziligi bilan ishlatish'];
+const TEAM_RIGHTS = ['✧ jamoa a’zosi belgisi va xizmat daftari (soatlar hisobi)', 'Ishlaringizni o‘z portfoliongizda ko‘rsatish (9-modda)', 'Jamoa tadbirlarida qatnashish', 'Istalgan vaqt xabar berib jamoadan chiqish'];
 const COMMON_DUTY = [
   'Sizga kelgan murojaatni <b>48 soat</b> ichida ko‘rib chiqing: «Qabul qilindi» yoki asosli rad (50-modda).',
   '5 ish kunida reja va talabaga javob, 30 kunda hal qiling yoki rektoratga uzating.',
@@ -881,10 +892,23 @@ const COMMON_RIGHTS = [
 const catsOf = (pid) => Object.keys(CAT_ROUTE).filter((c) => CAT_ROUTE[c] === pid || (CAT_ROUTE[c] === '@fac' && POS[pid] && POS[pid].faculty));
 function posBrief(pid) {
   const p = POS[pid];
+  if (p.team) return { ...p, block_name: BLOCKS[p.block], cats: [], common_duty: TEAM_DUTY, common_rights: TEAM_RIGHTS };
   return { ...p, block_name: BLOCKS[p.block], cats: catsOf(pid), common_duty: COMMON_DUTY.map((s) => s.replace(/<\/?b>/g, '')), common_rights: COMMON_RIGHTS };
 }
 function onboardText(pid, name) {
   const p = POS[pid], cats = catsOf(pid);
+  if (p.team) return `✧ <b>Tabriklaymiz, ${esc(firstName(name))}!</b>\nSiz BlackKnight <b>Media jamoasi</b>ga <b>${esc(p.emoji + ' ' + p.title)}</b> sifatida qabul qilindingiz.
+
+<b>Vazifangiz</b>
+${esc(p.duty)}
+
+<b>Mas’uliyatingiz</b>
+${TEAM_DUTY.map((s) => '• ' + esc(s)).join('\n')}
+
+<b>Huquqlaringiz</b>
+${TEAM_RIGHTS.map((s) => '• ' + esc(s)).join('\n')}
+
+Jamoa a’zosi siz bilan tez orada bog‘lanadi. Bu eslatmani qayta olish: /vazifam`;
   return `🎖 <b>Tabriklaymiz, ${esc(firstName(name))}!</b>\nSiz BlackKnight jamoasining <b>${esc(p.emoji + ' ' + p.title)}</b> lavozimiga tayinlandingiz.
 
 <b>Vazifangiz</b>
@@ -942,13 +966,14 @@ async function assignHolder(pid, userId, by, notifyIt = true) {
   const cur = (await q('SELECT holder_id FROM positions WHERE id=$1', [pid])).rows[0];
   if (cur && cur.holder_id && cur.holder_id !== userId) await releaseHolder(pid, false);
   // One seat per person (25-modda): leaving any other seat first.
-  for (const o of (await q('SELECT id FROM positions WHERE holder_id=$1 AND id<>$2', [userId, pid])).rows) await releaseHolder(o.id, false);
+  for (const o of (await q('SELECT id FROM positions WHERE holder_id=$1 AND id<>$2', [userId, pid])).rows) if (!!POS[o.id].team === !!p.team) await releaseHolder(o.id, false);
   await q('UPDATE positions SET holder_id=$1, holder_since=now(), open=false WHERE id=$2 RETURNING 1 x', [userId, pid]);
   await q('UPDATE users SET position=$1 WHERE id=$2 RETURNING 1 x', [p.title, userId]);
+  if (p.team) await q("UPDATE users SET role='volunteer' WHERE id=$1 AND role IS NULL RETURNING 1 x", [userId]);
   // Full-access seats are plain admins; every other Head is scoped to their own seat (the Founder stays full).
-  await q(`INSERT INTO admins (user_id, added_by, scope) VALUES ($1,$2,$3)
+  if (!p.team) await q(`INSERT INTO admins (user_id, added_by, scope) VALUES ($1,$2,$3)
     ON CONFLICT (user_id) DO UPDATE SET scope = CASE WHEN (SELECT title FROM users WHERE id=$1)='Founder' THEN NULL ELSE EXCLUDED.scope END RETURNING 1 x`, [userId, by || 'key', p.full ? null : pid]);
-  if (p.full) await q('UPDATE admins SET scope=NULL WHERE user_id=$1 RETURNING 1 x', [userId]);
+  if (p.full && !p.team) await q('UPDATE admins SET scope=NULL WHERE user_id=$1 RETURNING 1 x', [userId]);
   const others = (await q(`UPDATE applications SET status='rad', decided_at=now(), decided_by=$2 WHERE position_id=$1 AND user_id<>$3 AND status IN ('yangi','suhbat') RETURNING user_id`, [pid, by || 'key', userId])).rows;
   for (const o of others) await notify(o.user_id, `Rahmat! «${esc(p.title)}» lavozimiga boshqa nomzod tanlandi.\nSiz zaxira ro‘yxatidasiz — boshqa vakansiyalarga ham ariza bera olasiz.`);
   const u = (await q('SELECT name FROM users WHERE id=$1', [userId])).rows[0];
@@ -959,6 +984,7 @@ async function releaseHolder(pid, reopen = true) {
   const cur = (await q('SELECT holder_id FROM positions WHERE id=$1', [pid])).rows[0];
   if (!cur || !cur.holder_id) return;
   await q('UPDATE positions SET holder_id=NULL, holder_since=NULL, open=$2 WHERE id=$1 RETURNING 1 x', [pid, reopen]);
+  if (POS[pid].team) { await q('UPDATE users SET position=NULL WHERE id=$1 AND position=$2 RETURNING 1 x', [cur.holder_id, POS[pid].title]); return; }
   // Losing the seat ends the access it gave; the Founder always stays a full admin.
   await q(`DELETE FROM admins WHERE user_id=$1 AND (scope=$2 OR ($3 AND scope IS NULL))
     AND coalesce((SELECT title FROM users WHERE id=$1),'')<>'Founder' RETURNING 1 x`, [cur.holder_id, pid, !!POS[pid].full]);
@@ -1104,7 +1130,7 @@ async function route(req) {
   let admin = isAdmin(req);
   // Scoped admins (Heads) are not full admins: they only get their own seat's desk.
   if (!admin && tu && tu.id) admin = (await q('SELECT 1 x FROM admins WHERE user_id=$1 AND scope IS NULL', [uid])).rowCount > 0;
-  const myPos = tu && tu.id ? (await q('SELECT id FROM positions WHERE holder_id=$1', [uid]).catch(() => ({ rows: [] }))).rows[0]?.id || null : null;
+  const myPos = tu && tu.id ? (await q("SELECT id FROM positions WHERE holder_id=$1 AND id NOT LIKE 'm\\_%'", [uid]).catch(() => ({ rows: [] }))).rows[0]?.id || null : null;
   // Leaders (◇): recognized rival teams — may post announcements and run events, nothing else. Event-type Heads may too.
   const leader = !admin && tu && tu.id ? ((await q("SELECT 1 x FROM users WHERE id=$1 AND role='leader'", [uid])).rowCount > 0 || EVENT_POS.includes(myPos)) : false;
 
