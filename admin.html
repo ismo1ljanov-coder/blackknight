@@ -499,7 +499,7 @@ function viewTeam() {
       <div class="small dim">Odam avval botga kirib, ilovani bir marta ochgan bo‘lishi kerak.</div></form></section>
     <section class="card"><h2>Ma’lumotlarni yuklab olish</h2>
       <div class="small muted" style="margin-bottom:12px">Ma’muriyatga hisobot yoki Excel’da tahlil uchun. Anonim postlar muallifi ko‘rsatilmaydi.</div>
-      <div style="display:flex;flex-direction:column;gap:8px">${[['users', 'Barcha a’zolar'], ['problems', 'Barcha postlar va ovozlar'], ['referrals', 'Takliflar (kim kimni)'], ['requests', 'Tanishish so‘rovlari']].map(([k, l]) => `<button class="btn ghost" data-export="${k}" style="justify-content:flex-start;text-align:left">⬇ ${l} (CSV)</button>`).join('')}</div>
+      <div style="display:flex;flex-direction:column;gap:8px">${[['users', 'Barcha a’zolar'], ['problems', 'Barcha postlar va ovozlar'], ['referrals', 'Takliflar (kim kimni)'], ['requests', 'Tanishish so‘rovlari'], ['market', 'Market e’lonlari']].map(([k, l]) => `<button class="btn ghost" data-export="${k}" style="justify-content:flex-start;text-align:left">⬇ ${l} (CSV)</button>`).join('')}</div>
       <div class="small dim" style="margin-top:14px">Panel manzili: <b style="color:var(--gold-hi)">${esc(location.origin + location.pathname)}</b> — Telegram ichida yoki admin kaliti bilan ochiladi.</div></section></div>`;
 }
 

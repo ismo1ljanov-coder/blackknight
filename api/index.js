@@ -5,6 +5,10 @@ const ADMIN_KEY = process.env.ADMIN_KEY || '';
 const CATS = ["O'quv jarayoni", 'Ustozlar bilan', 'Infratuzilma', 'Yotoqxona', 'Boshqa'];
 const STATUSES = ['yangi', 'qabul', 'jarayonda', 'hal'];
 const KINDS = ['muammo', 'savol', 'kerak', 'elon'];
+const MARKET_CATS = ['Kitoblar', 'Texnika', 'Kiyim', 'Kanselyariya', 'Yotoqxona', 'Sport', 'Boshqa'];
+const MARKET_COND = { yangi: 'Yangi', yaxshi: 'Yaxshi', ortacha: 'O‘rtacha' };
+const MARKET_PHOTOS = 3;
+const priceText = (p) => (p === null || p === undefined ? 'Kelishiladi' : +p === 0 ? 'Bepul' : Number(p).toLocaleString('ru-RU').replace(/ /g, ' ') + ' so‘m');
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -99,8 +103,10 @@ const dmLink = (peer) => (peer.username ? `https://t.me/${peer.username}` : `htt
 const firstName = (n) => String(n || 'Talaba').trim().split(/\s+/)[0];
 async function canContact(a, b) {
   if (a === b) return false;
+  // A marketplace "Olish" also opens a chat between that buyer and seller, both ways.
   const r = await q(`SELECT 1 x FROM users u WHERE u.id=$2 AND (u.contact='open' OR EXISTS (SELECT 1 FROM contact_requests c WHERE c.status='accepted'
-    AND ((c.from_id=$1 AND c.to_id=$2) OR (c.from_id=$2 AND c.to_id=$1))))`, [a, b]);
+    AND ((c.from_id=$1 AND c.to_id=$2) OR (c.from_id=$2 AND c.to_id=$1)))
+    OR EXISTS (SELECT 1 FROM market_wants w WHERE (w.buyer_id=$1 AND w.seller_id=$2) OR (w.buyer_id=$2 AND w.seller_id=$1)))`, [a, b]);
   return r.rowCount > 0;
 }
 async function answerRequest(id, targetUid, accept) {
@@ -396,6 +402,15 @@ async function tgWebhook(req) {
     await eventCallback(cb, +cb.data.slice(3));
     return json({ ok: true });
   }
+  if (cb && typeof cb.data === 'string' && cb.data.startsWith('mk:')) {
+    // Seller marks a listing sold straight from the bot message.
+    const id = +cb.data.split(':')[1];
+    const r = await q(`UPDATE listings SET status='sotildi', sold_at=now(), updated_at=now() WHERE id=$1 AND seller_id=$2 AND status='faol' RETURNING title`, [id, 'tg' + cb.from.id]);
+    await tg('answerCallbackQuery', { callback_query_id: cb.id, text: r.rowCount ? 'Sotildi deb belgilandi ✅' : 'E’lon allaqachon yopilgan' });
+    if (cb.message) await tg('editMessageReplyMarkup', { chat_id: cb.message.chat.id, message_id: cb.message.message_id,
+      reply_markup: { inline_keyboard: (cb.message.reply_markup?.inline_keyboard || []).filter((row) => !row.some((b) => b.callback_data)) } }).catch(() => {});
+    return json({ ok: true });
+  }
   if (cb && typeof cb.data === 'string' && cb.data.startsWith('rq:')) {
     const [, id, act] = cb.data.split(':');
     const res = await answerRequest(+id, 'tg' + cb.from.id, act === 'a');
@@ -670,11 +685,12 @@ async function adminRoute(p, m, url, body, uid, tu) {
   }
 
   // Raw CSV-ready export of one table the admin may need offline.
-  if ((mm = p.match(/^\/api\/admin\/export\/(users|problems|referrals|requests)$/)) && m === 'GET') {
+  if ((mm = p.match(/^\/api\/admin\/export\/(users|problems|referrals|requests|market)$/)) && m === 'GET') {
     const sqls = {
       users: `SELECT id, name, username, major, year, array_to_string(interests,'; ') interests, teach, learn, knight_no, role, position, created_at FROM users WHERE ${REAL} ORDER BY created_at`,
       problems: `SELECT p.id, p.kind, p.category, p.status, p.title, p.body, CASE WHEN p.anon THEN 'Anonim' ELSE u.name END author, (SELECT count(*) FROM votes v WHERE v.problem_id=p.id)::int votes, p.created_at, p.resolved_at FROM problems p LEFT JOIN users u ON u.id=p.author_id ORDER BY p.id`,
       referrals: `SELECT ru.name referrer, u.name invited, r.credited, r.created_at FROM referrals r LEFT JOIN users ru ON ru.id=r.referrer_id LEFT JOIN users u ON u.id=r.user_id ORDER BY r.created_at`,
+      market: `SELECT l.id, l.title, l.category, l.condition, l.price, l.status, u.name seller, u.username, (SELECT count(*) FROM market_wants w WHERE w.listing_id=l.id)::int wants, l.created_at, l.sold_at FROM listings l LEFT JOIN users u ON u.id=l.seller_id ORDER BY l.id`,
       requests: `SELECT c.id, f.name from_name, t.name to_name, c.status, c.created_at, c.answered_at FROM contact_requests c LEFT JOIN users f ON f.id=c.from_id LEFT JOIN users t ON t.id=c.to_id ORDER BY c.id`,
     };
     return json({ rows: (await q(sqls[mm[1]])).rows });
@@ -1022,6 +1038,102 @@ async function route(req) {
     return json({ ok: true });
   }
 
+  // ---- market: students list what they have; "Olish" connects the buyer with the seller
+  if ((mm = p.match(/^\/api\/market\/img\/(\d+)$/)) && m === 'GET') {
+    const r = await q('SELECT mime, data FROM listing_photos WHERE id=$1', [+mm[1]]);
+    if (!r.rowCount) return new Response('not found', { status: 404, headers: CORS });
+    return new Response(Buffer.from(r.rows[0].data, 'base64'), { headers: { 'content-type': r.rows[0].mime, 'cache-control': 'public, max-age=31536000, immutable', ...CORS } });
+  }
+  if (p === '/api/market' && m === 'GET') {
+    const cat = MARKET_CATS.includes(url.searchParams.get('cat')) ? url.searchParams.get('cat') : '';
+    const term = str(url.searchParams.get('q') || '', 60);
+    const mine = url.searchParams.get('mine') === '1';
+    const r = await q(`SELECT l.id, l.title, l.price, l.category, l.condition, l.status, l.created_at, (l.seller_id=$1) mine,
+      (SELECT id FROM listing_photos ph WHERE ph.listing_id=l.id ORDER BY pos LIMIT 1) photo,
+      (SELECT count(*) FROM market_wants w WHERE w.listing_id=l.id)::int wants,
+      u.name seller, u.knight_no, u.title seller_title, u.role, u.position, EXISTS(SELECT 1 FROM admins a WHERE a.user_id=u.id) team
+      FROM listings l JOIN users u ON u.id=l.seller_id
+      WHERE ${mine ? 'l.seller_id=$1' : "l.status='faol'"} AND ($2='' OR l.category=$2)
+        AND ($3='' OR l.title ILIKE '%'||$3||'%' OR l.description ILIKE '%'||$3||'%')
+      ORDER BY (l.status='faol') DESC, l.created_at DESC LIMIT 100`, [uid, cat, term]);
+    return json({ listings: r.rows, categories: MARKET_CATS });
+  }
+  if (p === '/api/market' && m === 'POST') {
+    if (!tu && !admin) return bad('E’lon faqat Telegram ichida joylanadi', 401);
+    const me = validUid(body.uid) ? (await q('SELECT * FROM users WHERE id=$1', [body.uid])).rows[0] : null;
+    if (!profileFilled(me)) return bad('E’lon berish uchun avval profilingizni to‘ldiring (yo‘nalish va qiziqish)', 401);
+    const title = str(body.title, 100);
+    if (title.length < 3) return bad('Nomini yozing');
+    const photos = (Array.isArray(body.photos) ? body.photos : []).slice(0, MARKET_PHOTOS)
+      .map((s) => typeof s === 'string' && s.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/)).filter(Boolean);
+    if (!photos.length) return bad('Kamida bitta rasm qo‘shing');
+    if (photos.some((x) => x[2].length > 700000)) return bad('Rasm juda katta');
+    const day = await q(`SELECT count(*)::int n FROM listings WHERE seller_id=$1 AND created_at > now() - interval '1 day'`, [me.id]);
+    if (day.rows[0].n >= 10 && !admin) return bad('Bir kunda 10 tadan ko‘p e’lon berib bo‘lmaydi', 429);
+    const price = body.price === null || body.price === '' || body.price === undefined ? null : Math.max(0, Math.min(1e9, parseInt(body.price) || 0));
+    const r = await q(`INSERT INTO listings (seller_id,title,description,price,category,condition) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [me.id, title, str(body.description, 1500), price, MARKET_CATS.includes(body.category) ? body.category : 'Boshqa', MARKET_COND[body.condition] ? body.condition : 'yaxshi']);
+    const id = r.rows[0].id;
+    // One photo per statement keeps each SQL request small.
+    for (let i = 0; i < photos.length; i++) await q('INSERT INTO listing_photos (listing_id,pos,mime,data) VALUES ($1,$2,$3,$4) RETURNING 1 x', [id, i, photos[i][1], photos[i][2]]);
+    return json({ id }, 201);
+  }
+  if ((mm = p.match(/^\/api\/market\/(\d+)$/)) && m === 'GET') {
+    const r = await q(`SELECT l.*, (l.seller_id=$2) mine,
+      (SELECT coalesce(json_agg(id ORDER BY pos), '[]') FROM listing_photos ph WHERE ph.listing_id=l.id) photos,
+      (SELECT count(*) FROM market_wants w WHERE w.listing_id=l.id)::int wants,
+      EXISTS(SELECT 1 FROM market_wants w WHERE w.listing_id=l.id AND w.buyer_id=$2) wanted,
+      json_build_object('id', u.id, 'name', u.name, 'major', u.major, 'year', u.year, 'photo_url', u.photo_url, 'knight_no', u.knight_no, 'title', u.title, 'role', u.role, 'position', u.position,
+        'team', EXISTS(SELECT 1 FROM admins a WHERE a.user_id=u.id), 'sold', (SELECT count(*) FROM listings s WHERE s.seller_id=u.id AND s.status='sotildi')::int) seller
+      FROM listings l JOIN users u ON u.id=l.seller_id WHERE l.id=$1`, [+mm[1], uid]);
+    if (!r.rowCount) return bad('E’lon topilmadi', 404);
+    const l = r.rows[0];
+    if (l.mine) l.buyers = (await q(`SELECT u.id, u.name, u.username, u.major, u.year, w.created_at FROM market_wants w JOIN users u ON u.id=w.buyer_id
+      WHERE w.listing_id=$1 ORDER BY w.created_at DESC`, [l.id])).rows.map((b) => ({ ...b, link: b.id.startsWith('tg') ? dmLink(b) : null }));
+    if (l.wanted) l.seller.link = dmLink((await q('SELECT id, username FROM users WHERE id=$1', [l.seller_id])).rows[0]);
+    delete l.seller_id;
+    return json({ listing: l });
+  }
+  if ((mm = p.match(/^\/api\/market\/(\d+)$/)) && m === 'PATCH') {
+    const id = +mm[1];
+    const sets = [], vals = [id, uid, !!admin];
+    if (body.status === 'faol' || body.status === 'sotildi') { vals.push(body.status); sets.push(`status=$${vals.length}`, `sold_at = CASE WHEN $${vals.length}='sotildi' THEN now() ELSE NULL END`); }
+    if (body.price !== undefined) { vals.push(body.price === null || body.price === '' ? null : Math.max(0, Math.min(1e9, parseInt(body.price) || 0))); sets.push(`price=$${vals.length}`); }
+    if (body.title !== undefined) { const t = str(body.title, 100); if (t.length < 3) return bad('Nomini yozing'); vals.push(t); sets.push(`title=$${vals.length}`); }
+    if (body.description !== undefined) { vals.push(str(body.description, 1500)); sets.push(`description=$${vals.length}`); }
+    if (!sets.length) return bad('O‘zgarish yo‘q');
+    const r = await q(`UPDATE listings SET ${sets.join(', ')}, updated_at=now() WHERE id=$1 AND (seller_id=$2 OR $3) RETURNING id`, vals);
+    if (!r.rowCount) return bad('Faqat o‘zingizning e’loningizni o‘zgartira olasiz', 403);
+    return json({ ok: true });
+  }
+  if ((mm = p.match(/^\/api\/market\/(\d+)$/)) && m === 'DELETE') {
+    const r = await q('DELETE FROM listings WHERE id=$1 AND (seller_id=$2 OR $3) RETURNING 1 x', [+mm[1], uid, !!admin]);
+    if (!r.rowCount) return bad('Faqat o‘zingizning e’loningizni o‘chira olasiz', 403);
+    return json({ ok: true });
+  }
+  if ((mm = p.match(/^\/api\/market\/(\d+)\/want$/)) && m === 'POST') {
+    if (!tu) return bad('«Olish» faqat Telegram ichida ishlaydi', 401);
+    const me = (await q('SELECT * FROM users WHERE id=$1', [uid])).rows[0];
+    if (!profileFilled(me)) return bad('Olish uchun avval profilingizni to‘ldiring (yo‘nalish va qiziqish)', 401);
+    const l = (await q(`SELECT l.id, l.title, l.price, l.status, u.id seller_id, u.name seller_name, u.username seller_username
+      FROM listings l JOIN users u ON u.id=l.seller_id WHERE l.id=$1`, [+mm[1]])).rows[0];
+    if (!l) return bad('E’lon topilmadi', 404);
+    if (l.seller_id === uid) return bad('Bu sizning e’loningiz');
+    if (l.status !== 'faol') return bad('Bu buyum allaqachon sotilgan', 409);
+    const day = await q(`SELECT count(*)::int n FROM market_wants WHERE buyer_id=$1 AND created_at > now() - interval '1 day'`, [uid]);
+    if (day.rows[0].n >= 20) return bad('Bir kunda 20 tadan ko‘p so‘rov yuborib bo‘lmaydi', 429);
+    const ins = await q('INSERT INTO market_wants (listing_id,buyer_id,seller_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [l.id, uid, l.seller_id]);
+    if (ins.rowCount && l.seller_id.startsWith('tg')) {
+      const who = [me.major, me.year && me.year + '-kurs'].filter(Boolean).join(', ');
+      const kb = [[{ text: `✉️ ${firstName(me.name)}ga yozish`, url: dmLink(me) }], [{ text: '✅ Sotildi deb belgilash', callback_data: `mk:${l.id}:s` }]];
+      if (WEBAPP_URL) kb.push([{ text: 'Market’ni ochish', web_app: { url: WEBAPP_URL } }]);
+      await tg('sendMessage', { chat_id: l.seller_id.slice(2), parse_mode: 'HTML',
+        text: `🛒 <b>${esc(me.name)}</b>${who ? ' (' + esc(who) + ')' : ''} sizning e’loningizni olmoqchi:\n«${esc(l.title)}» — ${priceText(l.price)}\n\nUnga yozib, uchrashuv joyini kelishib oling. Buyumni ko‘rsatib, keyin pulni oling.`,
+        reply_markup: { inline_keyboard: kb } }).catch(() => {});
+    }
+    return json({ ok: true, link: dmLink({ id: l.seller_id, username: l.seller_username }), seller: firstName(l.seller_name), already: !ins.rowCount });
+  }
+
   // ---- events
   if (p === '/api/events' && m === 'GET') {
     const r = await q(`SELECT e.*, ((SELECT count(*) FROM rsvps r WHERE r.event_id=e.id) + (SELECT count(*) FROM event_guests g WHERE g.event_id=e.id))::int going,
@@ -1131,7 +1243,17 @@ async function selftest() {
   };
   try {
     await call('GET', '/api/health');
-    await call('PUT', '/api/me', { uid, name: 'Selftest', teach: 'Python', learn: 'Ingliz tili', interests: ['Startaplar'] });
+    await call('PUT', '/api/me', { uid, name: 'Selftest', major: 'IT', teach: 'Python', learn: 'Ingliz tili', interests: ['Startaplar'] });
+    // Market: 1x1 PNG listing, list, detail, image, sold, delete.
+    const px = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+    const ml = await call('POST', '/api/market', { uid, title: 'Selftest kitob', price: 25000, category: 'Kitoblar', condition: 'yaxshi', photos: [px] }, { 'x-admin-key': ADMIN_KEY });
+    await call('GET', '/api/market?cat=Kitoblar&uid=' + uid);
+    const md = await call('GET', `/api/market/${ml.id}?uid=${uid}`);
+    if (md.listing && md.listing.photos[0]) { const ir = await route(new Request(`http://x/api/market/img/${md.listing.photos[0]}`)); out.push(['GET', '/api/market/img', ir.status, ir.headers.get('content-type')]); }
+    await call('POST', `/api/market/${ml.id}/want`, { uid });
+    await call('PATCH', `/api/market/${ml.id}?uid=${uid}`, { status: 'sotildi' });
+    await call('GET', `/api/market?mine=1&uid=${uid}`);
+    await call('DELETE', `/api/market/${ml.id}?uid=${uid}`);
     const p = await call('POST', '/api/problems', { uid, title: 'Selftest muammosi', category: 'Infratuzilma', anon: true });
     await call('GET', '/api/problems?tab=top&uid=' + uid);
     const sv = await call('POST', '/api/problems', { uid, title: 'Selftest savoli', kind: 'savol' });

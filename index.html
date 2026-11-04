@@ -156,7 +156,32 @@ button.chip[aria-pressed="true"]{background:var(--gold-bg);border-color:var(--go
 .match span{color:var(--muted);text-align:right}
 .link{background:none;border:0;color:var(--muted);font-size:13px;text-decoration:underline;padding:8px;align-self:center}
 nav{border-color:var(--line-2)!important;background:rgba(12,10,6,.72)!important;position:fixed;z-index:20;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));width:min(448px,calc(100% - 32px));height:64px;border-radius:26px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);display:flex;align-items:center;justify-content:space-around;padding:0 8px}
-nav button{position:relative;border:0;background:none;padding:10px 12px;border-radius:16px;font-weight:600;font-size:13px;color:var(--muted)}
+nav button{position:relative;border:0;background:none;padding:10px 8px;border-radius:16px;font-weight:600;font-size:12.5px;color:var(--muted)}
+/* market */
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mcard{display:flex;flex-direction:column;padding:0;overflow:hidden;text-align:left;width:100%;min-width:0;border-radius:20px}
+.mcard .ph{position:relative;aspect-ratio:1/1;background:rgba(255,255,255,.05);overflow:hidden}
+.mcard .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.mcard .ph .sold{position:absolute;left:8px;top:8px}
+.mcard .ph .wn{position:absolute;right:8px;bottom:8px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(5,5,5,.7);color:var(--gold-hi)}
+.mcard .in{padding:10px 12px 12px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.mcard .pr{font-weight:800;font-size:15px;color:var(--gold-hi);font-variant-numeric:tabular-nums}
+.mcard .tt{font-size:13px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.mcard .mt{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcard.off{opacity:.6}
+.gallery{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -18px;padding:0 18px;scrollbar-width:none}
+.gallery::-webkit-scrollbar{display:none}
+.gallery img{flex:none;width:100%;max-height:60vh;aspect-ratio:1/1;object-fit:cover;border-radius:20px;scroll-snap-align:center;background:rgba(255,255,255,.05)}
+.gallery.multi img{width:88%}
+.lprice{font-family:var(--crest);font-weight:700;font-size:26px;background:var(--metal);-webkit-background-clip:text;background-clip:text;color:transparent}
+.seller{display:flex;gap:12px;align-items:center;padding:12px}
+.seller .body{flex:1;min-width:0}
+.pickers{display:flex;gap:8px;flex-wrap:wrap}
+.pick{position:relative;width:84px;height:84px;border-radius:16px;overflow:hidden;border:1px solid var(--line-2);background:rgba(255,255,255,.06)}
+.pick img{width:100%;height:100%;object-fit:cover}
+.pick button{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(5,5,5,.75);color:#fff;font-size:12px;line-height:1}
+.pick.add{display:grid;place-items:center;border-style:dashed;color:var(--gold-hi);font-size:26px;cursor:pointer}
+.rules{font-size:12px;color:var(--dim);line-height:1.45;padding:10px 12px;border-radius:14px;border:1px solid var(--line)}
 nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 /* bottom sheet */
 .scrim{position:fixed;inset:0;z-index:30;background:rgba(5,6,12,.55);display:flex;align-items:flex-end;justify-content:center}
@@ -191,6 +216,7 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
   <button data-tab="ovoz" aria-current="page">Lenta</button>
   <button data-tab="odamlar">Odamlar</button>
   <button data-tab="tadbirlar">Tadbirlar</button>
+  <button data-tab="market">Market</button>
   <button data-tab="profil">Profil<span class="dot" id="reqdot" hidden></span></button>
 </nav>
 <div id="layer"></div>
@@ -397,6 +423,166 @@ function viewTadbirlar() {
     }).join('')}</div>`;
   }
   return head('Tadbirlar', addBtn) + offlineNote() + body;
+}
+
+// ---------- market
+const MCATS = ['Kitoblar', 'Texnika', 'Kiyim', 'Kanselyariya', 'Yotoqxona', 'Sport', 'Boshqa'];
+const MCOND = { yangi: 'Yangi', yaxshi: 'Yaxshi', ortacha: 'O‘rtacha' };
+const price = (p) => (p === null || p === undefined ? 'Kelishiladi' : +p === 0 ? 'Bepul' : Number(p).toLocaleString('ru-RU').replace(/ /g, ' ') + ' so‘m');
+const imgUrl = (id) => `${API}/api/market/img/${id}`;
+const profileOk = (me) => !!(me && me.major && me.major.trim() && ((me.interests || []).length || (me.teach || '').trim() || (me.learn || '').trim()));
+S.market = null; S.mcat = ''; S.mq = ''; S.mmine = false;
+async function loadMarket() {
+  try { S.market = (await api(`/api/market?cat=${encodeURIComponent(S.mcat)}&q=${encodeURIComponent(S.mq)}&uid=${uid}${S.mmine ? '&mine=1' : ''}`)).listings; S.offline = false; }
+  catch (e) { S.offline = true; if (!S.market) S.market = []; }
+}
+// Buying and selling need a filled profile; otherwise send the person to fill it first.
+function needFullProfile(action, why) {
+  if (profileOk(S.me)) return true;
+  toast(why); pendingAction = action; profileSheet(!S.me); return false;
+}
+function marketList() {
+  if (S.market === null) return '<div class="mgrid"><div class="skeleton" style="height:220px"></div><div class="skeleton" style="height:220px"></div></div>';
+  if (!S.market.length) return `<div class="glass empty"><b>${S.mmine ? 'Siz hali e’lon bermagansiz' : S.mq || S.mcat ? 'Hech narsa topilmadi' : 'Market hali bo‘sh'}</b>${S.mmine || !(S.mq || S.mcat) ? 'Keraksiz kitob, texnika yoki buyumingiz bormi? Rasmini olib, birinchi bo‘lib joylang.' : 'Boshqa turkum yoki so‘z bilan qidirib ko‘ring.'}</div>`;
+  return `<div class="mgrid">${S.market.map((l) => `<button class="glass mcard${l.status !== 'faol' ? ' off' : ''}" data-listing="${l.id}">
+    <span class="ph">${l.photo ? `<img src="${imgUrl(l.photo)}" alt="" loading="lazy">` : ''}${l.status !== 'faol' ? '<span class="pill s-hal sold">Sotildi</span>' : ''}${l.mine && l.wants ? `<span class="wn">${l.wants} xaridor</span>` : ''}</span>
+    <span class="in"><span class="pr">${price(l.price)}</span><span class="tt">${esc(l.title)}</span><span class="mt">${esc(l.category)} · ${ago(l.created_at)}</span></span>
+  </button>`).join('')}</div>`;
+}
+function viewMarket() {
+  const cats = [['', 'Hammasi']].concat(MCATS.map((c) => [c, c]));
+  return head('Talabalar marketi') + offlineNote() + `
+  <button class="cta" data-act="newlisting">+ E’lon berish</button>
+  <form class="search" role="search" onsubmit="return false"><label for="mk-q" style="position:absolute;left:-9999px">Marketda qidirish</label>
+    <input id="mk-q" type="search" placeholder="Nima qidiryapsiz? Masalan: kalkulyator" value="${esc(S.mq)}" autocomplete="off"></form>
+  <div class="seg" role="group" aria-label="Ko‘rinish"><button data-mmine="0" aria-pressed="${!S.mmine}">Barcha e’lonlar</button><button data-mmine="1" aria-pressed="${S.mmine}">Mening e’lonlarim</button></div>
+  ${S.mmine ? '' : `<div class="kinds" role="group" aria-label="Turkum">${cats.map(([k, l]) => `<button class="chip" data-mcat="${esc(k)}" aria-pressed="${S.mcat === k}">${esc(l)}</button>`).join('')}</div>`}
+  <div id="mk-list">${marketList()}</div>`;
+}
+
+async function listingSheet(id) {
+  openSheet(sheetTop('E’lon') + '<div class="skeleton" style="height:320px"></div>');
+  let l;
+  try { l = (await api(`/api/market/${id}?uid=${uid}`)).listing; }
+  catch (err) { const sh = $('.sheet'); if (sh) sh.innerHTML = sheetTop('E’lon') + `<div class="err">${esc(err.message)}</div>`; return; }
+  const sh = $('.sheet'); if (!sh) return;
+  const s = l.seller;
+  const sold = l.status !== 'faol';
+  const canManage = l.mine || isAdmin;
+  const act = l.mine ? '' : sold ? '<button class="primary" disabled>Sotilgan</button>'
+    : l.wanted ? `<button class="primary" data-mk="chat">✉️ ${esc(firstName(s.name))}ga yozish</button><div class="small" style="text-align:center">So‘rovingiz sotuvchiga yuborilgan.</div>`
+    : '<button class="primary" data-mk="want">Olish</button>';
+  sh.innerHTML = sheetTop(sold ? 'Sotilgan' : 'E’lon') + `
+    <div class="gallery${l.photos.length > 1 ? ' multi' : ''}">${l.photos.map((p) => `<img src="${imgUrl(p)}" alt="${esc(l.title)}">`).join('')}</div>
+    <div><div class="lprice">${price(l.price)}</div><h2 style="font-family:var(--font);font-size:19px;font-weight:700;margin:4px 0 0;overflow-wrap:anywhere">${esc(l.title)}</h2>
+      <div class="small" style="margin-top:4px">${esc(l.category)} · Holati: ${MCOND[l.condition] || 'Yaxshi'} · ${ago(l.created_at)}${l.wants ? ` · ${l.wants} kishi so‘radi` : ''}</div></div>
+    ${l.description ? `<div style="white-space:pre-wrap;font-size:14px;color:var(--muted);overflow-wrap:anywhere">${esc(l.description)}</div>` : ''}
+    <div class="glass seller">${avatar(s)}<div class="body"><b>${esc(s.name)}${marks(s)}</b><div class="small" style="font-size:12px">${esc([s.major, s.year && s.year + '-kurs'].filter(Boolean).join(' · ') || 'Millat Umidi talabasi')}${s.sold ? ` · ${s.sold} ta sotgan` : ''}</div></div></div>
+    ${act}
+    ${l.mine && l.buyers && l.buyers.length ? `<section class="glass box"><h3>Olmoqchilar (${l.buyers.length})</h3>${l.buyers.map((b) => `<div class="match"><b>${esc(b.name)}<small style="display:block;font-weight:500;color:var(--dim)">${esc([b.major, b.year && b.year + '-kurs'].filter(Boolean).join(', '))} · ${ago(b.created_at)}</small></b>${b.link ? `<button class="btn" data-mklink="${esc(b.link)}" style="height:36px;padding:0 12px">Yozish</button>` : ''}</div>`).join('')}</section>` : ''}
+    ${l.mine && !l.buyers.length && !sold ? '<div class="small" style="text-align:center">Kimdir «Olish»ni bossa, bot sizga xabar beradi.</div>' : ''}
+    ${canManage ? `<div class="admin" style="justify-content:center">${l.mine ? `<button data-mk="${sold ? 'reopen' : 'sold'}" class="${sold ? '' : 'on'}">${sold ? 'Qayta sotuvga qo‘yish' : '✅ Sotildi deb belgilash'}</button>` : ''}<button class="del" data-mk="del">O‘chirish</button></div>` : ''}
+    ${!l.mine ? '<div class="rules">Xavfsiz savdo: kampusda uchrashing, buyumni ko‘rib, keyin pul bering. Oldindan pul o‘tkazmang.</div>' : ''}`;
+  sh.addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.mklink) { openTg(b.dataset.mklink); return; }
+    const a = b.dataset.mk; if (!a) return;
+    if (a === 'want') {
+      if (!needFullProfile(() => listingSheet(id), 'Olish uchun avval profilingizni to‘ldiring')) return;
+      b.disabled = true; b.textContent = 'Yuborilmoqda…';
+      try {
+        const r = await api(`/api/market/${id}/want`, { method: 'POST', body: { uid } });
+        toast(r.already ? 'So‘rov avval yuborilgan' : `✓ ${r.seller}ga xabar yuborildi`);
+        openTg(r.link); listingSheet(id); loadMarket().then(() => { if (S.tab === 'market') render(); });
+      } catch (err) { toast(err.message); b.disabled = false; b.textContent = 'Olish'; }
+      return;
+    }
+    if (a === 'chat') { if (s.link) openTg(s.link); return; }
+    if (a === 'sold' || a === 'reopen') {
+      try { await api(`/api/market/${id}?uid=${uid}`, { method: 'PATCH', body: { status: a === 'sold' ? 'sotildi' : 'faol' } }); toast(a === 'sold' ? 'Tabriklaymiz, sotildi!' : 'Qayta sotuvga qo‘yildi'); }
+      catch (err) { toast(err.message); return; }
+      await loadMarket(); render(); listingSheet(id); return;
+    }
+    if (a === 'del') {
+      if (b.dataset.confirm !== '1') { b.dataset.confirm = '1'; b.textContent = 'Rostdan o‘chirilsinmi?'; return; }
+      try { await api(`/api/market/${id}?uid=${uid}`, { method: 'DELETE' }); toast('E’lon o‘chirildi'); closeSheet(); await loadMarket(); render(); }
+      catch (err) { toast(err.message); }
+    }
+  });
+}
+function openTg(link) { if (TG && TG.openTelegramLink && link.startsWith('https://t.me/')) TG.openTelegramLink(link); else window.open(link, '_blank'); }
+const firstName = (n) => String(n || 'Talaba').trim().split(/\s+/)[0];
+
+// Shrinks a photo on the phone before upload: longest side ≤ 1080px, JPEG.
+function shrinkPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let out = '';
+      for (const [max, qlt] of [[1080, 0.78], [900, 0.66], [720, 0.58]]) {
+        const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+        out = c.toDataURL('image/jpeg', qlt);
+        if (out.length < 600000) break;
+      }
+      resolve(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Rasmni ochib bo‘lmadi')); };
+    img.src = url;
+  });
+}
+function newListingSheet() {
+  if (!TG_INIT && !isAdmin) { toast('E’lonni Telegram’dagi bot ichidan joylang'); return; }
+  if (!needFullProfile(newListingSheet, 'E’lon berish uchun avval profilingizni to‘ldiring')) return;
+  const photos = [];
+  let cat = 'Kitoblar', cond = 'yaxshi', free = false;
+  openSheet(sheetTop('E’lon berish') + `
+    <form id="nl" style="display:flex;flex-direction:column;gap:14px" novalidate>
+      <div class="field">Rasmlar (3 tagacha)<div class="pickers" id="nl-pics"></div>
+        <input id="nl-file" type="file" accept="image/*" multiple hidden></div>
+      <label class="field">Nima sotyapsiz?<input id="nl-title" maxlength="100" placeholder="Masalan: Casio fx-991 kalkulyatori" required></label>
+      <div class="field">Turkum<div class="chips" id="nl-cat">${MCATS.map((c) => `<button type="button" class="chip" aria-pressed="${c === cat}">${esc(c)}</button>`).join('')}</div></div>
+      <div class="field">Holati<div class="chips" id="nl-cond">${Object.keys(MCOND).map((k) => `<button type="button" class="chip" data-c="${k}" aria-pressed="${k === cond}">${MCOND[k]}</button>`).join('')}</div></div>
+      <label class="field">Narxi (so‘m)<input id="nl-price" type="number" inputmode="numeric" min="0" step="1000" placeholder="Bo‘sh qolsa — kelishiladi"></label>
+      <button type="button" class="toggle" id="nl-free" role="switch" aria-checked="false"><span style="flex:1"><b style="display:block">Bepul beraman</b><span class="small">Sovg‘a qilmoqchi bo‘lsangiz</span></span><span class="sw" aria-hidden="true"></span></button>
+      <label class="field">Batafsil<textarea id="nl-desc" rows="3" maxlength="1500" placeholder="Qancha ishlatilgan, nuqsoni bormi, qayerda ko‘rish mumkin"></textarea></label>
+      <div class="rules">Sotib bo‘lmaydi: sigaret/vape, dori, qurol, tayyor kurs ishi va imtihon javoblari, birovning narsasi. Bunday e’lonlar o‘chiriladi.</div>
+      <div class="err" id="nl-err" role="alert"></div>
+      <button class="primary" type="submit">Joylash</button>
+    </form>`, (el) => {
+    const pics = $('#nl-pics', el), file = $('#nl-file', el);
+    const draw = () => {
+      pics.innerHTML = photos.map((p, i) => `<div class="pick"><img src="${p}" alt="Rasm ${i + 1}"><button type="button" data-rm="${i}" aria-label="Rasmni olib tashlash">✕</button></div>`).join('')
+        + (photos.length < 3 ? '<button type="button" class="pick add" data-add aria-label="Rasm qo‘shish">+</button>' : '');
+    };
+    draw();
+    pics.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.add !== undefined) file.click();
+      else if (b.dataset.rm) { photos.splice(+b.dataset.rm, 1); draw(); }
+    });
+    file.addEventListener('change', async () => {
+      const list = [...file.files].slice(0, 3 - photos.length); file.value = '';
+      for (const f of list) { try { photos.push(await shrinkPhoto(f)); draw(); } catch (err) { toast(err.message); } }
+    });
+    $('#nl-cat', el).addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return; cat = b.textContent; el.querySelectorAll('#nl-cat .chip').forEach((x) => x.setAttribute('aria-pressed', x === b)); });
+    $('#nl-cond', el).addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return; cond = b.dataset.c; el.querySelectorAll('#nl-cond .chip').forEach((x) => x.setAttribute('aria-pressed', x === b)); });
+    $('#nl-free', el).addEventListener('click', (e) => { free = !free; e.currentTarget.setAttribute('aria-checked', free); $('#nl-price', el).disabled = free; });
+    $('#nl', el).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = $('#nl-err', el), title = $('#nl-title', el).value.trim();
+      if (!photos.length) { err.textContent = 'Kamida bitta rasm qo‘shing.'; return; }
+      if (title.length < 3) { err.textContent = 'Nimani sotayotganingizni yozing.'; return; }
+      const pv = $('#nl-price', el).value.trim();
+      const btn = $('button[type=submit]', el); btn.disabled = true; btn.textContent = 'Yuklanmoqda…';
+      try {
+        await api('/api/market', { method: 'POST', body: { uid, title, category: cat, condition: cond, price: free ? 0 : pv === '' ? null : pv, description: $('#nl-desc', el).value, photos } });
+        closeSheet(); toast('E’lon joylandi'); S.tab = 'market'; S.mmine = true; S.mcat = ''; S.mq = ''; await loadMarket(); render();
+      } catch (er) { err.textContent = er.message; btn.disabled = false; btn.textContent = 'Joylash'; }
+    });
+  });
 }
 
 function peopleList() {
@@ -612,7 +798,7 @@ function viewProfil() {
 function render() {
   const app = $('#app');
   const y = window.scrollY;
-  app.innerHTML = S.tab === 'ovoz' ? viewOvoz() : S.tab === 'odamlar' ? viewOdamlar() : S.tab === 'tadbirlar' ? viewTadbirlar() : viewProfil();
+  app.innerHTML = S.tab === 'ovoz' ? viewOvoz() : S.tab === 'odamlar' ? viewOdamlar() : S.tab === 'tadbirlar' ? viewTadbirlar() : S.tab === 'market' ? viewMarket() : viewProfil();
   window.scrollTo(0, y);
   document.querySelectorAll('nav button').forEach((b) => b.toggleAttribute('aria-current', false) || (b.dataset.tab === S.tab && b.setAttribute('aria-current', 'page')));
 }
@@ -835,6 +1021,10 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (d.act === 'newevent') return newEventSheet();
+  if (d.act === 'newlisting') return newListingSheet();
+  if (d.listing) return listingSheet(d.listing);
+  if (d.mcat !== undefined && t.closest('.kinds')) { S.mcat = d.mcat; S.market = null; render(); await loadMarket(); render(); return; }
+  if (d.mmine) { S.mmine = d.mmine === '1'; S.market = null; render(); await loadMarket(); render(); return; }
   if (d.act === 'admin') return adminSheet();
   if (d.act === 'share' && S.refLink) {
     const text = 'Black Knight — Millat Umidi talabalari platformasi. Muammo yoz, ovoz ber, kerakli odamni top:';
@@ -893,7 +1083,13 @@ document.addEventListener('click', async (e) => {
   }
 });
 let searchTimer;
+let mkTimer;
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'mk-q') {
+    clearTimeout(mkTimer);
+    mkTimer = setTimeout(async () => { S.mq = e.target.value.trim(); await loadMarket(); const box = document.getElementById('mk-list'); if (box) box.innerHTML = marketList(); }, 300);
+    return;
+  }
   if (e.target.id !== 'ppl-q') return;
   clearTimeout(searchTimer);
   searchTimer = setTimeout(async () => {
@@ -918,6 +1114,7 @@ async function refresh() {
   if (S.tab === 'ovoz') await Promise.all([loadProblems(), loadStats()]);
   else if (S.tab === 'tadbirlar') await loadEvents();
   else if (S.tab === 'odamlar') await loadPeople();
+  else if (S.tab === 'market') await loadMarket();
   else await Promise.all([loadMe(), loadMatches(), loadRequests(), loadContacts()]);
   const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('form');
   if (!$('.scrim') && !typing) render();
