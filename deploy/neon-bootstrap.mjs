@@ -1,3 +1,3 @@
-const S='76864d837c4042c50487899c6117cdd7b1cbfb4f',U=['https://raw.githubusercontent.com/ismo1ljanov-coder/blackknight/'+S+'/api/index.js','https://cdn.jsdelivr.net/gh/ismo1ljanov-coder/blackknight@'+S+'/api/index.js'];let m;
+const S='44e08b71ba284407916516a54b56ed82231e8f0f',U=['https://raw.githubusercontent.com/ismo1ljanov-coder/blackknight/'+S+'/api/index.js','https://cdn.jsdelivr.net/gh/ismo1ljanov-coder/blackknight@'+S+'/api/index.js'];let m;
 async function load(){for(const u of U){try{const r=await fetch(u);if(r.ok){const t=await r.text();return (await import('data:text/javascript;base64,'+Buffer.from(t).toString('base64'))).default}}catch(e){}}throw new Error('code fetch failed')}
 export default{async fetch(q){try{m=m||load();return (await m).fetch(q)}catch(e){m=null;return new Response(JSON.stringify({error:'Server yuklanmoqda, qayta urinib ko‘ring'}),{status:503,headers:{'content-type':'application/json','access-control-allow-origin':'*'}})}}};
