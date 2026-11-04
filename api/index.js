@@ -352,6 +352,56 @@ async function liveEvent(eventId) {
   return json(res);
 }
 
+// One-off promo video to every bot user. Armed via settings 'promo_<key>': value 'test:<uid>' sends one copy,
+// 'armed' sends to everyone (SEGMENTS.all). Each person gets it once (reminders kind 'promo_<key>'), so a re-run resumes.
+const PROMOS = {
+  market1: { file: 'market_promo.mp4', btn: '🛒 Market’ni ochish', caption: `🛒 <b>MARKET ochildi — talabadan talabaga!</b>
+
+Darsligingiz chang bosib yotibdimi? Kerakli kitobingiz boshqa talabada bordir? Endi Black Knight ilovasida ularni bir-biringizga sotishingiz yoki bepul berishingiz mumkin.
+
+📚 Kitoblar · Darsliklar · Kanselyariya · Sport
+
+1️⃣ Rasmga oling va e’lon bering
+2️⃣ «Olish»ni bosing — bot sizni sotuvchi bilan bog‘laydi
+3️⃣ Kampusda uchrashing, ko‘rib oling
+
+🛡 Faqat Millat Umidi talabalari · anonim shikoyat · oldindan pul yo‘q
+
+Bu do‘kon emas — talabalarning bir-biriga yordami 🤝
+
+👇 Pastdagi tugma orqali Market’ni oching
+
+<b>Black Knight Team</b> ♞` },
+};
+async function promoJob(key) {
+  const pr = PROMOS[key];
+  const armed = (await q('SELECT value FROM settings WHERE key=$1', ['promo_' + key])).rows[0];
+  if (!pr || !armed || !(armed.value === 'armed' || armed.value.startsWith('test:'))) return bad('not armed', 403);
+  const test = armed.value.startsWith('test:') ? armed.value.slice(5) : null;
+  const kind = 'promo_' + key, fkey = 'promo_video_' + key;
+  const rows = test ? [{ user_id: test }] : (await q(`${SEGMENTS.all} EXCEPT SELECT user_id FROM reminders WHERE kind=$1`, [kind])).rows;
+  const kb = WEBAPP_URL ? { inline_keyboard: [[{ text: pr.btn, web_app: { url: WEBAPP_URL } }]] } : undefined;
+  const res = { test: !!test, total: rows.length, sent: 0, failed: 0, stopped: null };
+  const started = Date.now();
+  for (const r of rows) {
+    if (Date.now() - started > 50000) { res.stopped = 'time'; break; }
+    const cached = (await q('SELECT value FROM settings WHERE key=$1', [fkey])).rows[0];
+    const video = cached ? cached.value : WEBAPP_URL.replace(/\/$/, '') + '/' + pr.file;
+    const t = await tg('sendVideo', { chat_id: r.user_id.slice(2), video, caption: pr.caption, parse_mode: 'HTML', supports_streaming: true, width: 1080, height: 1920, reply_markup: kb }).catch(() => null);
+    const ok = !!(t && t.ok);
+    if (!ok && !(t && (t.error_code === 403 || /chat not found|blocked|deactivated/i.test(t.description || '')))) { res.stopped = t ? t.description : 'network'; break; }
+    const fid = ok && t.result.video && t.result.video.file_id;
+    if (fid && !cached) await q('INSERT INTO settings (key,value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2, updated_at=now() RETURNING 1 x', [fkey, fid]);
+    res[ok ? 'sent' : 'failed']++;
+    if (!test) await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, kind, ok]);
+    await new Promise((z) => setTimeout(z, 50));
+  }
+  // A test fires once; a full run disarms itself when nobody is left.
+  if (test || (!res.stopped && rows.length === res.sent + res.failed)) await q('UPDATE settings SET value=$2 WHERE key=$1 RETURNING 1 x', ['promo_' + key, test ? 'tested' : 'done']);
+  await q('INSERT INTO selftest (result) VALUES ($1) RETURNING 1 x', [JSON.stringify({ promo: key, res })]).catch(() => {});
+  return json(res);
+}
+
 // Post-event thank-you to everyone who signed up, asking whether they came. Armed via settings 'thanks_<id>'.
 async function thanksEvent(eventId) {
   const armed = (await q('SELECT value FROM settings WHERE key=$1', ['thanks_' + eventId])).rows[0];
@@ -1380,6 +1430,7 @@ export default {
       if (path === '/tg/webhook' && req.method === 'POST') return await tgWebhook(req);
       if (path.startsWith('/tg/thanks/')) return await thanksEvent(+path.split('/')[3]);
       if (path.startsWith('/tg/live/')) return await liveEvent(+path.split('/')[3]);
+      if (path.startsWith('/tg/promo/')) return await promoJob(path.split('/')[3]);
       if (path.startsWith('/tg/nudge/')) return await nudgeEvent(+path.split('/')[3]);
       if (path.startsWith('/tg/announce/')) {
         const [, , , key, id] = path.split('/');
