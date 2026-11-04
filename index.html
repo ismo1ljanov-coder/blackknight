@@ -431,10 +431,11 @@ const MCOND = { yangi: 'Yangi', yaxshi: 'Yaxshi', ortacha: 'O‘rtacha' };
 const price = (p) => (p === null || p === undefined ? 'Kelishiladi' : +p === 0 ? 'Bepul' : Number(p).toLocaleString('ru-RU').replace(/ /g, ' ') + ' so‘m');
 const imgUrl = (id) => `${API}/api/market/img/${id}`;
 const profileOk = (me) => !!(me && me.major && me.major.trim() && ((me.interests || []).length || (me.teach || '').trim() || (me.learn || '').trim()));
-S.market = null; S.mcat = ''; S.mq = ''; S.mmine = false;
+S.market = null; S.mcat = ''; S.mq = ''; S.mmine = false; S.mhidden = false;
+const MREASONS = ['Taqiqlangan buyum', 'Firibgarlik', 'Noto‘g‘ri ma’lumot', 'Haqoratli', 'Boshqa'];
 async function loadMarket() {
-  try { S.market = (await api(`/api/market?cat=${encodeURIComponent(S.mcat)}&q=${encodeURIComponent(S.mq)}&uid=${uid}${S.mmine ? '&mine=1' : ''}`)).listings; S.offline = false; }
-  catch (e) { S.offline = true; if (!S.market) S.market = []; }
+  try { S.market = (await api(`/api/market?cat=${encodeURIComponent(S.mcat)}&q=${encodeURIComponent(S.mq)}&uid=${uid}${S.mmine ? '&mine=1' : ''}${S.mhidden ? '&hidden=1' : ''}`)).listings; S.offline = false; }
+  catch (e) { S.marketSoon = e.status === 404; S.offline = !S.marketSoon; if (!S.market) S.market = []; }
 }
 // Buying and selling need a filled profile; otherwise send the person to fill it first.
 function needFullProfile(action, why) {
@@ -443,20 +444,22 @@ function needFullProfile(action, why) {
 }
 function marketList() {
   if (S.market === null) return '<div class="mgrid"><div class="skeleton" style="height:220px"></div><div class="skeleton" style="height:220px"></div></div>';
+  if (S.marketSoon) return '<div class="glass empty"><b>Market tez orada ochiladi</b>Bo‘lim tayyorlanmoqda — bir oz kuting.</div>';
   if (!S.market.length) return `<div class="glass empty"><b>${S.mmine ? 'Siz hali e’lon bermagansiz' : S.mq || S.mcat ? 'Hech narsa topilmadi' : 'Market hali bo‘sh'}</b>${S.mmine || !(S.mq || S.mcat) ? 'Keraksiz kitob, texnika yoki buyumingiz bormi? Rasmini olib, birinchi bo‘lib joylang.' : 'Boshqa turkum yoki so‘z bilan qidirib ko‘ring.'}</div>`;
   return `<div class="mgrid">${S.market.map((l) => `<button class="glass mcard${l.status !== 'faol' ? ' off' : ''}" data-listing="${l.id}">
-    <span class="ph">${l.photo ? `<img src="${imgUrl(l.photo)}" alt="" loading="lazy">` : ''}${l.status !== 'faol' ? '<span class="pill s-hal sold">Sotildi</span>' : ''}${l.mine && l.wants ? `<span class="wn">${l.wants} xaridor</span>` : ''}</span>
+    <span class="ph">${l.photo ? `<img src="${imgUrl(l.photo)}" alt="" loading="lazy">` : ''}${l.status === 'sotildi' ? '<span class="pill s-hal sold">Sotildi</span>' : l.status === 'yashirin' ? `<span class="pill s-jarayonda sold">Tekshiruvda${l.reports ? ' · 🚩' + l.reports : ''}</span>` : ''}${l.mine && l.wants ? `<span class="wn">${l.wants} xaridor</span>` : ''}</span>
     <span class="in"><span class="pr">${price(l.price)}</span><span class="tt">${esc(l.title)}</span><span class="mt">${esc(l.category)} · ${ago(l.created_at)}</span></span>
   </button>`).join('')}</div>`;
 }
 function viewMarket() {
   const cats = [['', 'Hammasi']].concat(MCATS.map((c) => [c, c]));
-  return head('Talabalar marketi') + offlineNote() + `
+  const segs = [['all', 'Barchasi', !S.mmine && !S.mhidden], ['mine', 'Meniki', S.mmine]].concat(isAdmin ? [['hidden', '🚩 Tekshiruv', S.mhidden]] : []);
+  return head('Talabalar marketi', '<button class="iconbtn" data-act="mkintro" aria-label="Market qanday ishlaydi?" style="font-family:var(--crest);font-weight:700;font-size:18px">?</button>') + offlineNote() + `
   <button class="cta" data-act="newlisting">+ E’lon berish</button>
   <form class="search" role="search" onsubmit="return false"><label for="mk-q" style="position:absolute;left:-9999px">Marketda qidirish</label>
     <input id="mk-q" type="search" placeholder="Nima qidiryapsiz? Masalan: kalkulyator" value="${esc(S.mq)}" autocomplete="off"></form>
-  <div class="seg" role="group" aria-label="Ko‘rinish"><button data-mmine="0" aria-pressed="${!S.mmine}">Barcha e’lonlar</button><button data-mmine="1" aria-pressed="${S.mmine}">Mening e’lonlarim</button></div>
-  ${S.mmine ? '' : `<div class="kinds" role="group" aria-label="Turkum">${cats.map(([k, l]) => `<button class="chip" data-mcat="${esc(k)}" aria-pressed="${S.mcat === k}">${esc(l)}</button>`).join('')}</div>`}
+  <div class="seg" role="group" aria-label="Ko‘rinish">${segs.map(([k, l, on]) => `<button data-mview="${k}" aria-pressed="${on}">${l}</button>`).join('')}</div>
+  ${S.mmine || S.mhidden ? '' : `<div class="kinds" role="group" aria-label="Turkum">${cats.map(([k, l]) => `<button class="chip" data-mcat="${esc(k)}" aria-pressed="${S.mcat === k}">${esc(l)}</button>`).join('')}</div>`}
   <div id="mk-list">${marketList()}</div>`;
 }
 
@@ -467,12 +470,13 @@ async function listingSheet(id) {
   catch (err) { const sh = $('.sheet'); if (sh) sh.innerHTML = sheetTop('E’lon') + `<div class="err">${esc(err.message)}</div>`; return; }
   const sh = $('.sheet'); if (!sh) return;
   const s = l.seller;
-  const sold = l.status !== 'faol';
+  const sold = l.status === 'sotildi', hidden = l.status === 'yashirin';
   const canManage = l.mine || isAdmin;
-  const act = l.mine ? '' : sold ? '<button class="primary" disabled>Sotilgan</button>'
+  const act = l.mine ? '' : hidden ? '<button class="primary" disabled>Tekshiruvda</button>' : sold ? '<button class="primary" disabled>Sotilgan</button>'
     : l.wanted ? `<button class="primary" data-mk="chat">✉️ ${esc(firstName(s.name))}ga yozish</button><div class="small" style="text-align:center">So‘rovingiz sotuvchiga yuborilgan.</div>`
     : '<button class="primary" data-mk="want">Olish</button>';
-  sh.innerHTML = sheetTop(sold ? 'Sotilgan' : 'E’lon') + `
+  sh.innerHTML = sheetTop(hidden ? 'Tekshiruvda' : sold ? 'Sotilgan' : 'E’lon') + `
+    ${hidden ? `<div class="offline" role="status">Bu e’lon shikoyatlar sababli yashirilgan.${l.reports && l.reports.length ? ' Sabablar: ' + esc([...new Set(l.reports.map((r) => r.reason))].join(', ')) + '.' : ''}${l.mine && !isAdmin ? ' Jamoa ko‘rib chiqadi.' : ''}</div>` : ''}
     <div class="gallery${l.photos.length > 1 ? ' multi' : ''}">${l.photos.map((p) => `<img src="${imgUrl(p)}" alt="${esc(l.title)}">`).join('')}</div>
     <div><div class="lprice">${price(l.price)}</div><h2 style="font-family:var(--font);font-size:19px;font-weight:700;margin:4px 0 0;overflow-wrap:anywhere">${esc(l.title)}</h2>
       <div class="small" style="margin-top:4px">${esc(l.category)} · Holati: ${MCOND[l.condition] || 'Yaxshi'} · ${ago(l.created_at)}${l.wants ? ` · ${l.wants} kishi so‘radi` : ''}</div></div>
@@ -481,14 +485,16 @@ async function listingSheet(id) {
     ${act}
     ${l.mine && l.buyers && l.buyers.length ? `<section class="glass box"><h3>Olmoqchilar (${l.buyers.length})</h3>${l.buyers.map((b) => `<div class="match"><b>${esc(b.name)}<small style="display:block;font-weight:500;color:var(--dim)">${esc([b.major, b.year && b.year + '-kurs'].filter(Boolean).join(', '))} · ${ago(b.created_at)}</small></b>${b.link ? `<button class="btn" data-mklink="${esc(b.link)}" style="height:36px;padding:0 12px">Yozish</button>` : ''}</div>`).join('')}</section>` : ''}
     ${l.mine && !l.buyers.length && !sold ? '<div class="small" style="text-align:center">Kimdir «Olish»ni bossa, bot sizga xabar beradi.</div>' : ''}
-    ${canManage ? `<div class="admin" style="justify-content:center">${l.mine ? `<button data-mk="${sold ? 'reopen' : 'sold'}" class="${sold ? '' : 'on'}">${sold ? 'Qayta sotuvga qo‘yish' : '✅ Sotildi deb belgilash'}</button>` : ''}<button class="del" data-mk="del">O‘chirish</button></div>` : ''}
-    ${!l.mine ? '<div class="rules">Xavfsiz savdo: kampusda uchrashing, buyumni ko‘rib, keyin pul bering. Oldindan pul o‘tkazmang.</div>' : ''}`;
+    ${canManage ? `<div class="admin" style="justify-content:center">${hidden ? (isAdmin ? '<button data-mk="reopen" class="on">✓ Tekshirildi — qayta ochish</button>' : '') : l.mine ? `<button data-mk="${sold ? 'reopen' : 'sold'}" class="${sold ? '' : 'on'}">${sold ? 'Qayta sotuvga qo‘yish' : '✅ Sotildi deb belgilash'}</button>` : ''}<button class="del" data-mk="del">O‘chirish</button></div>` : ''}
+    ${!l.mine ? `<div class="rules"><b style="color:var(--fg)">Xavfsiz savdo:</b> kampusda, odamlar bor joyda uchrashing. Buyumni ko‘rib, tekshirib, keyin pul bering. Oldindan pul yoki karta ma’lumotini yubormang.</div>
+    ${l.reported ? '<div class="small" style="text-align:center">🚩 Shikoyatingiz qabul qilingan</div>' : '<button class="link" data-mk="report">🚩 Shikoyat qilish</button>'}` : ''}`;
   sh.addEventListener('click', async (e) => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.mklink) { openTg(b.dataset.mklink); return; }
     const a = b.dataset.mk; if (!a) return;
     if (a === 'want') {
       if (!needFullProfile(() => listingSheet(id), 'Olish uchun avval profilingizni to‘ldiring')) return;
+      if (!store.get('bk_mk_intro')) return marketIntro(() => listingSheet(id));
       b.disabled = true; b.textContent = 'Yuborilmoqda…';
       try {
         const r = await api(`/api/market/${id}/want`, { method: 'POST', body: { uid } });
@@ -498,6 +504,7 @@ async function listingSheet(id) {
       return;
     }
     if (a === 'chat') { if (s.link) openTg(s.link); return; }
+    if (a === 'report') { reportSheet(id); return; }
     if (a === 'sold' || a === 'reopen') {
       try { await api(`/api/market/${id}?uid=${uid}`, { method: 'PATCH', body: { status: a === 'sold' ? 'sotildi' : 'faol' } }); toast(a === 'sold' ? 'Tabriklaymiz, sotildi!' : 'Qayta sotuvga qo‘yildi'); }
       catch (err) { toast(err.message); return; }
@@ -508,6 +515,40 @@ async function listingSheet(id) {
       try { await api(`/api/market/${id}?uid=${uid}`, { method: 'DELETE' }); toast('E’lon o‘chirildi'); closeSheet(); await loadMarket(); render(); }
       catch (err) { toast(err.message); }
     }
+  });
+}
+function reportSheet(id) {
+  openSheet(sheetTop('Shikoyat') + `
+    <div class="small">Nima noto‘g‘ri? Shikoyat anonim — sotuvchi kimligingizni bilmaydi. ${3} ta shikoyatdan keyin e’lon avtomatik yashiriladi va jamoa ko‘rib chiqadi.</div>
+    <div class="chips" id="rp-r" style="flex-direction:column;align-items:stretch">${MREASONS.map((r) => `<button type="button" class="chip" data-r="${esc(r)}" style="text-align:left;padding:12px 14px">${esc(r)}</button>`).join('')}</div>
+    <div class="err" id="rp-err" role="alert"></div>`, (el) => {
+    $('#rp-r', el).addEventListener('click', async (e) => {
+      const b = e.target.closest('.chip'); if (!b) return;
+      el.querySelectorAll('#rp-r .chip').forEach((x) => { x.disabled = true; });
+      try { const r = await api(`/api/market/${id}/report`, { method: 'POST', body: { uid, reason: b.dataset.r } }); closeSheet(); toast(r.hidden ? 'Rahmat. E’lon yashirildi, jamoa tekshiradi' : 'Rahmat, shikoyat jamoaga yuborildi'); await loadMarket(); render(); }
+      catch (err) { $('#rp-err', el).textContent = err.message; el.querySelectorAll('#rp-r .chip').forEach((x) => { x.disabled = false; }); }
+    });
+  });
+}
+// Shown on the first visit to Market (and from the "?" button): how it works plus the safety rules.
+function marketIntro(next) {
+  openSheet(sheetTop('Market qanday ishlaydi?') + `
+    <div class="small" style="font-size:15px;color:var(--fg)">Talabalar o‘zaro sotadi, sotib oladi yoki bepul beradi. Klub vositachi emas — pul to‘g‘ridan-to‘g‘ri sizlar o‘rtasida.</div>
+    <div class="why">
+      <div class="w"><b>1</b><div><h3>E’lon bering</h3><p>Buyumning rasmini oling (3 tagacha), narx yozing yoki «Bepul» deb belgilang. Avval profilingiz to‘liq bo‘lishi kerak.</p></div></div>
+      <div class="w"><b>2</b><div><h3>«Olish»ni bosing</h3><p>Yoqqan buyumda «Olish» tugmasini bosing — sotuvchiga bot orqali xabar boradi, siz esa darhol unga yoza olasiz.</p></div></div>
+      <div class="w"><b>3</b><div><h3>Kampusda uchrashing</h3><p>Joy va vaqtni kelishing, buyumni ko‘rib oling. Sotilgach, sotuvchi «Sotildi» deb belgilaydi.</p></div></div>
+    </div>
+    <div class="label" style="margin:4px 0 0">Xavfsizlik qoidalari</div>
+    <ol class="steps">
+      <li>Oldindan pul o‘tkazmang — buyumni ko‘rib, keyin to‘lang</li>
+      <li>Karta raqami, SMS kod yoki parolni hech kimga bermang</li>
+      <li>Kampusda, odamlar bor joyda uchrashing</li>
+      <li>Sotish taqiqlangan: sigaret/vape, dori, qurol, tayyor kurs ishi va imtihon javoblari, birovning narsasi</li>
+      <li>Shubhali e’lonni 🚩 «Shikoyat» bilan belgilang — 3 ta shikoyatdan keyin u yashiriladi</li>
+    </ol>
+    <button class="primary" data-mk-ok>Tushundim, qoidalarga roziman</button>`, (el) => {
+    $('[data-mk-ok]', el).addEventListener('click', () => { store.set('bk_mk_intro', '1'); closeSheet(); if (next) next(); });
   });
 }
 function openTg(link) { if (TG && TG.openTelegramLink && link.startsWith('https://t.me/')) TG.openTelegramLink(link); else window.open(link, '_blank'); }
@@ -536,6 +577,7 @@ function shrinkPhoto(file) {
 function newListingSheet() {
   if (!TG_INIT && !isAdmin) { toast('E’lonni Telegram’dagi bot ichidan joylang'); return; }
   if (!needFullProfile(newListingSheet, 'E’lon berish uchun avval profilingizni to‘ldiring')) return;
+  if (!store.get('bk_mk_intro')) return marketIntro(newListingSheet);
   const photos = [];
   let cat = 'Kitoblar', cond = 'yaxshi', free = false;
   openSheet(sheetTop('E’lon berish') + `
@@ -1010,7 +1052,7 @@ function adminSheet() {
 document.addEventListener('click', async (e) => {
   const t = e.target.closest('button'); if (!t || t.closest('.sheet')) return;
   const d = t.dataset;
-  if (d.tab) { S.tab = d.tab; render(); window.scrollTo(0, 0); refresh(); return; }
+  if (d.tab) { S.tab = d.tab; render(); window.scrollTo(0, 0); refresh(); if (d.tab === 'market' && !store.get('bk_mk_intro')) marketIntro(); return; }
   if (d.kind !== undefined && t.closest('.kinds')) { S.kind = d.kind; if (S.ptab === 'done' && S.kind && S.kind !== 'muammo') S.ptab = 'top'; S.problems = null; render(); await loadProblems(); render(); return; }
   if (d.ptab) { S.ptab = d.ptab; S.problems = null; render(); await loadProblems(); render(); return; }
   if (d.act === 'new') return newProblemSheet();
@@ -1024,7 +1066,8 @@ document.addEventListener('click', async (e) => {
   if (d.act === 'newlisting') return newListingSheet();
   if (d.listing) return listingSheet(d.listing);
   if (d.mcat !== undefined && t.closest('.kinds')) { S.mcat = d.mcat; S.market = null; render(); await loadMarket(); render(); return; }
-  if (d.mmine) { S.mmine = d.mmine === '1'; S.market = null; render(); await loadMarket(); render(); return; }
+  if (d.mview) { S.mmine = d.mview === 'mine'; S.mhidden = d.mview === 'hidden'; S.market = null; render(); await loadMarket(); render(); return; }
+  if (d.act === 'mkintro') return marketIntro();
   if (d.act === 'admin') return adminSheet();
   if (d.act === 'share' && S.refLink) {
     const text = 'Black Knight — Millat Umidi talabalari platformasi. Muammo yoz, ovoz ber, kerakli odamni top:';

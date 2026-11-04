@@ -8,6 +8,8 @@ const KINDS = ['muammo', 'savol', 'kerak', 'elon'];
 const MARKET_CATS = ['Kitoblar', 'Texnika', 'Kiyim', 'Kanselyariya', 'Yotoqxona', 'Sport', 'Boshqa'];
 const MARKET_COND = { yangi: 'Yangi', yaxshi: 'Yaxshi', ortacha: 'O‘rtacha' };
 const MARKET_PHOTOS = 3;
+const MARKET_HIDE_AT = 3;
+const MARKET_REASONS = ['Taqiqlangan buyum', 'Firibgarlik', 'Noto‘g‘ri ma’lumot', 'Haqoratli', 'Boshqa'];
 const priceText = (p) => (p === null || p === undefined ? 'Kelishiladi' : +p === 0 ? 'Bepul' : Number(p).toLocaleString('ru-RU').replace(/ /g, ' ') + ' so‘m');
 
 const CORS = {
@@ -1051,9 +1053,10 @@ async function route(req) {
     const r = await q(`SELECT l.id, l.title, l.price, l.category, l.condition, l.status, l.created_at, (l.seller_id=$1) mine,
       (SELECT id FROM listing_photos ph WHERE ph.listing_id=l.id ORDER BY pos LIMIT 1) photo,
       (SELECT count(*) FROM market_wants w WHERE w.listing_id=l.id)::int wants,
+      (SELECT count(*) FROM market_reports mr WHERE mr.listing_id=l.id)::int reports,
       u.name seller, u.knight_no, u.title seller_title, u.role, u.position, EXISTS(SELECT 1 FROM admins a WHERE a.user_id=u.id) team
       FROM listings l JOIN users u ON u.id=l.seller_id
-      WHERE ${mine ? 'l.seller_id=$1' : "l.status='faol'"} AND ($2='' OR l.category=$2)
+      WHERE ${mine ? 'l.seller_id=$1' : url.searchParams.get('hidden') === '1' && admin ? "l.status='yashirin'" : "l.status='faol'"} AND ($2='' OR l.category=$2)
         AND ($3='' OR l.title ILIKE '%'||$3||'%' OR l.description ILIKE '%'||$3||'%')
       ORDER BY (l.status='faol') DESC, l.created_at DESC LIMIT 100`, [uid, cat, term]);
     return json({ listings: r.rows, categories: MARKET_CATS });
@@ -1088,6 +1091,9 @@ async function route(req) {
       FROM listings l JOIN users u ON u.id=l.seller_id WHERE l.id=$1`, [+mm[1], uid]);
     if (!r.rowCount) return bad('E’lon topilmadi', 404);
     const l = r.rows[0];
+    if (l.status === 'yashirin' && !l.mine && !admin) return bad('E’lon tekshiruvda', 404);
+    l.reported = (await q('SELECT 1 x FROM market_reports WHERE listing_id=$1 AND reporter_id=$2', [l.id, uid])).rowCount > 0;
+    if (l.mine || admin) l.reports = (await q('SELECT reason, created_at FROM market_reports WHERE listing_id=$1 ORDER BY created_at DESC', [l.id])).rows;
     if (l.mine) l.buyers = (await q(`SELECT u.id, u.name, u.username, u.major, u.year, w.created_at FROM market_wants w JOIN users u ON u.id=w.buyer_id
       WHERE w.listing_id=$1 ORDER BY w.created_at DESC`, [l.id])).rows.map((b) => ({ ...b, link: b.id.startsWith('tg') ? dmLink(b) : null }));
     if (l.wanted) l.seller.link = dmLink((await q('SELECT id, username FROM users WHERE id=$1', [l.seller_id])).rows[0]);
@@ -1097,6 +1103,7 @@ async function route(req) {
   if ((mm = p.match(/^\/api\/market\/(\d+)$/)) && m === 'PATCH') {
     const id = +mm[1];
     const sets = [], vals = [id, uid, !!admin];
+    if (body.status === 'faol' && !admin && (await q("SELECT 1 x FROM listings WHERE id=$1 AND status='yashirin'", [id])).rowCount) return bad('E’lon shikoyatlar sababli tekshiruvda. Jamoa ko‘rib chiqadi.', 403);
     if (body.status === 'faol' || body.status === 'sotildi') { vals.push(body.status); sets.push(`status=$${vals.length}`, `sold_at = CASE WHEN $${vals.length}='sotildi' THEN now() ELSE NULL END`); }
     if (body.price !== undefined) { vals.push(body.price === null || body.price === '' ? null : Math.max(0, Math.min(1e9, parseInt(body.price) || 0))); sets.push(`price=$${vals.length}`); }
     if (body.title !== undefined) { const t = str(body.title, 100); if (t.length < 3) return bad('Nomini yozing'); vals.push(t); sets.push(`title=$${vals.length}`); }
@@ -1110,6 +1117,27 @@ async function route(req) {
     const r = await q('DELETE FROM listings WHERE id=$1 AND (seller_id=$2 OR $3) RETURNING 1 x', [+mm[1], uid, !!admin]);
     if (!r.rowCount) return bad('Faqat o‘zingizning e’loningizni o‘chira olasiz', 403);
     return json({ ok: true });
+  }
+  if ((mm = p.match(/^\/api\/market\/(\d+)\/report$/)) && m === 'POST') {
+    // Students flag bad listings; MARKET_HIDE_AT reports hide it until the team reviews.
+    if (!tu) return bad('Shikoyat faqat Telegram ichida yuboriladi', 401);
+    const reason = MARKET_REASONS.includes(body.reason) ? body.reason : 'Boshqa';
+    const l = (await q('SELECT id, title, seller_id, status FROM listings WHERE id=$1', [+mm[1]])).rows[0];
+    if (!l) return bad('E’lon topilmadi', 404);
+    if (l.seller_id === uid) return bad('O‘z e’loningizga shikoyat qilib bo‘lmaydi');
+    const ins = await q('INSERT INTO market_reports (listing_id,reporter_id,reason) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [l.id, uid, reason]);
+    if (!ins.rowCount) return json({ ok: true, already: true });
+    const n = (await q('SELECT count(*)::int n FROM market_reports WHERE listing_id=$1', [l.id])).rows[0].n;
+    let hidden = false;
+    if (n >= MARKET_HIDE_AT && l.status === 'faol') {
+      hidden = (await q("UPDATE listings SET status='yashirin', updated_at=now() WHERE id=$1 AND status='faol' RETURNING 1 x", [l.id])).rowCount > 0;
+      if (hidden) await notify(l.seller_id, `⚠️ «${esc(l.title)}» e’loningiz bir nechta shikoyat sababli vaqtincha yashirildi. Black Knight jamoasi ko‘rib chiqadi.`);
+    }
+    const admins = (await q("SELECT user_id FROM admins WHERE user_id LIKE 'tg%'")).rows;
+    for (const a of admins) await tg('sendMessage', { chat_id: a.user_id.slice(2), parse_mode: 'HTML',
+      text: `🚩 Market shikoyati (${n}-chi): «${esc(l.title)}»\nSabab: <b>${esc(reason)}</b>${hidden ? '\n\nE’lon avtomatik yashirildi.' : ''}\n\nIlovada Market → e’lonni ochib, o‘chirish yoki qayta ochish mumkin.`,
+      reply_markup: openKb() }).catch(() => {});
+    return json({ ok: true, hidden });
   }
   if ((mm = p.match(/^\/api\/market\/(\d+)\/want$/)) && m === 'POST') {
     if (!tu) return bad('«Olish» faqat Telegram ichida ishlaydi', 401);
