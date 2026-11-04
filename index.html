@@ -171,7 +171,7 @@ button.chip[aria-pressed="true"]{background:var(--gold-bg);border-color:var(--go
 .match span{color:var(--muted);text-align:right}
 .link{background:none;border:0;color:var(--muted);font-size:13px;text-decoration:underline;padding:8px;align-self:center}
 nav{border-color:var(--line-2)!important;background:var(--nav)!important;position:fixed;z-index:20;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));width:min(448px,calc(100% - 32px));height:64px;border-radius:26px;background:rgba(var(--wh),.1);border:1px solid rgba(var(--wh),.2);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);display:flex;align-items:center;justify-content:space-around;padding:0 8px}
-nav button{position:relative;border:0;background:none;padding:10px 5px;border-radius:16px;font-weight:600;font-size:12.5px;color:var(--muted)}
+nav button{position:relative;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:0;background:none;padding:10px 2px;border-radius:16px;font-weight:600;font-size:11.5px;color:var(--muted)}
 /* market */
 .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .mcard{display:flex;flex-direction:column;padding:0;overflow:hidden;text-align:left;width:100%;min-width:0;border-radius:20px}
@@ -257,7 +257,7 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-04.6';
+const BUILD = '2026-11-04.7';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
