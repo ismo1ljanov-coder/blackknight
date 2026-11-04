@@ -2,6 +2,7 @@
 <html lang="uz">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#050505">
 <link rel="icon" href="logo.jpg">
@@ -190,7 +191,7 @@ nav button{position:relative;border:0;background:none;padding:10px 8px;border-ra
 .viewer img{flex:none;width:100vw;height:100vh;object-fit:contain;scroll-snap-align:center}
 .viewer button{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:16px}
 .gallery::-webkit-scrollbar{display:none}
-.gallery img{flex:none;width:100%;height:auto;aspect-ratio:1/1;max-height:52vh;object-fit:cover;border-radius:20px;scroll-snap-align:start;background:rgba(var(--wh),.05);cursor:zoom-in}
+.gallery img{flex:none;width:100%;height:min(444px,calc(100vw - 36px),58vh);min-height:220px;object-fit:contain;border-radius:20px;scroll-snap-align:start;background:rgba(var(--wh),.05);cursor:zoom-in}
 .lprice{font-family:var(--crest);font-weight:700;font-size:26px;background:var(--metal);-webkit-background-clip:text;background-clip:text;color:transparent}
 .seller{display:flex;gap:12px;align-items:center;padding:12px}
 .seller .body{flex:1;min-width:0}
@@ -240,6 +241,18 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 </nav>
 <div id="layer"></div>
 <script>
+// Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
+// stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
+const BUILD = '2026-11-04.3';
+(() => {
+  try {
+    if (sessionStorage.getItem('bk_upd') === BUILD) return;
+    fetch(location.pathname + '?nc=' + Date.now(), { cache: 'no-store' }).then((r) => r.text()).then((t) => {
+      const m = t.match(/const BUILD = '([^']+)'/);
+      if (m && m[1] !== BUILD) { sessionStorage.setItem('bk_upd', BUILD); location.replace(location.pathname + '?v=' + encodeURIComponent(m[1]) + location.hash); }
+    }).catch(() => {});
+  } catch (e) {}
+})();
 (() => {
 'use strict';
 const API = 'https://br-steep-haze-b9tabbet-api.compute.c-7.eu-central-1.aws.neon.tech';
@@ -459,7 +472,7 @@ function viewTadbirlar() {
 }
 
 // ---------- market
-const MCATS = ['Kitoblar', 'Texnika', 'Kiyim', 'Kanselyariya', 'Yotoqxona', 'Sport', 'Boshqa'];
+const MCATS = ['Kitoblar', 'Darsliklar', 'Konspektlar', 'Kanselyariya', 'O‘quv texnikasi', 'Boshqa'];
 const MCOND = { yangi: 'Yangi', yaxshi: 'Yaxshi', ortacha: 'O‘rtacha' };
 const price = (p) => (p === null || p === undefined ? 'Kelishiladi' : +p === 0 ? 'Bepul' : Number(p).toLocaleString('ru-RU').replace(/ /g, ' ') + ' so‘m');
 const imgUrl = (id) => `${API}/api/market/img/${id}`;
@@ -570,7 +583,7 @@ function reportSheet(id) {
 // Shown on the first visit to Market (and from the "?" button): how it works plus the safety rules.
 function marketIntro(next) {
   openSheet(sheetTop('Market qanday ishlaydi?') + `
-    <div class="small" style="font-size:15px;color:var(--fg)">Talabalar o‘zaro sotadi, sotib oladi yoki bepul beradi. Klub vositachi emas — pul to‘g‘ridan-to‘g‘ri sizlar o‘rtasida.</div>
+    <div class="small" style="font-size:15px;color:var(--fg)">Bu do‘kon emas — faqat o‘qishga kerakli narsalar: kitob, darslik, konspekt, kanselyariya, kalkulyator kabi o‘quv texnikasi. Talabalar o‘zaro sotadi yoki bepul beradi, pul to‘g‘ridan-to‘g‘ri sizlar o‘rtasida.</div>
     <div class="why">
       <div class="w"><b>1</b><div><h3>E’lon bering</h3><p>Buyumning rasmini oling (3 tagacha), narx yozing yoki «Bepul» deb belgilang. Avval profilingiz to‘liq bo‘lishi kerak.</p></div></div>
       <div class="w"><b>2</b><div><h3>«Olish»ni bosing</h3><p>Yoqqan buyumda «Olish» tugmasini bosing — sotuvchiga bot orqali xabar boradi, siz esa darhol unga yoza olasiz.</p></div></div>
@@ -581,7 +594,8 @@ function marketIntro(next) {
       <li>Oldindan pul o‘tkazmang — buyumni ko‘rib, keyin to‘lang</li>
       <li>Karta raqami, SMS kod yoki parolni hech kimga bermang</li>
       <li>Kampusda, odamlar bor joyda uchrashing</li>
-      <li>Sotish taqiqlangan: sigaret/vape, dori, qurol, tayyor kurs ishi va imtihon javoblari, birovning narsasi</li>
+      <li>Faqat o‘qishga oid buyumlar. Kiyim, yotoqxona buyumlari, oziq-ovqat va boshqa savdo uchun emas</li>
+      <li>Taqiqlangan: tayyor kurs ishi va imtihon javoblari, sigaret/vape, dori, birovning narsasi</li>
       <li>Shubhali e’lonni 🚩 «Shikoyat» bilan belgilang — 3 ta shikoyatdan keyin u yashiriladi</li>
     </ol>
     <button class="primary" data-mk-ok>Tushundim, qoidalarga roziman</button>`, (el) => {
@@ -635,7 +649,7 @@ function newListingSheet() {
       <label class="field">Narxi (so‘m)<input id="nl-price" type="number" inputmode="numeric" min="0" step="1000" placeholder="Bo‘sh qolsa — kelishiladi"></label>
       <button type="button" class="toggle" id="nl-free" role="switch" aria-checked="false"><span style="flex:1"><b style="display:block">Bepul beraman</b><span class="small">Sovg‘a qilmoqchi bo‘lsangiz</span></span><span class="sw" aria-hidden="true"></span></button>
       <label class="field">Batafsil<textarea id="nl-desc" rows="3" maxlength="1500" placeholder="Qancha ishlatilgan, nuqsoni bormi, qayerda ko‘rish mumkin"></textarea></label>
-      <div class="rules">Sotib bo‘lmaydi: sigaret/vape, dori, qurol, tayyor kurs ishi va imtihon javoblari, birovning narsasi. Bunday e’lonlar o‘chiriladi.</div>
+      <div class="rules">Faqat o‘qishga oid buyumlar (kitob, darslik, konspekt, kanselyariya, o‘quv texnikasi). Kiyim, yotoqxona buyumlari, tayyor kurs ishi va imtihon javoblari mumkin emas — bunday e’lonlar o‘chiriladi.</div>
       <div class="err" id="nl-err" role="alert"></div>
       <button class="primary" type="submit">Joylash</button>
     </form>`, (el) => {
