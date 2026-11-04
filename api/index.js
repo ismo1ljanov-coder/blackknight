@@ -468,6 +468,220 @@ async function tgSetup() {
   return json(out);
 }
 
+// ======================= ADMIN PANEL =======================
+const TZ = 'Asia/Tashkent';
+const REAL = "id NOT LIKE 'selftest%' AND id NOT LIKE 'tg99000000%'";
+const FILLED = "(coalesce(major,'')<>'' AND (cardinality(coalesce(interests,'{}'))>0 OR coalesce(teach,'')<>'' OR coalesce(learn,'')<>''))";
+// Broadcast audiences: who receives a message from the admin panel.
+const SEGMENTS = {
+  all: `SELECT id user_id FROM users WHERE id LIKE 'tg%' AND ${REAL} UNION SELECT user_id FROM bot_starts WHERE user_id LIKE 'tg%' AND user_id NOT LIKE 'tg99000000%'`,
+  app: `SELECT id user_id FROM users WHERE id LIKE 'tg%' AND ${REAL}`,
+  noapp: `SELECT user_id FROM bot_starts b WHERE user_id NOT LIKE 'tg99000000%' AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id=b.user_id)`,
+  filled: `SELECT id user_id FROM users WHERE id LIKE 'tg%' AND ${REAL} AND ${FILLED}`,
+  nofill: `SELECT id user_id FROM users WHERE id LIKE 'tg%' AND ${REAL} AND NOT ${FILLED}`,
+  knights: `SELECT id user_id FROM users WHERE id LIKE 'tg%' AND knight_no IS NOT NULL`,
+  volunteers: `SELECT id user_id FROM users WHERE id LIKE 'tg%' AND role='volunteer'`,
+  team: `SELECT user_id FROM admins WHERE user_id LIKE 'tg%'`,
+};
+const SEG_LABELS = { all: 'Hammasi (bot + ilova)', app: 'Ilovani ochganlar', noapp: 'Faqat botga kirganlar', filled: 'Profili to‘liq', nofill: 'Profili to‘lmagan', knights: 'Ritsarlar ♞', volunteers: 'Volontyorlar', team: 'Jamoa' };
+// Admin text: HTML-escaped, *bold* and _italic_ allowed.
+const fmtMsg = (t) => esc(t).replace(/\*([^*\n]+)\*/g, '<b>$1</b>').replace(/(^|\s)_([^_\n]+)_/g, '$1<i>$2</i>');
+
+async function dashboard(days) {
+  const d = Math.min(Math.max(days || 30, 7), 120);
+  const one = async (s, ps = []) => (await q(s, ps)).rows[0];
+  const all = async (s, ps = []) => (await q(s, ps)).rows;
+  const [kpi, series, funnel, cats, statuses, kinds, majors, years, topProblems, referrers, events, broadcasts, recentUsers, recentPosts, hours, weekdays, interests, skills] = await Promise.all([
+    one(`SELECT
+      (SELECT count(*) FROM users WHERE ${REAL})::int users,
+      (SELECT count(*) FROM users WHERE ${REAL} AND created_at >= date_trunc('day', now() AT TIME ZONE '${TZ}') AT TIME ZONE '${TZ}')::int users_today,
+      (SELECT count(*) FROM users WHERE ${REAL} AND created_at > now() - interval '7 days')::int users_7d,
+      (SELECT count(*) FROM users WHERE ${REAL} AND created_at BETWEEN now() - interval '14 days' AND now() - interval '7 days')::int users_prev7d,
+      (SELECT count(*) FROM bot_starts WHERE user_id NOT LIKE 'tg99000000%')::int bot_starts,
+      (SELECT count(*) FROM bot_starts WHERE user_id NOT LIKE 'tg99000000%' AND last_at > now() - interval '1 day')::int bot_active_1d,
+      (SELECT count(*) FROM users WHERE ${REAL} AND ${FILLED})::int filled,
+      (SELECT count(*) FROM users WHERE knight_no IS NOT NULL)::int knights,
+      (SELECT count(*) FROM problems)::int posts,
+      (SELECT count(*) FROM problems WHERE created_at > now() - interval '7 days')::int posts_7d,
+      (SELECT count(*) FROM problems WHERE kind='muammo')::int problems,
+      (SELECT count(*) FROM problems WHERE kind='muammo' AND status<>'hal')::int problems_open,
+      (SELECT count(*) FROM problems WHERE kind='muammo' AND status='yangi')::int problems_new,
+      (SELECT count(*) FROM problems WHERE kind='muammo' AND status='hal')::int problems_done,
+      (SELECT round(avg(extract(epoch FROM resolved_at - created_at)/86400)::numeric,1) FROM problems WHERE status='hal' AND resolved_at IS NOT NULL)::float avg_resolve_days,
+      (SELECT count(*) FROM votes)::int votes,
+      (SELECT count(DISTINCT user_id) FROM votes)::int voters,
+      (SELECT count(*) FROM events)::int events,
+      (SELECT count(*) FROM events WHERE starts_at > now())::int events_upcoming,
+      ((SELECT count(*) FROM rsvps) + (SELECT count(*) FROM event_guests))::int rsvps,
+      (SELECT count(*) FROM referrals)::int referrals,
+      (SELECT count(*) FROM referrals WHERE credited)::int referrals_credited,
+      (SELECT count(*) FROM contact_requests)::int requests,
+      (SELECT count(*) FROM contact_requests WHERE status='accepted')::int requests_accepted,
+      (SELECT count(*) FROM contact_requests WHERE status='pending')::int requests_pending,
+      (SELECT count(*) FROM users WHERE role='volunteer')::int volunteers,
+      (SELECT coalesce(sum(hours),0) FROM service_log)::float service_hours,
+      (SELECT count(*) FROM admins)::int admins,
+      (SELECT count(*) FROM users WHERE role='leader')::int leaders,
+      (SELECT count(*) FROM users WHERE last_seen > now() - interval '1 day')::int dau,
+      (SELECT count(*) FROM users WHERE last_seen > now() - interval '7 days')::int wau,
+      (SELECT count(*) FROM users WHERE last_seen > now() - interval '30 days')::int mau,
+      (SELECT count(*) FROM problems WHERE kind='muammo' AND status='yangi' AND created_at < now() - interval '3 days')::int stale_new,
+      (SELECT count(*) FROM problems WHERE kind IN ('savol','kerak') AND status<>'hal' AND created_at < now() - interval '7 days')::int stale_other,
+      (SELECT count(*) FROM contact_requests WHERE status='pending' AND created_at < now() - interval '2 days')::int stale_requests,
+      (SELECT count(*) FROM bot_starts b WHERE user_id NOT LIKE 'tg99000000%' AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id=b.user_id))::int noapp,
+      (SELECT count(*) FROM users WHERE id LIKE 'tg%' AND ${REAL} AND NOT ${FILLED})::int nofill,
+      (SELECT count(*) FROM problems p WHERE p.status<>'hal' AND (SELECT count(*) FROM votes v WHERE v.problem_id=p.id) >= 10)::int hot`),
+    all(`SELECT to_char(g.dd,'YYYY-MM-DD') AS day,
+      (SELECT count(*) FROM users u WHERE ${REAL.replace(/id/g, 'u.id')} AND (u.created_at AT TIME ZONE '${TZ}')::date = g.dd::date)::int users,
+      (SELECT count(*) FROM bot_starts b WHERE (b.first_at AT TIME ZONE '${TZ}')::date = g.dd::date)::int starts,
+      (SELECT count(*) FROM problems p WHERE (p.created_at AT TIME ZONE '${TZ}')::date = g.dd::date)::int posts,
+      (SELECT count(*) FROM referrals r WHERE (r.created_at AT TIME ZONE '${TZ}')::date = g.dd::date)::int refs
+      FROM generate_series((now() AT TIME ZONE '${TZ}')::date - ${d - 1}, (now() AT TIME ZONE '${TZ}')::date, interval '1 day') g(dd) ORDER BY 1`),
+    one(`SELECT
+      (SELECT count(*) FROM (SELECT user_id FROM bot_starts WHERE user_id NOT LIKE 'tg99000000%' UNION SELECT id FROM users WHERE id LIKE 'tg%' AND ${REAL}) x)::int reached,
+      (SELECT count(*) FROM users WHERE ${REAL})::int opened,
+      (SELECT count(*) FROM users WHERE ${REAL} AND ${FILLED})::int filled,
+      (SELECT count(DISTINCT v.user_id) FROM votes v WHERE v.user_id NOT LIKE 'selftest%')::int voted,
+      (SELECT count(DISTINCT author_id) FROM problems)::int posted,
+      (SELECT count(*) FROM users WHERE knight_no IS NOT NULL)::int knights`),
+    all(`SELECT category, count(*)::int n, count(*) FILTER (WHERE status='hal')::int done FROM problems WHERE kind='muammo' GROUP BY 1 ORDER BY 2 DESC`),
+    all(`SELECT status, count(*)::int n FROM problems WHERE kind='muammo' GROUP BY 1`),
+    all(`SELECT kind, count(*)::int n FROM problems GROUP BY 1 ORDER BY 2 DESC`),
+    all(`SELECT coalesce(nullif(major,''),'Ko‘rsatilmagan') major, count(*)::int n FROM users WHERE ${REAL} GROUP BY 1 ORDER BY 2 DESC LIMIT 10`),
+    all(`SELECT coalesce(nullif(year,''),'—') y, count(*)::int n FROM users WHERE ${REAL} GROUP BY 1 ORDER BY 1`),
+    all(`SELECT p.id, p.title, p.kind, p.category, p.status, p.created_at, (SELECT count(*) FROM votes v WHERE v.problem_id=p.id)::int votes
+      FROM problems p WHERE p.status<>'hal' ORDER BY votes DESC, p.created_at DESC LIMIT 8`),
+    all(`SELECT u.id, u.name, u.username, count(*)::int total, count(*) FILTER (WHERE r.credited)::int credited
+      FROM referrals r JOIN users u ON u.id=r.referrer_id GROUP BY u.id ORDER BY credited DESC, total DESC LIMIT 10`),
+    all(`SELECT e.id, e.title, e.starts_at, e.place, e.capacity,
+      (SELECT count(*) FROM rsvps r WHERE r.event_id=e.id)::int app, (SELECT count(*) FROM event_guests g WHERE g.event_id=e.id)::int bot,
+      (SELECT count(*) FROM event_attendance a WHERE a.event_id=e.id AND a.came)::int came,
+      (SELECT count(*) FROM event_attendance a WHERE a.event_id=e.id AND NOT a.came)::int missed
+      FROM events e ORDER BY e.starts_at DESC LIMIT 10`),
+    all(`SELECT kind, count(*) FILTER (WHERE ok)::int ok, count(*) FILTER (WHERE NOT ok)::int failed, max(sent_at) last_at,
+      (SELECT value FROM settings s WHERE s.key='bcmeta_'||substr(r.kind,4)) meta
+      FROM reminders r GROUP BY kind ORDER BY max(sent_at) DESC LIMIT 30`),
+    all(`SELECT id, name, username, major, year, photo_url, created_at, knight_no FROM users WHERE ${REAL} ORDER BY created_at DESC LIMIT 12`),
+    all(`SELECT p.id, p.title, p.kind, p.status, p.created_at, CASE WHEN p.anon THEN NULL ELSE u.name END author FROM problems p LEFT JOIN users u ON u.id=p.author_id ORDER BY p.created_at DESC LIMIT 8`),
+    all(`SELECT extract(hour FROM created_at AT TIME ZONE '${TZ}')::int h, count(*)::int n FROM users WHERE ${REAL} GROUP BY 1 ORDER BY 1`),
+    all(`SELECT extract(isodow FROM created_at AT TIME ZONE '${TZ}')::int d, count(*)::int n FROM users WHERE ${REAL} GROUP BY 1 ORDER BY 1`),
+    all(`SELECT lower(i) tag, count(*)::int n FROM users, unnest(interests) i WHERE ${REAL} GROUP BY 1 ORDER BY 2 DESC LIMIT 12`),
+    all(`SELECT 'teach' side, lower(teach) skill, count(*)::int n FROM users WHERE coalesce(teach,'')<>'' AND ${REAL} GROUP BY 2 UNION ALL
+      SELECT 'learn', lower(learn), count(*)::int FROM users WHERE coalesce(learn,'')<>'' AND ${REAL} GROUP BY 2 ORDER BY 3 DESC LIMIT 20`),
+  ]);
+  return { generated_at: new Date().toISOString(), days: d, kpi, series, funnel, cats, statuses, kinds, majors, years, top_problems: topProblems, referrers, events, broadcasts, recent_users: recentUsers, recent_posts: recentPosts, hours, weekdays, interests, skills, knight_limit: KNIGHT_LIMIT, segments: SEG_LABELS };
+}
+
+async function adminRoute(p, m, url, body, uid, tu) {
+  let mm;
+  if (p === '/api/admin/dashboard' && m === 'GET') return json(await dashboard(parseInt(url.searchParams.get('days'))));
+
+  // Full user list with activity numbers; filters run in SQL.
+  if (p === '/api/admin/users' && m === 'GET') {
+    const term = str(url.searchParams.get('q') || '', 60).replace(/^@/, '');
+    const f = url.searchParams.get('filter') || 'all';
+    const filters = { all: 'true', filled: FILLED, empty: `NOT ${FILLED}`, knight: 'knight_no IS NOT NULL', volunteer: "role='volunteer'", leader: "role='leader'",
+      team: 'EXISTS (SELECT 1 FROM admins a WHERE a.user_id=u.id)', today: "created_at > now() - interval '1 day'", web: "id NOT LIKE 'tg%'" };
+    filters.active = "last_seen > now() - interval '7 days'"; filters.sleeping = "(last_seen IS NULL OR last_seen < now() - interval '7 days')";
+    const where = filters[f] || 'true';
+    const r = await q(`SELECT u.id, u.name, u.username, u.major, u.year, u.interests, u.teach, u.learn, u.photo_url, u.created_at, u.knight_no, u.role, u.position, u.contact, u.last_seen,
+      ${FILLED} filled, EXISTS (SELECT 1 FROM admins a WHERE a.user_id=u.id) team,
+      (SELECT count(*) FROM problems p WHERE p.author_id=u.id)::int posts,
+      (SELECT count(*) FROM votes v WHERE v.user_id=u.id)::int votes,
+      (SELECT count(*) FROM votes v JOIN problems p ON p.id=v.problem_id WHERE p.author_id=u.id AND v.user_id<>u.id)::int votes_recv,
+      (SELECT count(*) FROM referrals r WHERE r.referrer_id=u.id)::int invites,
+      (SELECT count(*) FROM referrals r WHERE r.referrer_id=u.id AND r.credited)::int invites_ok,
+      (SELECT count(*) FROM rsvps r WHERE r.user_id=u.id)::int events,
+      (SELECT coalesce(sum(hours),0) FROM service_log s WHERE s.user_id=u.id)::float hours,
+      (SELECT ru.name FROM referrals r JOIN users ru ON ru.id=r.referrer_id WHERE r.user_id=u.id) invited_by
+      FROM users u WHERE ${REAL.replace(/id/g, 'u.id')} AND ${where}
+      AND ($1='' OR u.name ILIKE '%'||$1||'%' OR u.username ILIKE '%'||$1||'%' OR u.major ILIKE '%'||$1||'%' OR u.id=$1)
+      ORDER BY u.created_at DESC LIMIT 1000`, [term]);
+    const users = r.rows.map((u) => ({ ...u, points: u.posts * 10 + u.votes_recv * 2 + u.invites_ok * 15 }));
+    const botOnly = f === 'all' && !term ? (await q(`SELECT user_id id, first_at, last_at FROM bot_starts b WHERE user_id NOT LIKE 'tg99000000%' AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id=b.user_id) ORDER BY first_at DESC`)).rows : [];
+    return json({ users, bot_only: botOnly });
+  }
+
+  // Every post, including resolved ones; anonymous authors stay hidden even from admins.
+  if (p === '/api/admin/problems' && m === 'GET') {
+    const st = STATUSES.includes(url.searchParams.get('status')) ? url.searchParams.get('status') : '';
+    const kind = KINDS.includes(url.searchParams.get('kind')) ? url.searchParams.get('kind') : '';
+    const cat = CATS.includes(url.searchParams.get('cat')) ? url.searchParams.get('cat') : '';
+    const term = str(url.searchParams.get('q') || '', 80);
+    const r = await q(`SELECT p.id, p.kind, p.title, p.body, p.category, p.status, p.created_at, p.resolved_at, p.anon,
+      CASE WHEN p.anon THEN NULL ELSE u.name END author, CASE WHEN p.anon THEN NULL ELSE u.username END author_username, CASE WHEN p.anon THEN NULL ELSE u.id END author_id,
+      (SELECT count(*) FROM votes v WHERE v.problem_id=p.id)::int votes
+      FROM problems p LEFT JOIN users u ON u.id=p.author_id
+      WHERE ($1='' OR p.status=$1) AND ($2='' OR p.kind=$2) AND ($3='' OR p.category=$3) AND ($4='' OR p.title ILIKE '%'||$4||'%' OR p.body ILIKE '%'||$4||'%')
+      ORDER BY p.created_at DESC LIMIT 500`, [st, kind, cat, term]);
+    return json({ problems: r.rows, categories: CATS, statuses: STATUSES, kinds: KINDS });
+  }
+
+  // Edit an event's fields (title, time, place, capacity, group link).
+  if ((mm = p.match(/^\/api\/admin\/events\/(\d+)$/)) && m === 'PATCH') {
+    const starts = body.starts_at ? new Date(body.starts_at) : null;
+    if (starts && isNaN(starts)) return bad('Sana noto‘g‘ri');
+    const link = str(body.link, 200);
+    if (link && !/^https:\/\/t\.me\//.test(link)) return bad('Guruh havolasi https://t.me/ bilan boshlansin');
+    const r = await q(`UPDATE events SET title=coalesce(nullif($1,''),title), description=$2, starts_at=coalesce($3::timestamptz,starts_at), place=$4,
+      capacity=$5, link=nullif($6,'') WHERE id=$7 RETURNING id`,
+      [str(body.title, 120), str(body.description, 1000), starts ? starts.toISOString() : null, str(body.place, 80), Math.max(0, parseInt(body.capacity) || 0), link, +mm[1]]);
+    if (!r.rowCount) return bad('Tadbir topilmadi', 404);
+    return json({ ok: true });
+  }
+
+  // Segment sizes for the broadcast form.
+  if (p === '/api/admin/segments' && m === 'GET') {
+    const out = {};
+    await Promise.all(Object.keys(SEGMENTS).map(async (k) => { out[k] = (await q(`SELECT count(*)::int n FROM (${SEGMENTS[k]}) x`)).rows[0].n; }));
+    return json({ sizes: out, labels: SEG_LABELS });
+  }
+
+  // Broadcast: to='me' sends one test copy; to='all' sends to the segment.
+  // Each message+segment has a fixed id, so pressing again resumes instead of sending twice.
+  if (p === '/api/admin/broadcast' && m === 'POST') {
+    const text = str(body.text, 3500);
+    if (text.length < 3) return bad('Xabar matnini yozing');
+    const seg = SEGMENTS[body.segment] ? body.segment : 'all';
+    const withBtn = body.button !== false;
+    const html = fmtMsg(text);
+    const reply_markup = withBtn ? openKb() : undefined;
+    if (body.to !== 'all') {
+      if (!tu || !tu.id) return bad('Sinov xabari uchun panelni Telegram ichida oching');
+      const t = await tg('sendMessage', { chat_id: tu.id, text: html, parse_mode: 'HTML', reply_markup, disable_web_page_preview: true });
+      return json({ test: true, ok: !!(t && t.ok), error: t && !t.ok ? t.description : undefined });
+    }
+    const hash = createHash('sha256').update(seg + '\n' + text).digest('hex').slice(0, 12);
+    const kind = 'bc_' + hash;
+    await q(`INSERT INTO settings (key,value) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING RETURNING 1 x`,
+      ['bcmeta_' + hash, JSON.stringify({ text: text.slice(0, 300), segment: seg, by: uid || 'key', at: new Date().toISOString() })]);
+    const rows = (await q(`${SEGMENTS[seg]} EXCEPT SELECT user_id FROM reminders WHERE kind=$1`, [kind])).rows;
+    const res = { id: hash, sent: 0, failed: 0, remaining: 0, total: rows.length };
+    const started = Date.now();
+    for (const r of rows) {
+      if (Date.now() - started > 45000) { res.remaining = rows.length - res.sent - res.failed; break; }
+      const t = await tg('sendMessage', { chat_id: r.user_id.slice(2), text: html, parse_mode: 'HTML', reply_markup, disable_web_page_preview: true }).catch(() => null);
+      if (t && t.error_code === 429) { res.remaining = rows.length - res.sent - res.failed; break; }
+      const ok = !!(t && t.ok); res[ok ? 'sent' : 'failed']++;
+      await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, kind, ok]);
+      await new Promise((z) => setTimeout(z, 45));
+    }
+    return json(res);
+  }
+
+  // Raw CSV-ready export of one table the admin may need offline.
+  if ((mm = p.match(/^\/api\/admin\/export\/(users|problems|referrals|requests)$/)) && m === 'GET') {
+    const sqls = {
+      users: `SELECT id, name, username, major, year, array_to_string(interests,'; ') interests, teach, learn, knight_no, role, position, created_at FROM users WHERE ${REAL} ORDER BY created_at`,
+      problems: `SELECT p.id, p.kind, p.category, p.status, p.title, p.body, CASE WHEN p.anon THEN 'Anonim' ELSE u.name END author, (SELECT count(*) FROM votes v WHERE v.problem_id=p.id)::int votes, p.created_at, p.resolved_at FROM problems p LEFT JOIN users u ON u.id=p.author_id ORDER BY p.id`,
+      referrals: `SELECT ru.name referrer, u.name invited, r.credited, r.created_at FROM referrals r LEFT JOIN users ru ON ru.id=r.referrer_id LEFT JOIN users u ON u.id=r.user_id ORDER BY r.created_at`,
+      requests: `SELECT c.id, f.name from_name, t.name to_name, c.status, c.created_at, c.answered_at FROM contact_requests c LEFT JOIN users f ON f.id=c.from_id LEFT JOIN users t ON t.id=c.to_id ORDER BY c.id`,
+    };
+    return json({ rows: (await q(sqls[mm[1]])).rows });
+  }
+  return null;
+}
+
 async function route(req) {
   const url = new URL(req.url);
   const p = url.pathname.replace(/\/+$/, '') || '/';
@@ -488,6 +702,7 @@ async function route(req) {
       ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username, photo_url=EXCLUDED.photo_url
       WHERE users.username IS DISTINCT FROM EXCLUDED.username OR users.photo_url IS DISTINCT FROM EXCLUDED.photo_url
       RETURNING (xmax = 0) AS inserted`, [uid, name, uname, photo]);
+    await q(`UPDATE users SET last_seen=now() WHERE id=$1 AND (last_seen IS NULL OR last_seen < now() - interval '5 minutes') RETURNING 1 x`, [uid]).catch(() => {});
     if (up.rowCount && up.rows[0].inserted) {
       const ref = await q('SELECT referrer_id FROM referrals WHERE user_id=$1', [uid]);
       if (ref.rowCount) await notify(ref.rows[0].referrer_id, `👥 Do‘stingiz <b>${esc(name)}</b> Black Knight'ga qo‘shildi. U profilini to‘ldirsa, sizga +15 ball beriladi.`);
@@ -507,6 +722,11 @@ async function route(req) {
   }
 
   if (p === '/api/admin/check' && m === 'GET') return json({ admin: !!admin });
+  if (p.startsWith('/api/admin/')) {
+    if (!admin) return bad('Ruxsat yo‘q', 403);
+    const r = await adminRoute(p, m, url, body, uid, tu);
+    if (r) return r;
+  }
 
   // ---- admin management (Telegram accounts)
   if (p === '/api/admins' && m === 'GET') {

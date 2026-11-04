@@ -595,6 +595,7 @@ function viewProfil() {
     <h3>Volontyorlar · ${S.vols.length}</h3>
     ${S.vols.length ? S.vols.map((v) => `<div class="match"><button class="linkname" data-person="${esc(v.id)}">${esc(v.name)}</button><span>${v.hours} soat · ${esc(v.level)}</span></div>`).join('') : '<div class="small">Hali volontyor yo‘q. Odamlar bo‘limidan talabani ochib, «Volontyor qilish» tugmasini bosing.</div>'}
   </section>` : ''}
+  ${isAdmin ? `<a class="cta" href="admin.html" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none">📊 Admin panel · statistika</a>` : ''}
   ${isAdmin ? `<section class="glass box">
     <h3>Adminlar</h3>
     ${S.admins.map((a) => `<div class="match"><b>${esc(a.name)}${a.position ? `<small style="display:block;font-weight:500;color:var(--gold-hi)">◆ ${esc(a.position)}</small>` : ''}</b><span>${a.username ? '@' + esc(a.username) : ''}${a.id !== uid ? ` <button class="admin-rm" data-rmadmin="${esc(a.id)}" aria-label="${esc(a.name)} adminligini olib tashlash">Olib tashlash</button>` : ' · siz'}</span></div>`).join('')}

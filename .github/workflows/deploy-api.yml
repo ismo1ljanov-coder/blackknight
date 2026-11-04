@@ -1,0 +1,25 @@
+name: Deploy API to Neon
+on:
+  push:
+    branches: [main]
+    paths: ['api/**']
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check syntax
+        run: node --check api/index.js
+      - name: Zip and deploy
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          if [ -z "$NEON_API_KEY" ]; then echo "NEON_API_KEY secret yo'q"; exit 1; fi
+          cp api/index.js index.mjs && zip -q function.zip index.mjs
+          curl -sf -X POST "https://console.neon.tech/api/v2/projects/rough-block-37492040/branches/br-steep-haze-b9tabbet/functions/api/deployments" \
+            -H "Authorization: Bearer $NEON_API_KEY" -F "zip=@function.zip" | tee out.json
+          for i in $(seq 1 40); do
+            s=$(curl -s "https://console.neon.tech/api/v2/projects/rough-block-37492040/branches/br-steep-haze-b9tabbet/functions/api" -H "Authorization: Bearer $NEON_API_KEY" | python3 -c "import sys,json;d=json.load(sys.stdin);d=d.get('function',d);print(d['current_deployment']['status'])")
+            echo "status: $s"; [ "$s" = completed ] && exit 0; [ "$s" = failed ] && exit 1; sleep 5
+          done; exit 1
