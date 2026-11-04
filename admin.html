@@ -163,7 +163,7 @@ const MONTHS = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', '
 const WD = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
 const TABS = [['home', 'Umumiy'], ['posts', 'Murojaatlar'], ['people', 'Odamlar'], ['events', 'Tadbirlar'], ['market', 'Market'], ['send', 'Xabar yuborish'], ['vacancy', 'Vakansiyalar'], ['team', 'Jamoa']];
 
-const HASH = decodeURIComponent(location.hash.slice(1)).split(':');
+const HASH = (new URLSearchParams(location.search).get('tab') || decodeURIComponent(location.hash.slice(1))).split(':');
 const S = { tab: HASH[0] || 'home', openUser: HASH[0] === 'people' ? HASH.slice(1).join(':') : '', market: null, mk: { status: '', q: '', reported: false }, days: 30, dash: null, posts: null, pf: { status: '', kind: '', cat: '', q: '' }, users: null, botOnly: [], uf: { filter: 'all', q: '', sort: 'created_at', dir: -1 }, admins: null, segs: null, bc: { text: '', segment: 'all', button: true }, sending: false };
 if (!TABS.some((t) => t[0] === S.tab)) S.tab = 'home';
 
@@ -556,7 +556,12 @@ S.apps = null; S.team2 = null; S.af = 'open';
 function viewVacancy() {
   const A = S.apps, T = S.team2;
   const list = A ? A.filter((a) => S.af === 'all' || (S.af === 'open' ? ['yangi', 'suhbat'].includes(a.status) : a.status === S.af)) : null;
-  return `<div class="grid g2"><section class="card"><h2>Arizalar</h2>
+  const V = S.vac;
+  const vacCard = `<section class="card" style="margin-bottom:14px"><h2>Bot e’loni<span class="sp"></span>${V ? `<span class="pill ${V.state === 'on' ? 'p-hal' : ''}">${V.state === 'on' ? 'Yoqilgan' : V.state === 'done' ? 'Tugadi' : 'O‘chiq'}</span>` : ''}</h2>
+    <div class="small muted">Botdagi har bir foydalanuvchiga bir marta boradi, yangi qo‘shilganlarga /start bosishi bilan. Kunduzi 09:00–21:00 da yuboriladi. Ochiq o‘rin qolmasa o‘zi to‘xtaydi. Matndagi ro‘yxat ochiq o‘rinlarga qarab o‘zi yangilanadi.</div>
+    ${V ? `<div class="small" style="margin:10px 0"><b>${nf(V.sent)}</b> / ${nf(V.total)} kishiga yetdi${V.failed ? ` · ${nf(V.failed)} tasi botni bloklagan` : ''} · ochiq o‘rin: <b>${V.open}</b></div>` : '<div class="skel"></div>'}
+    <div class="chips"><button class="btn ghost" data-vp="test">O‘zimga sinov</button>${V && V.state === 'on' ? '<button class="btn red" data-vp="off">To‘xtatish</button>' : '<button class="btn" data-vp="on">Hammaga yuborishni boshlash</button>'}</div></section>`;
+  return vacCard + `<div class="grid g2"><section class="card"><h2>Arizalar</h2>
     <div class="toolbar"><div class="chips">${[['open', 'Ko‘rib chiqilmagan'], ['qabul', 'Qabul'], ['rad', 'Rad'], ['all', 'Hammasi']].map(([k, l]) => `<button class="chip" data-af="${k}" aria-pressed="${S.af === k}">${l}</button>`).join('')}</div></div>
     ${!list ? '<div class="skel"></div>' : !list.length ? '<div class="empty">Ariza yo‘q</div>' : `<div class="list">${list.map((a) => `<div class="li" style="align-items:flex-start;flex-direction:column;gap:6px">
       <div style="display:flex;gap:10px;align-items:center;width:100%">${avatar(a)}<div class="m"><b>${esc(a.name)}${a.knight_no ? ' ♞' : ''}</b><small>${esc(a.pos_emoji + ' ' + a.pos_title)} · ${esc(a.major || '—')}${a.year ? ', ' + esc(a.year) + '-kurs' : ''}${a.username ? ' · @' + esc(a.username) : ''} · ${ago(a.created_at)}</small></div><span class="pill ${APILL[a.status]}">${AST[a.status]}</span></div>
@@ -574,7 +579,7 @@ function viewVacancy() {
   </section></div>`;
 }
 async function loadVacancy() {
-  try { const [a, t] = await Promise.all([api('/api/admin/applications'), api('/api/team')]); S.apps = a.applications; S.team2 = t; } catch (e) { toast(e.message); S.apps = S.apps || []; }
+  try { const [a, t, v] = await Promise.all([api('/api/admin/applications'), api('/api/team'), api('/api/admin/vacpromo')]); S.apps = a.applications; S.team2 = t; S.vac = v; } catch (e) { toast(e.message); S.apps = S.apps || []; }
 }
 
 // ---------- sheet
@@ -648,6 +653,12 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (d.af) { S.af = d.af; return render(); }
+  if (d.vp) {
+    if (d.vp === 'on' && !confirm('E’lon botdagi barcha foydalanuvchilarga yuborilsinmi? Har biriga bir marta boradi.')) return;
+    b.disabled = true;
+    try { const r = await api('/api/admin/vacpromo', { method: 'POST', body: { action: d.vp } }); if (d.vp === 'test') toast(r.ok ? 'Sinov botga yuborildi' : 'Yuborilmadi'); else { S.vac = r; toast(d.vp === 'on' ? 'Boshlandi — bir necha daqiqada tarqaladi' : 'To‘xtatildi'); } haptic(); } catch (err) { toast(err.message); }
+    await loadVacancy(); return render();
+  }
   if (d.ap) {
     const [id, action, pid] = d.ap.split(':');
     let note = '', founder_ok = false;

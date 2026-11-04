@@ -524,6 +524,7 @@ async function tgWebhook(req) {
       return json({ ok: true });
     }
     if (text.startsWith('/start') || text.startsWith('/qollanma')) await sendGuide(msg.chat.id);
+    if (text.startsWith('/start')) await vacForNewcomer(me).catch((e) => console.error('vac', e));
     else await tg('sendMessage', { chat_id: msg.chat.id, text: 'Ilovani ochish uchun pastdagi tugmani bosing. Qo‘llanma videoni qayta ko‘rish: /qollanma', reply_markup: openKb() });
   }
   return json({ ok: true });
@@ -928,7 +929,7 @@ ${[...p.rights.map(esc), ...COMMON_RIGHTS].map((s) => '• ' + s).join('\n')}
 
 Ishni boshlash: ilovada <b>Profil → Mening bo‘limim</b>. Bu eslatmani qayta olish: /vazifam`;
 }
-const headKb = () => (WEBAPP_URL ? { inline_keyboard: [[{ text: '🎖 Mening bo‘limim', web_app: { url: WEBAPP_URL.replace(/#.*$/, '') + '#bolim' } }]] } : undefined);
+const headKb = () => (WEBAPP_URL ? { inline_keyboard: [[{ text: '🎖 Mening bo‘limim', web_app: { url: WEBAPP_URL.replace(/[?#].*$/, '') + '?open=bolim' } }]] } : undefined);
 const sendOnboard = (uid, pid, name) => (uid && uid.startsWith('tg') ? tg('sendMessage', { chat_id: uid.slice(2), parse_mode: 'HTML', text: onboardText(pid, name), reply_markup: headKb() }).catch(() => {}) : null);
 
 let posReady = false;
@@ -1027,7 +1028,7 @@ async function teamRoute(p, m, url, body, uid, tu, admin, myPos) {
     await notify(uid, `✅ «${esc(pos.emoji + ' ' + pos.title)}» lavozimiga arizangiz qabul qilindi.\nJamoa 3 ish kuni ichida ko‘rib chiqadi va natijani shu yerga yozadi.`);
     for (const a of await fullAdmins()) await tg('sendMessage', { chat_id: a.slice(2), parse_mode: 'HTML',
       text: `🆕 <b>Yangi ariza</b>\n${esc(me.name)} (${esc(me.major || '—')}${me.year ? ', ' + esc(me.year) + '-kurs' : ''}) → ${esc(pos.emoji + ' ' + pos.title)}\n\nAdmin panel → Vakansiyalar bo‘limida ko‘ring.`,
-      reply_markup: WEBAPP_URL ? { inline_keyboard: [[{ text: 'Arizani ko‘rish', web_app: { url: WEBAPP_URL.replace(/\/?(#.*)?$/, '') + '/admin.html#vacancy' } }]] } : undefined }).catch(() => {});
+      reply_markup: WEBAPP_URL ? { inline_keyboard: [[{ text: 'Arizani ko‘rish', web_app: { url: WEBAPP_URL.replace(/[?#].*$/, '').replace(/\/$/, '') + '/admin.html?tab=vacancy' } }]] } : undefined }).catch(() => {});
     return json({ ok: true, id: ins.rows[0].id }, 201);
   }
 
@@ -1060,8 +1061,17 @@ async function teamRoute(p, m, url, body, uid, tu, admin, myPos) {
   }
 
   // ---- full admins: vacancies and applications
-  if (p.startsWith('/api/admin/applications') || p.startsWith('/api/admin/positions')) {
+  if (p.startsWith('/api/admin/applications') || p.startsWith('/api/admin/positions') || p === '/api/admin/vacpromo') {
     if (!admin) return bad('Ruxsat yo‘q', 403);
+    if (p === '/api/admin/vacpromo') {
+      if (m === 'POST') {
+        if (body.action === 'test') { if (!tu || !tu.id) return bad('Sinov uchun Telegram ichida oching'); const open = await vacOpen(); if (!open.length) return bad('Ochiq o‘rin yo‘q'); const t = await sendVacPromo(uid, open, true); return json({ ok: !!(t && t.ok) }); }
+        if (body.action === 'on' || body.action === 'off') await setVacState(body.action);
+      }
+      const st = (await q(`SELECT (SELECT count(*) FROM (${SEGMENTS.all}) a)::int total,
+        (SELECT count(*) FROM reminders WHERE kind=$1 AND ok)::int sent, (SELECT count(*) FROM reminders WHERE kind=$1 AND NOT ok)::int failed`, [VAC_KIND])).rows[0];
+      return json({ state: await vacState(), open: (await vacOpen()).length, ...st });
+    }
     if (p === '/api/admin/applications' && m === 'GET') {
       const r = await q(`SELECT a.*, u.name, u.username, u.major, u.year, u.photo_url, u.knight_no, po.title pos_title, po.emoji pos_emoji
         FROM applications a JOIN users u ON u.id=a.user_id JOIN positions po ON po.id=a.position_id ORDER BY (a.status IN ('yangi','suhbat')) DESC, a.created_at DESC LIMIT 300`);
@@ -1096,6 +1106,59 @@ async function teamRoute(p, m, url, body, uid, tu, admin, myPos) {
     }
   }
   return null;
+}
+
+// ---- Vacancy announcement: every bot user gets it once, newcomers too, until no seat is open.
+const VAC_KIND = 'vac_promo_1';
+async function vacOpen() {
+  await ensurePositions();
+  return (await q('SELECT id FROM positions WHERE open AND holder_id IS NULL ORDER BY sort')).rows.map((r) => POS[r.id]).filter(Boolean);
+}
+async function vacState() { return ((await q("SELECT value FROM settings WHERE key='vac_promo'")).rows[0] || {}).value || 'off'; }
+async function setVacState(v) { await q("INSERT INTO settings (key,value) VALUES ('vac_promo',$1) ON CONFLICT (key) DO UPDATE SET value=$1, updated_at=now() RETURNING 1 x", [v]); }
+function vacText(open) {
+  const heads = open.filter((p) => !p.team), team = open.filter((p) => p.team);
+  return `♞ <b>BlackKnight jamoasiga ${open.length} ta o‘rin ochiq</b>
+${heads.length ? `\n🎖 <b>Head’lar:</b> ${heads.map((p) => esc(p.title.replace(/ Head$/, ''))).join(', ')}` : ''}${team.length ? `\n🎬 <b>Media jamoasi:</b> ${team.map((p) => esc(p.title.toLowerCase())).join(', ')}` : ''}
+
+Head bo‘lsangiz, o‘z yo‘nalishingiz bo‘yicha talabalar murojaatlari to‘g‘ridan-to‘g‘ri sizga keladi.
+
+Ariza faqat ♞ Ritsarlar uchun: profil to‘liq va kanalga obuna.
+Pastdagi tugmani bosing → o‘rinni tanlang. 2 daqiqa oladi, javob botga keladi.`;
+}
+const vacKb = () => (WEBAPP_URL ? { inline_keyboard: [[{ text: '♞ Jamoa — ariza berish', web_app: { url: WEBAPP_URL.replace(/[?#].*$/, '') + '?open=jamoa' } }]] } : undefined);
+async function sendVacPromo(uid, open, test) {
+  const t = await tg('sendMessage', { chat_id: uid.slice(2), parse_mode: 'HTML', text: vacText(open), reply_markup: vacKb() }).catch(() => null);
+  const ok = !!(t && t.ok);
+  if (!test && (ok || (t && (t.error_code === 403 || /chat not found|blocked|deactivated/i.test(t.description || '')))))
+    await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [uid, VAC_KIND, ok]);
+  return t;
+}
+// Newcomer on /start: send right away when the campaign is on.
+async function vacForNewcomer(uid) {
+  if ((await vacState()) !== 'on') return;
+  if ((await q('SELECT 1 x FROM reminders WHERE user_id=$1 AND kind=$2', [uid, VAC_KIND])).rowCount) return;
+  const open = await vacOpen();
+  if (open.length) await sendVacPromo(uid, open);
+}
+// Scheduled every few minutes; daytime only (09–21 Tashkent), ~50 s per run, resumes where it stopped.
+async function vacJob() {
+  if ((await vacState()) !== 'on') return json({ state: 'off' });
+  const open = await vacOpen();
+  if (!open.length) { await setVacState('done'); return json({ state: 'done' }); }
+  const h = +new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hour12: false }).format(new Date());
+  if (h < 9 || h >= 21) return json({ state: 'on', paused: 'night' });
+  const rows = (await q(`${SEGMENTS.all} EXCEPT SELECT user_id FROM reminders WHERE kind=$1`, [VAC_KIND])).rows;
+  const res = { total: rows.length, sent: 0, failed: 0, stopped: null }, started = Date.now();
+  for (const r of rows) {
+    if (Date.now() - started > 50000) { res.stopped = 'time'; break; }
+    const t = await sendVacPromo(r.user_id, open);
+    if (t && t.ok) res.sent++;
+    else if (t && (t.error_code === 403 || /chat not found|blocked|deactivated/i.test(t.description || ''))) res.failed++;
+    else { res.stopped = t ? t.description : 'network'; break; }
+    await new Promise((z) => setTimeout(z, 50));
+  }
+  return json(res);
 }
 
 async function route(req) {
@@ -1140,7 +1203,7 @@ async function route(req) {
   }
 
   if (p === '/api/admin/check' && m === 'GET') return json({ admin: !!admin, head: myPos });
-  if (p.startsWith('/api/team') || p.startsWith('/api/head') || /^\/api\/problems\/\d+\/route$/.test(p) || p.startsWith('/api/admin/applications') || p.startsWith('/api/admin/positions')) {
+  if (p.startsWith('/api/team') || p.startsWith('/api/head') || /^\/api\/problems\/\d+\/route$/.test(p) || p.startsWith('/api/admin/applications') || p.startsWith('/api/admin/positions') || p === '/api/admin/vacpromo') {
     const r = await teamRoute(p, m, url, body, uid, tu, admin, myPos);
     if (r) return r;
   }
@@ -1749,6 +1812,7 @@ export default {
       if (path.startsWith('/tg/thanks/')) return await thanksEvent(+path.split('/')[3]);
       if (path.startsWith('/tg/live/')) return await liveEvent(+path.split('/')[3]);
       if (path.startsWith('/tg/promo/')) return await promoJob(path.split('/')[3]);
+      if (path === '/tg/vacancy') return await vacJob();
       if (path.startsWith('/tg/nudge/')) return await nudgeEvent(+path.split('/')[3]);
       if (path.startsWith('/tg/announce/')) {
         const [, , , key, id] = path.split('/');

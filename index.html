@@ -257,13 +257,13 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-05.3';
+const BUILD = '2026-11-05.4';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
     fetch(location.pathname + '?nc=' + Date.now(), { cache: 'no-store' }).then((r) => r.text()).then((t) => {
       const m = t.match(/const BUILD = '([^']+)'/);
-      if (m && m[1] !== BUILD) { sessionStorage.setItem('bk_upd', BUILD); location.replace(location.pathname + '?v=' + encodeURIComponent(m[1]) + location.hash); }
+      if (m && m[1] !== BUILD) { sessionStorage.setItem('bk_upd', BUILD); const u = new URLSearchParams(location.search); u.set('v', m[1]); location.replace(location.pathname + '?' + u.toString() + location.hash); }
     }).catch(() => {});
   } catch (e) {}
 })();
@@ -1364,8 +1364,10 @@ async function refresh() {
   // Deep links: ?startapp=job_<seat> opens that vacancy; #bolim opens the Head's desk.
   const sp = (TG && TG.initDataUnsafe && TG.initDataUnsafe.start_param) || new URLSearchParams(location.search).get('tgWebAppStartParam') || '';
   if (sp.startsWith('job_')) { S.tab = 'jamoa'; await loadTeamData(); render(); positionSheet(sp.slice(4)); }
-  else if (location.hash === '#bolim' && S.head) { S.tab = 'bolim'; await loadHead(); render(); }
-  else if (location.hash === '#jamoa') { S.tab = 'jamoa'; await loadTeamData(); render(); }
+  const want = new URLSearchParams(location.search).get('open') || location.hash.slice(1);
+  if (sp.startsWith('job_')) {}
+  else if (want === 'bolim' && S.head) { S.tab = 'bolim'; await loadHead(); render(); }
+  else if (want === 'jamoa') { S.tab = 'jamoa'; await loadTeamData(); render(); }
   if (!S.offline && !sp.startsWith('job_')) { if (!store.get('bk_welcome') && profileEmpty(S.me)) welcomeSheet(); else if (!S.me) profileSheet(true); }
   setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 20000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
