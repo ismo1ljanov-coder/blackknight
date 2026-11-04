@@ -150,6 +150,8 @@ button{cursor:pointer}
 .prof{display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px;border-radius:26px}
 .ava{width:76px;height:76px;border-radius:50%;background:var(--gold-bg);border:1px solid var(--gold-line);display:grid;place-items:center;font-size:30px;font-weight:800;color:var(--gold)}
 .prof h2{margin:0;font-family:var(--crest);font-size:21px;font-weight:700}
+.how{margin-top:2px}.how summary{cursor:pointer;font-size:13px;color:var(--gold);font-weight:600;list-style:none}.how summary::-webkit-details-marker{display:none}.how summary::after{content:' ▾'}.how[open] summary::after{content:' ▴'}.how>div{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.prof .chips{justify-content:center}
 .nums{display:flex;gap:28px;margin-top:6px;text-align:center}
 .nums b{display:block;font-size:18px;font-weight:800;font-variant-numeric:tabular-nums}
 .nums span{font-size:12px;color:var(--muted)}
@@ -784,18 +786,19 @@ function levelBox() {
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><h3>${esc(sc.level)}</h3><span class="small" style="font-variant-numeric:tabular-nums">${sc.points} ball</span></div>
     <div class="bar" role="img" aria-label="${pct}%"><i style="width:${pct}%"></i></div>
     <div class="small">${S.me && S.me.title === 'Founder' ? '✦ Siz — Founder. Ballar jamoa a’zolari uchun.' : ''}${S.me && S.me.title === 'Founder' ? '' : sc.next_level ? `«${esc(sc.next_level)}» darajasigacha ${sc.next_at - sc.points} ball qoldi` : 'Eng yuqori daraja — siz Qora ritsarsiz ♞'}</div>
-    <div class="ladder"><span${sc.level_index >= 0 ? ' class="on"' : ''}>Navkar</span><i></i><span${sc.level_index >= 1 ? ' class="on"' : ''}>Ritsar · 100</span><i></i><span${sc.level_index >= 2 ? ' class="on"' : ''}>Qora ritsar · 300</span></div>
-    <div class="small">Post — 10 ball · boshqalardan ovoz — 2 ball · profilini to‘ldirgan taklif qilingan do‘st — 15 ball</div>
+    <details class="how"><summary>Ball qanday yig‘iladi?</summary><div>
+      <div class="ladder"><span${sc.level_index >= 0 ? ' class="on"' : ''}>Navkar</span><i></i><span${sc.level_index >= 1 ? ' class="on"' : ''}>Ritsar · 100</span><i></i><span${sc.level_index >= 2 ? ' class="on"' : ''}>Qora ritsar · 300</span></div>
+      <div class="small">Post — 10 ball · boshqalardan ovoz — 2 ball · profilini to‘ldirgan taklif qilingan do‘st — 15 ball</div></div></details>
     ${S.me && !S.me.knight_no && knightsLeft > 0 ? `<div class="small" style="color:var(--gold-hi)">♞ «Birinchi ritsar» belgisi: ${knightsLeft} ta joy qoldi. Shart: profilni to‘ldirish (yo‘nalish + qiziqish) va <a href="https://t.me/blackknightsp" style="color:inherit">@blackknightsp</a> kanaliga obuna bo‘lish.</div>` : ''}
   </section>`;
 }
 function inviteBox() {
   if (!S.refLink) return '';
   const inv = S.score ? S.score.invites : 0;
-  return `<section class="glass box" aria-label="Do‘stlarni taklif qilish">
+  return `<section class="glass box" aria-label="Do‘stlarni taklif qilish" style="position:relative">
     <h3>Do‘stingni olib kel</h3>
     <div class="small">Do‘stingiz qo‘shilib, profilini to‘ldirsa — +15 ball. Hisoblangan: <b style="color:var(--fg)">${inv}</b>${S.score && S.score.invites_pending ? ` · profil kutilmoqda: <b style="color:var(--fg)">${S.score.invites_pending}</b>` : ''}</div>
-    <div class="reflink" id="reflink">${esc(S.refLink)}</div>
+    <div class="reflink" id="reflink" style="position:absolute;left:-9999px" aria-hidden="true">${esc(S.refLink)}</div>
     <div style="display:flex;gap:8px"><button class="btn" style="flex:1" data-act="share">Ulashish</button><button class="btn ghost" style="flex:1" data-act="copyref">Nusxa olish</button></div>
   </section>`;
 }
@@ -823,28 +826,25 @@ function viewProfil() {
     ${me.role === 'volunteer' ? '<span class="pill knpill">✧ Volontyor</span>' : ''}
     ${me.role === 'leader' ? `<span class="pill ldpill">◇ ${esc(me.position || 'Yetakchi')}</span>` : ''}
     ${me.knight_no ? `<span class="pill knpill">♞ Birinchi ritsar #${me.knight_no}</span>` : ''}
+    <div class="small">${esc([me.major, me.year && me.year + '-kurs'].filter(Boolean).join(' · ') || 'Yo‘nalish ko‘rsatilmagan')}</div>
+    ${interests ? `<div class="chips">${interests}</div>` : ''}
     <div class="nums"><div><b>${ms.problems}</b><span>murojaat</span></div><div><b>${ms.votes}</b><span>ovoz</span></div><div><b>${ms.events}</b><span>tadbir</span></div></div>
     <div class="small">${me.contact === 'open' ? 'Sizga hamma Telegram’da yoza oladi' : 'Sizga faqat tanishish so‘rovi orqali yozish mumkin'}</div>
   </section>
-  ${S.contacts.length ? `<section class="glass box" aria-label="Tanishlarim">
-    <h3>Tanishlarim · ${S.contacts.length}</h3>
-    ${S.contacts.map((c) => `<div class="req"><div class="row">${avatar(c)}<div style="flex:1;min-width:0;text-align:left"><button class="linkname" data-person="${esc(c.id)}">${esc(c.name)}</button><div class="small">${esc(c.major || 'Millat Umidi talabasi')}</div></div>
-      <button class="btn" data-dm="${esc(c.id)}" data-user="${esc(c.username || '')}">${esc(String(c.name || 'Talaba').trim().split(/\s+/)[0])}ga yozish</button></div></div>`).join('')}
-  </section>` : ''}
   ${S.svc ? serviceBox(S.svc.summary, S.svc.entries, false) : ''}
   ${S.team ? pagonBox() : levelBox()}
-  ${S.team ? '' : inviteBox()}
-  <section class="glass box">
-    <div class="small">Yo‘nalish</div>
-    <div style="font-weight:600">${esc([me.major, me.year && me.year + '-kurs'].filter(Boolean).join(' · ') || '—')}</div>
-    <div class="small" style="margin-top:6px">Qiziqishlar</div>
-    <div class="chips">${interests || '<span class="small">Qo‘shilmagan</span>'}</div>
-  </section>
   <section class="glass box">
     <h3>Skill Swap</h3>
     <div class="swap"><div class="t"><small>O‘rgataman</small><b>${esc(me.teach || '—')}</b></div><div class="l"><small>O‘rganaman</small><b>${esc(me.learn || '—')}</b></div></div>
     ${matches}
   </section>
+  ${S.contacts.length ? `<section class="glass box" aria-label="Tanishlarim">
+    <h3>Tanishlarim · ${S.contacts.length}</h3>
+    ${(S.allContacts ? S.contacts : S.contacts.slice(0, 3)).map((c) => `<div class="req"><div class="row">${avatar(c)}<div style="flex:1;min-width:0;text-align:left"><button class="linkname" data-person="${esc(c.id)}">${esc(c.name)}</button><div class="small">${esc(c.major || 'Millat Umidi talabasi')}</div></div>
+      <button class="btn" data-dm="${esc(c.id)}" data-user="${esc(c.username || '')}" aria-label="${esc(c.name)}ga yozish">✉️ Yozish</button></div></div>`).join('')}
+    ${S.contacts.length > 3 && !S.allContacts ? `<button class="link" data-act="allcontacts">Hammasini ko‘rish (${S.contacts.length})</button>` : ''}
+  </section>` : ''}
+  ${S.team ? '' : inviteBox()}
   ${isAdmin ? `<a class="cta" href="admin.html" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none">📊 Admin panel</a>` : ''}
   ${!TG_INIT && location.hash === '#admin' ? `<button class="link" data-act="admin">${isAdmin ? 'Admin rejimidan chiqish' : 'Admin kirish (kalit bilan)'}</button>` : ''}`;
 }
@@ -1088,6 +1088,7 @@ document.addEventListener('click', async (e) => {
     if (TG && TG.openTelegramLink) TG.openTelegramLink(url); else window.open(url, '_blank');
     return;
   }
+  if (d.act === 'allcontacts') { S.allContacts = true; render(); return; }
   if (d.act === 'copyref' && S.refLink) {
     try { await navigator.clipboard.writeText(S.refLink); toast('Havola nusxalandi'); }
     catch (e) { const r = document.createRange(); r.selectNodeContents(document.getElementById('reflink')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('Havolani belgilab nusxalang'); }
