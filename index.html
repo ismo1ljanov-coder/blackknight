@@ -257,7 +257,7 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-04.7';
+const BUILD = '2026-11-05.1';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
@@ -907,7 +907,7 @@ function viewJamoa() {
   const open = D.positions.filter((p) => p.open && !p.holder).length;
   return head('Jamoa') + offlineNote() + `
   <section class="glass box"><h3>Students' Parliament</h3>
-    <div class="small">${D.positions.length} lavozim · <b style="color:var(--gold-hi)">${open} ta vakansiya ochiq</b>. Lavozimni bosing — vazifasi, talablari va ariza formasi ochiladi.</div>
+    <div class="small">${D.positions.length} lavozim · <b style="color:var(--gold-hi)">${open} ta vakansiya ochiq</b>. Lavozimni bosing — vazifasi, talablari va ariza formasi ochiladi. Ariza faqat <b>♞ Ritsarlar</b> uchun: profil to‘liq va klub kanaliga obuna.</div>
     ${isAdmin ? '<a class="btn ghost" href="admin.html#vacancy" style="display:flex;align-items:center;justify-content:center;text-decoration:none">Lavozim va arizalarni boshqarish</a>' : ''}</section>
   ${Object.keys(D.blocks).map((b) => { const items = D.positions.filter((p) => p.block === b); return `
     <div class="label">${esc(D.blocks[b])}</div>
@@ -920,7 +920,8 @@ function applyBlock(p) {
   if (!p.open) return 'Bu vakansiya hozircha yopiq.';
   if (p.my_status) return 'Bu lavozimga ariza topshirgansiz. Javob botga keladi.';
   if (!TG_INIT) return 'Ariza faqat Telegram ichida topshiriladi.';
-  if (!me || profileEmpty(me)) return 'Avval profilingizni to‘ldiring: yo‘nalish va qiziqishlar.';
+  if (D.my_knight && !D.my_knight.filled) return 'Ariza faqat Ritsarlar uchun. Avval profilingizni to‘ldiring: yo‘nalish va qiziqishlar.';
+  if (D.my_knight && !D.my_knight.subscribed) return 'Ariza faqat Ritsarlar uchun. Klub kanaliga obuna bo‘ling, keyin bu oynani qayta oching.';
   if (D.my_pos) return 'Siz allaqachon Kengash a’zosisiz. Bir kishi bitta lavozimni egallaydi.';
   if (p.faculty && D.my_faculty !== p.faculty) return `Bu lavozimga faqat ${p.faculty} yo‘nalishi talabalari ariza bera oladi.`;
   if (D.positions.filter((x) => x.my_status === 'yangi' || x.my_status === 'suhbat').length >= 2) return 'Bir vaqtda ko‘pi bilan 2 ta faol ariza bo‘ladi. Avvalgilariga javobni kuting.';
@@ -942,9 +943,13 @@ function positionSheet(id) {
     <div class="small">Kanalda ulashish havolasi:</div>
     <div class="tm-link"><code id="tm-dl">${esc(link)}</code><button class="btn ghost" id="tm-copy" type="button" style="height:34px;padding:0 12px">Nusxa</button></div>
     ${why ? `<div class="tm-warn">${esc(why)}</div>` : ''}
+    ${S.teamData.my_knight && S.teamData.my_knight.filled && !S.teamData.my_knight.subscribed && S.teamData.channel ? `<button class="btn" id="tm-sub" type="button" style="width:100%;margin-bottom:10px">Kanalga obuna bo‘lish</button>` : ''}
+    ${S.teamData.my_knight && !S.teamData.my_knight.filled ? `<button class="btn" id="tm-prof" type="button" style="width:100%;margin-bottom:10px">Profilni to‘ldirish</button>` : ''}
     <button class="primary" id="tm-apply" type="button" ${why ? 'disabled' : ''}>Ariza topshirish</button>`, (el) => {
     $('#tm-copy', el).addEventListener('click', async () => { try { await navigator.clipboard.writeText(link); toast('Havola nusxalandi'); } catch (e) { const r = document.createRange(); r.selectNodeContents($('#tm-dl', el)); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Havolani belgilab nusxalang'); } });
     if (!why) $('#tm-apply', el).addEventListener('click', () => applySheet(p));
+    const sb = $('#tm-sub', el); if (sb) sb.addEventListener('click', () => { const u = S.teamData.channel; if (TG && TG.openTelegramLink) TG.openTelegramLink(u); else window.open(u, '_blank'); closeSheet(); setTimeout(async () => { await loadTeamData(); render(); }, 4000); });
+    const pb = $('#tm-prof', el); if (pb) pb.addEventListener('click', () => { closeSheet(); profileSheet(false); });
   });
 }
 function applySheet(p) {

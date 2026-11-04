@@ -817,7 +817,7 @@ const facultyOf = (major) => { const f = FACULTIES.find((x) => x[3].test(String(
 const facPos = (major) => { const f = FACULTIES.find((x) => x[3].test(String(major || '').trim())); return f ? f[0] : null; };
 const EVENT_POS = ['culture', 'sport', 'startup', 'career', 'vol', 'pr'];
 
-const P_ = (id, block, emoji, title, o) => ({ id, block, emoji, title, faculty: null, full: false, rights: [], ...o });
+const P_ = (id, block, emoji, title, o) => { const x = { id, block, emoji, title, faculty: null, full: false, rights: [], ...o }; if (!/Ritsar/.test(x.req)) x.req = 'Ritsar (profil to‘liq + kanalga obuna). ' + x.req; return x; };
 const FAC_DUTY = (name) => `${name} talabalarining akademik va kundalik masalalari, o‘quv jarayoni va ustozlar bilan bog‘liq murojaatlar, fakultet ichidagi amaliy loyihalar.`;
 const POSITIONS = [
   P_('president', 'exec', '🔥', 'Prezident', { full: true, hours: '8–10 soat', req: 'Ritsar unvoni, kamida 2-kurs, akademik qarzdorlik yo‘q.',
@@ -974,8 +974,10 @@ async function teamRoute(p, m, url, body, uid, tu, admin, myPos) {
       (SELECT a.status FROM applications a WHERE a.position_id=p.id AND a.user_id=$1) my_status,
       (SELECT count(*) FROM applications a WHERE a.position_id=p.id AND a.status IN ('yangi','suhbat'))::int pending
       FROM positions p LEFT JOIN users u ON u.id=p.holder_id ORDER BY p.sort`, [uid || '']);
-    const me = uid ? (await q('SELECT major FROM users WHERE id=$1', [uid])).rows[0] : null;
+    const me = uid ? (await q('SELECT major, interests, teach, learn FROM users WHERE id=$1', [uid])).rows[0] : null;
+    const filled = profileFilled(me), sub = !!(tu && tu.id && filled && (await isSubscribed(uid)));
     return json({ blocks: BLOCKS, my_faculty: me ? facultyOf(me.major) : null, my_pos: myPos,
+      my_knight: { filled, subscribed: sub, ok: filled && sub }, channel: CHANNEL ? 'https://t.me/' + CHANNEL.replace(/^@/, '') : null,
       positions: r.rows.map((x) => ({ ...posBrief(x.id), open: x.open, holder: x.holder_id ? { id: x.holder_id, name: x.holder_name, photo_url: x.holder_photo, since: x.holder_since } : null,
         my_status: x.my_status, pending: admin ? x.pending : undefined })) });
   }
@@ -985,7 +987,9 @@ async function teamRoute(p, m, url, body, uid, tu, admin, myPos) {
     const st = (await q('SELECT open, holder_id FROM positions WHERE id=$1', [pos.id])).rows[0];
     if (!st.open || st.holder_id) return bad('Bu vakansiya hozir yopiq');
     const me = (await q('SELECT * FROM users WHERE id=$1', [uid])).rows[0];
-    if (!profileFilled(me)) return bad('Avval profilingizni to‘ldiring: yo‘nalish va qiziqishlar', 400);
+    // Only Knights apply: a filled profile and a live channel subscription (30-modda).
+    if (!profileFilled(me)) return bad('Ariza faqat Ritsarlar uchun. Avval profilingizni to‘ldiring: yo‘nalish va qiziqishlar', 403);
+    if (!(await isSubscribed(uid))) return bad(`Ariza faqat Ritsarlar uchun. ${CHANNEL || 'Klub'} kanaliga obuna bo‘ling va qayta urinib ko‘ring`, 403);
     if (pos.faculty && facultyOf(me.major) !== pos.faculty) return bad(`Bu lavozimga faqat ${pos.faculty} yo‘nalishi talabalari ariza bera oladi`, 403);
     if (myPos) return bad('Siz allaqachon Kengash a’zosisiz. Bir kishi bitta lavozimni egallaydi (25-modda)');
     const active = (await q("SELECT count(*)::int n FROM applications WHERE user_id=$1 AND status IN ('yangi','suhbat')", [uid])).rows[0].n;
