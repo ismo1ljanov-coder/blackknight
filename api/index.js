@@ -1021,7 +1021,7 @@ async function teamRoute(p, m, url, body, uid, tu, admin, myPos) {
       positions: r.rows.map((x) => ({ ...posBrief(x.id), open: x.open, holder: x.holder_id ? { id: x.holder_id, name: x.holder_name, photo_url: x.holder_photo, since: x.holder_since } : null,
         my_status: x.my_status, pending: admin ? x.pending : undefined })) });
   }
-  if ((mm = p.match(/^\/api\/team\/([a-z]+)\/apply$/)) && m === 'POST') {
+  if ((mm = p.match(/^\/api\/team\/([a-z_]+)\/apply$/)) && m === 'POST') {
     if (!tu || !tu.id) return bad('Ariza faqat Telegram ichida topshiriladi', 401);
     const pos = POS[mm[1]]; if (!pos) return bad('Lavozim topilmadi', 404);
     const st = (await q('SELECT open, holder_id FROM positions WHERE id=$1', [pos.id])).rows[0];
@@ -1103,7 +1103,7 @@ async function teamRoute(p, m, url, body, uid, tu, admin, myPos) {
       if (act === 'qabul') await assignHolder(pos.id, a.user_id, uid);
       return json({ ok: true });
     }
-    if ((mm = p.match(/^\/api\/admin\/positions\/([a-z]+)$/)) && m === 'POST') {
+    if ((mm = p.match(/^\/api\/admin\/positions\/([a-z_]+)$/)) && m === 'POST') {
       const pos = POS[mm[1]]; if (!pos) return bad('Lavozim topilmadi', 404);
       if (body.action === 'open' || body.action === 'close') { await q('UPDATE positions SET open=$1 WHERE id=$2 AND holder_id IS NULL RETURNING 1 x', [body.action === 'open', pos.id]); return json({ ok: true }); }
       if (body.action === 'release') { await releaseHolder(pos.id, true); return json({ ok: true }); }
