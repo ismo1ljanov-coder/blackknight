@@ -257,7 +257,7 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-05.4';
+const BUILD = '2026-11-05.5';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
@@ -834,7 +834,7 @@ function levelBox() {
     <details class="how"><summary>Ball qanday yig‘iladi?</summary><div>
       <div class="ladder"><span${sc.level_index >= 0 ? ' class="on"' : ''}>Navkar</span><i></i><span${sc.level_index >= 1 ? ' class="on"' : ''}>Ritsar · 100</span><i></i><span${sc.level_index >= 2 ? ' class="on"' : ''}>Qora ritsar · 300</span></div>
       <div class="small">Post — 10 ball · boshqalardan ovoz — 2 ball · profilini to‘ldirgan taklif qilingan do‘st — 15 ball</div></div></details>
-    ${S.me && !S.me.knight_no && knightsLeft > 0 ? `<div class="small" style="color:var(--gold-hi)">♞ «Birinchi ritsar» belgisi: ${knightsLeft} ta joy qoldi. Shart: profilni to‘ldirish (yo‘nalish + qiziqish) va <a href="https://t.me/blackknightsp" style="color:inherit">@blackknightsp</a> kanaliga obuna bo‘lish.</div>` : ''}
+    ${S.me && !S.me.knight_no && knightsLeft > 0 ? `<div class="small" style="color:var(--gold-hi)">♞ «Birinchi ritsar» belgisi: ${knightsLeft} ta joy qoldi. Shart: profilni to‘ldirish (yo‘nalish + qiziqish) va <a href="https://t.me/blackknightmu" style="color:inherit">@blackknightmu</a> kanaliga obuna bo‘lish.</div>` : ''}
   </section>`;
 }
 function inviteBox() {
@@ -1105,7 +1105,7 @@ function profileSheet(required) {
         const r = await api('/api/me', { method: 'PUT', body: { uid, name, major: msel === 'Boshqa' ? $('#pf-major', el).value : msel, year: $('#pf-year', el).value,
           interests: [...el.querySelectorAll('#pf-int [aria-pressed="true"]')].map((b) => b.textContent), teach: $('#pf-teach', el).value, learn: $('#pf-learn', el).value, contact: (el.querySelector('#pf-contact [aria-pressed="true"]') || {}).dataset?.c || 'request' } });
         S.me = r.user; closeSheet();
-        toast(r.knight === 'awarded' ? `♞ Tabriklaymiz! Siz Birinchi ritsar #${r.user.knight_no}` : r.knight === 'not-subscribed' ? 'Saqlandi. Nishon uchun @blackknightsp kanaliga obuna bo‘ling' : r.knight === 'incomplete' ? 'Saqlandi. Nishon uchun yo‘nalish va qiziqishni ham kiriting' : 'Profil saqlandi'); await Promise.all([loadMe(), loadMatches()]); render();
+        toast(r.knight === 'awarded' ? `♞ Tabriklaymiz! Siz Birinchi ritsar #${r.user.knight_no}` : r.knight === 'not-subscribed' ? 'Saqlandi. Nishon uchun @blackknightmu kanaliga obuna bo‘ling' : r.knight === 'incomplete' ? 'Saqlandi. Nishon uchun yo‘nalish va qiziqishni ham kiriting' : 'Profil saqlandi'); await Promise.all([loadMe(), loadMatches()]); render();
         if (pendingAction) { const a = pendingAction; pendingAction = null; a(); }
       } catch (err) { $('#pf-err', el).textContent = err.message; btn.disabled = false; }
     });

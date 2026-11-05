@@ -93,7 +93,7 @@ Nega qo‘shilish kerak?
 
 1️⃣ Ovozingiz eshitiladi. Kampusdagi muammoni yozing (anonim ham bo‘ladi). Ko‘p ovoz to‘plaganini jamoamiz ma’muriyatga olib chiqadi, natijani sizga xabar qilamiz.
 2️⃣ Kerakli odamni topasiz. Kim nimani biladi — «Odamlar»da qidiring, bilim almashing.
-3️⃣ Ritsarga aylanasiz. Post, ovoz va do‘st taklifi uchun ball. Profilini to‘ldirgan va @blackknightsp kanaliga obuna bo‘lgan birinchi 229 kishiga — raqamli «Birinchi ritsar» nishoni.
+3️⃣ Ritsarga aylanasiz. Post, ovoz va do‘st taklifi uchun ball. Profilini to‘ldirgan va @blackknightmu kanaliga obuna bo‘lgan birinchi 229 kishiga — raqamli «Birinchi ritsar» nishoni.
 
 Boshlash — 1 daqiqa: ilovani oching, profilingizni to‘ldiring va bitta muammoga ovoz bering 👇`;
 
@@ -135,7 +135,15 @@ async function answerRequest(id, targetUid, accept) {
   return { ok: true, accepted: accept };
 }
 
-const CHANNEL = process.env.CHANNEL || '';
+// The club channel; settings 'channel' overrides the env value so a rename needs no redeploy.
+let CHANNEL = process.env.CHANNEL || '';
+let channelAt = 0;
+async function loadChannel() {
+  if (Date.now() - channelAt < 60000) return;
+  channelAt = Date.now();
+  const r = (await q("SELECT value FROM settings WHERE key='channel'").catch(() => ({ rows: [] }))).rows[0];
+  if (r && r.value) CHANNEL = r.value.trim();
+}
 const BOT_USERNAME = 'blackknightsp_bot';
 const KNIGHT_LIMIT = 229;
 const MILESTONES = [5, 10, 25, 50, 100, 200];
@@ -1811,6 +1819,7 @@ export default {
   async fetch(req) {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     try {
+      await loadChannel();
       const path = new URL(req.url).pathname;
       if (path === '/__selftest') return await selftest();
       if (path === '/tg/webhook' && req.method === 'POST') return await tgWebhook(req);
