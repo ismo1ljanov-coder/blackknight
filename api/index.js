@@ -158,9 +158,14 @@ async function scoreOf(uid) {
 
 async function isSubscribed(uid) {
   if (!CHANNEL) return true;
-  const r = await tg('getChatMember', { chat_id: CHANNEL, user_id: uid.slice(2) }).catch(() => null);
+  const r = await tg('getChatMember', { chat_id: CHANNEL, user_id: uid.slice(2) }).catch((e) => ({ ok: false, description: 'network: ' + e.message }));
+  // Keep the last Telegram answer that was not a plain "member" so a broken check can be diagnosed from the database.
+  if (!(r && r.ok && r.result.status === 'member')) await q("INSERT INTO settings (key,value) VALUES ('sub_check_last',$1) ON CONFLICT (key) DO UPDATE SET value=$1, updated_at=now() RETURNING 1 x",
+    [JSON.stringify({ uid, channel: CHANNEL, r: r && (r.ok ? { status: r.result.status } : { code: r.error_code, d: r.description }) })]).catch(() => {});
   return !!(r && r.ok && ['member', 'administrator', 'creator', 'restricted'].includes(r.result.status));
 }
+// A Knight (♞): either holds the badge (subscription was verified when it was given) or passes the live check now.
+async function isKnight(u) { return !!(u && profileFilled(u) && (u.knight_no || (await isSubscribed(u.id)))); }
 
 // First Knight badge: the first KNIGHT_LIMIT authors whose post earned a vote from someone else.
 // Badge rule: a filled profile (major + an interest or skill) and a channel subscription.
@@ -1001,8 +1006,8 @@ async function teamRoute(p, m, url, body, uid, tu, admin, myPos) {
       (SELECT a.status FROM applications a WHERE a.position_id=p.id AND a.user_id=$1) my_status,
       (SELECT count(*) FROM applications a WHERE a.position_id=p.id AND a.status IN ('yangi','suhbat'))::int pending
       FROM positions p LEFT JOIN users u ON u.id=p.holder_id ORDER BY p.sort`, [uid || '']);
-    const me = uid ? (await q('SELECT major, interests, teach, learn FROM users WHERE id=$1', [uid])).rows[0] : null;
-    const filled = profileFilled(me), sub = !!(tu && tu.id && filled && (await isSubscribed(uid)));
+    const me = uid ? (await q('SELECT id, major, interests, teach, learn, knight_no FROM users WHERE id=$1', [uid])).rows[0] : null;
+    const filled = profileFilled(me), sub = !!(tu && tu.id && filled && (await isKnight(me)));
     return json({ blocks: BLOCKS, my_faculty: me ? facultyOf(me.major) : null, my_pos: myPos,
       my_knight: { filled, subscribed: sub, ok: filled && sub }, channel: CHANNEL ? 'https://t.me/' + CHANNEL.replace(/^@/, '') : null,
       positions: r.rows.map((x) => ({ ...posBrief(x.id), open: x.open, holder: x.holder_id ? { id: x.holder_id, name: x.holder_name, photo_url: x.holder_photo, since: x.holder_since } : null,
@@ -1016,7 +1021,7 @@ async function teamRoute(p, m, url, body, uid, tu, admin, myPos) {
     const me = (await q('SELECT * FROM users WHERE id=$1', [uid])).rows[0];
     // Only Knights apply: a filled profile and a live channel subscription (30-modda).
     if (!profileFilled(me)) return bad('Ariza faqat Ritsarlar uchun. Avval profilingizni to‘ldiring: yo‘nalish va qiziqishlar', 403);
-    if (!(await isSubscribed(uid))) return bad(`Ariza faqat Ritsarlar uchun. ${CHANNEL || 'Klub'} kanaliga obuna bo‘ling va qayta urinib ko‘ring`, 403);
+    if (!(await isKnight(me))) return bad(`Ariza faqat Ritsarlar uchun. ${CHANNEL || 'Klub'} kanaliga obuna bo‘ling va qayta urinib ko‘ring`, 403);
     if (pos.faculty && facultyOf(me.major) !== pos.faculty) return bad(`Bu lavozimga faqat ${pos.faculty} yo‘nalishi talabalari ariza bera oladi`, 403);
     if (myPos) return bad('Siz allaqachon Kengash a’zosisiz. Bir kishi bitta lavozimni egallaydi (25-modda)');
     const active = (await q("SELECT count(*)::int n FROM applications WHERE user_id=$1 AND status IN ('yangi','suhbat')", [uid])).rows[0].n;
