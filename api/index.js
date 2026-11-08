@@ -252,23 +252,14 @@ async function eventCallback(cb, eventId) {
   await sendEventLink(eventId, me);
 }
 
-const eventCaption = (e) => `<b>BlackKnight Club Picnic'ga taklif qiladi!</b>
-Darslar, deadline'lar, imtihonlar... Bir kun hammasidan dam olamizmi? 🧺
-
-📅 Sana: 01.11.2026
-⏰ Vaqt: 14:00
-📍 Joy: Yoshlar ijod saroyi toʻgʻrisidagi bogʻ
-💰 Ishtirok: bepul
-
-🔥 <b>Bizda:</b>
-— Ochiq havoda tanishuv va suhbat
-— O'yinlar va jamoaviy musobaqalar
-— Mazali snacklar 🍿 va salqin ichimliklar 🥤
-— Yangi do'stlar va yaxshi atmosfera
-
-Joylar soni cheklangan! Ro'yxatdan o'tish — pastdagi <b>«✅ Qatnashaman»</b> tugmasi orqali 👇
-
-♟ <b>BlackKnight Club</b> — talabalar uchun, talabalar tomonidan.`;
+// Default announcement text built from the event itself; a custom one can be stored in settings 'event_caption_<id>'.
+const eventCaption = (e) => {
+  const d = new Date(new Date(e.starts_at).getTime() + 5 * 3600e3);
+  const p = (n) => String(n).padStart(2, '0');
+  const when = `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}` + (e.date_only ? '' : `, ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`);
+  const desc = String(e.description || '').replace(/https?:\/\/\S+/g, '').trim().slice(0, 600);
+  return `<b>${esc(e.title)}</b>\n\n📅 ${when}\n📍 ${esc(e.place || '')}${e.capacity ? `\n👥 ${e.capacity} ta joy` : ''}\n\n${esc(desc)}\n\nRo'yxatdan o'tish — pastdagi <b>«✅ Qatnashaman»</b> tugmasi orqali 👇`;
+};
 
 // Event announcement: video + caption + join button. ?to=<tg id> sends one test copy; ?to=all sends to everyone once.
 async function announceEvent(eventId, to) {
@@ -278,10 +269,15 @@ async function announceEvent(eventId, to) {
   const key = 'event_video_' + eventId;
   const kb = { inline_keyboard: [[{ text: '✅ Qatnashaman', callback_data: 'ev:' + eventId }]] };
   if (WEBAPP_URL) kb.inline_keyboard.push([{ text: 'Black Knight’ni ochish', web_app: { url: WEBAPP_URL } }]);
+  const custom = (await q('SELECT value FROM settings WHERE key=$1', ['event_caption_' + eventId])).rows[0];
+  const caption = custom ? custom.value : eventCaption(e);
+  const srcRow = (await q('SELECT value FROM settings WHERE key=$1', ['event_video_src_' + eventId])).rows[0];
+  const src = srcRow ? srcRow.value : (eventId === 13 ? 'picnic.mp4' : null);
   const send = async (uid) => {
     const cached = (await q('SELECT value FROM settings WHERE key=$1', [key])).rows[0];
-    const video = cached ? cached.value : WEBAPP_URL.replace(/\/$/, '') + '/picnic.mp4';
-    const r = await tg('sendVideo', { chat_id: uid.slice(2), video, caption: eventCaption(e), parse_mode: 'HTML', supports_streaming: true, width: 1080, height: 1920, reply_markup: kb }).catch(() => null);
+    if (!cached && !src) return tg('sendMessage', { chat_id: uid.slice(2), text: caption, parse_mode: 'HTML', reply_markup: kb }).catch(() => null);
+    const video = cached ? cached.value : WEBAPP_URL.replace(/\/$/, '') + '/' + src;
+    const r = await tg('sendVideo', { chat_id: uid.slice(2), video, caption, parse_mode: 'HTML', supports_streaming: true, reply_markup: kb }).catch(() => null);
     const fid = r && r.ok && r.result.video && r.result.video.file_id;
     if (fid && !cached) await q('INSERT INTO settings (key,value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2, updated_at=now() RETURNING 1 x', [key, fid]);
     return r;
