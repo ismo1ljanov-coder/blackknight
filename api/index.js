@@ -176,11 +176,13 @@ async function isSubscribed(uid) {
 async function isKnight(u) { return !!(u && profileFilled(u) && (u.knight_no || (await isSubscribed(u.id)))); }
 
 // First Knight badge: the first KNIGHT_LIMIT authors whose post earned a vote from someone else.
-// Badge rule: a filled profile (major + an interest or skill) and a channel subscription.
-const profileFilled = (u) => !!(u && u.major && u.major.trim() && ((u.interests || []).length || (u.teach || '').trim() || (u.learn || '').trim()));
+// Badge rule: a filled profile (major + course year, or major + an interest or skill) and a channel subscription.
+const profileFilled = (u) => !!(u && u.major && u.major.trim() && (String(u.year || '').trim() || (u.interests || []).length || (u.teach || '').trim() || (u.learn || '').trim()));
+// SQL twin of profileFilled, for segment queries over the users table aliased "u".
+const FILLED_SQL = `(coalesce(u.major,'')<>'' AND (coalesce(u.year,'')<>'' OR cardinality(u.interests)>0 OR coalesce(u.teach,'')<>'' OR coalesce(u.learn,'')<>''))`;
 async function tryAwardKnight(uid) {
   if (!uid || !uid.startsWith('tg')) return 'no-tg';
-  const u = await q('SELECT knight_no, major, interests, teach, learn FROM users WHERE id=$1', [uid]);
+  const u = await q('SELECT knight_no, major, year, interests, teach, learn FROM users WHERE id=$1', [uid]);
   if (!u.rowCount) return 'no-user';
   if (u.rows[0].knight_no) return 'has';
   if (!profileFilled(u.rows[0])) return 'incomplete';
@@ -466,6 +468,18 @@ async function tgWebhook(req) {
     await eventCallback(cb, +cb.data.slice(3));
     return json({ ok: true });
   }
+  if (cb && cb.data === 'kn:check') {
+    // "Tekshirish" under the knight nudge: re-check the subscription and give the badge on the spot.
+    const uid = 'tg' + cb.from.id;
+    const res = await tryAwardKnight(uid);
+    const no = res === 'has' ? (await q('SELECT knight_no FROM users WHERE id=$1', [uid])).rows[0]?.knight_no : null;
+    const text = { awarded: '♞ Tabriklaymiz! Siz endi Ritsarsiz', has: `Siz allaqachon Ritsarsiz ♞ #${no || ''}`,
+      'not-subscribed': 'Obuna hali ko‘rinmayapti. Kanalga obuna bo‘ling va qayta bosing.', incomplete: 'Avval profilni to‘ldiring: yo‘nalish va kurs.',
+      full: 'Afsuski, 229 ta o‘rin tugadi.', 'no-user': 'Avval ilovani bir marta oching.' }[res] || 'Qayta urinib ko‘ring.';
+    await tg('answerCallbackQuery', { callback_query_id: cb.id, text, show_alert: res !== 'awarded' });
+    if ((res === 'awarded' || res === 'has') && cb.message) await tg('editMessageReplyMarkup', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, reply_markup: openKb() || { inline_keyboard: [] } }).catch(() => {});
+    return json({ ok: true });
+  }
   if (cb && typeof cb.data === 'string' && cb.data.startsWith('mk:')) {
     // Seller marks a listing sold straight from the bot message.
     const id = +cb.data.split(':')[1];
@@ -558,7 +572,7 @@ async function tgSetup() {
 // ======================= ADMIN PANEL =======================
 const TZ = 'Asia/Tashkent';
 const REAL = "id NOT LIKE 'selftest%' AND id NOT LIKE 'tg99000000%'";
-const FILLED = "(coalesce(major,'')<>'' AND (cardinality(coalesce(interests,'{}'))>0 OR coalesce(teach,'')<>'' OR coalesce(learn,'')<>''))";
+const FILLED = "(coalesce(major,'')<>'' AND (coalesce(year,'')<>'' OR cardinality(coalesce(interests,'{}'))>0 OR coalesce(teach,'')<>'' OR coalesce(learn,'')<>''))";
 // Broadcast audiences: who receives a message from the admin panel.
 const SEGMENTS = {
   all: `SELECT id user_id FROM users WHERE id LIKE 'tg%' AND ${REAL} UNION SELECT user_id FROM bot_starts WHERE user_id LIKE 'tg%' AND user_id NOT LIKE 'tg99000000%'`,
@@ -1013,7 +1027,7 @@ async function teamRoute(p, m, url, body, uid, tu, admin, myPos) {
       (SELECT a.status FROM applications a WHERE a.position_id=p.id AND a.user_id=$1) my_status,
       (SELECT count(*) FROM applications a WHERE a.position_id=p.id AND a.status IN ('yangi','suhbat'))::int pending
       FROM positions p LEFT JOIN users u ON u.id=p.holder_id ORDER BY p.sort`, [uid || '']);
-    const me = uid ? (await q('SELECT id, major, interests, teach, learn, knight_no FROM users WHERE id=$1', [uid])).rows[0] : null;
+    const me = uid ? (await q('SELECT id, major, year, interests, teach, learn, knight_no FROM users WHERE id=$1', [uid])).rows[0] : null;
     const filled = profileFilled(me), sub = !!(tu && tu.id && filled && (await isKnight(me)));
     return json({ blocks: BLOCKS, my_faculty: me ? facultyOf(me.major) : null, my_pos: myPos,
       my_knight: { filled, subscribed: sub, ok: filled && sub }, channel: CHANNEL ? 'https://t.me/' + CHANNEL.replace(/^@/, '') : null,
@@ -1027,7 +1041,7 @@ async function teamRoute(p, m, url, body, uid, tu, admin, myPos) {
     if (!st.open || st.holder_id) return bad('Bu vakansiya hozir yopiq');
     const me = (await q('SELECT * FROM users WHERE id=$1', [uid])).rows[0];
     // Only Knights apply: a filled profile and a live channel subscription (30-modda).
-    if (!profileFilled(me)) return bad('Ariza faqat Ritsarlar uchun. Avval profilingizni to‘ldiring: yo‘nalish va qiziqishlar', 403);
+    if (!profileFilled(me)) return bad('Ariza faqat Ritsarlar uchun. Avval profilingizni to‘ldiring: yo‘nalish va kurs', 403);
     if (!(await isKnight(me))) return bad(`Ariza faqat Ritsarlar uchun. ${CHANNEL || 'Klub'} kanaliga obuna bo‘ling va qayta urinib ko‘ring`, 403);
     if (pos.faculty && facultyOf(me.major) !== pos.faculty) return bad(`Bu lavozimga faqat ${pos.faculty} yo‘nalishi talabalari ariza bera oladi`, 403);
     if (myPos) return bad('Siz allaqachon Kengash a’zosisiz. Bir kishi bitta lavozimni egallaydi (25-modda)');
@@ -1548,7 +1562,7 @@ async function route(req) {
   if (p === '/api/market' && m === 'POST') {
     if (!tu && !admin) return bad('E’lon faqat Telegram ichida joylanadi', 401);
     const me = validUid(body.uid) ? (await q('SELECT * FROM users WHERE id=$1', [body.uid])).rows[0] : null;
-    if (!profileFilled(me)) return bad('E’lon berish uchun avval profilingizni to‘ldiring (yo‘nalish va qiziqish)', 401);
+    if (!profileFilled(me)) return bad('E’lon berish uchun avval profilingizni to‘ldiring (yo‘nalish va kurs)', 401);
     const title = str(body.title, 100);
     if (title.length < 3) return bad('Nomini yozing');
     const photos = (Array.isArray(body.photos) ? body.photos : []).slice(0, MARKET_PHOTOS)
@@ -1626,7 +1640,7 @@ async function route(req) {
   if ((mm = p.match(/^\/api\/market\/(\d+)\/want$/)) && m === 'POST') {
     if (!tu) return bad('«Olish» faqat Telegram ichida ishlaydi', 401);
     const me = (await q('SELECT * FROM users WHERE id=$1', [uid])).rows[0];
-    if (!profileFilled(me)) return bad('Olish uchun avval profilingizni to‘ldiring (yo‘nalish va qiziqish)', 401);
+    if (!profileFilled(me)) return bad('Olish uchun avval profilingizni to‘ldiring (yo‘nalish va kurs)', 401);
     const l = (await q(`SELECT l.id, l.title, l.price, l.status, u.id seller_id, u.name seller_name, u.username seller_username
       FROM listings l JOIN users u ON u.id=l.seller_id WHERE l.id=$1`, [+mm[1]])).rows[0];
     if (!l) return bad('E’lon topilmadi', 404);
@@ -1708,7 +1722,7 @@ async function remindJob() {
   const noApp = (await q(`SELECT b.user_id FROM bot_starts b WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id=b.user_id)
     AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.user_id=b.user_id AND r.kind='open_app') AND b.user_id NOT LIKE 'tg99000000%'`)).rows;
   const noSub = (await q(`SELECT u.id user_id, u.name FROM users u WHERE u.id LIKE 'tg%' AND u.knight_no IS NULL AND u.major<>''
-    AND (cardinality(u.interests)>0 OR u.teach<>'' OR u.learn<>'')
+    AND (coalesce(u.year,'')<>'' OR cardinality(u.interests)>0 OR u.teach<>'' OR u.learn<>'')
     AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.user_id=u.id AND r.kind='subscribe')`)).rows;
   const knights = (await q(`SELECT u.id user_id, u.name, u.knight_no FROM users u WHERE u.knight_no IS NOT NULL AND u.id LIKE 'tg%'
     AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.user_id=u.id AND r.kind='knight_thanks') ORDER BY u.knight_no`)).rows;
@@ -1741,6 +1755,36 @@ async function remindJob() {
     await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, 'knight_thanks', ok]);
   }
   await q('INSERT INTO selftest (result) VALUES ($1) RETURNING 1 x', [JSON.stringify({ remind: res })]).catch(() => {});
+  return json(res);
+}
+
+// Two targeted nudges (Nov 2026). kind=knight: profile filled but no badge yet. kind=profile: profile not filled.
+// ?to=tg<id> sends a preview to that one person only and logs nothing. Team members are never targeted.
+async function campaignJob(kind, to) {
+  const left = Math.max(0, KNIGHT_LIMIT - (await q('SELECT count(*)::int n FROM users WHERE knight_no IS NOT NULL')).rows[0].n);
+  const tag = { knight: 'cmp_knight1', profile: 'cmp_profile1' }[kind];
+  if (!tag) return bad('kind: knight | profile');
+  const base = `u.id LIKE 'tg%' AND u.id NOT LIKE 'tg99000000%' AND NOT EXISTS (SELECT 1 FROM admins a WHERE a.user_id=u.id)
+    AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.user_id=u.id AND r.kind='${tag}')`;
+  const rows = to ? (await q('SELECT id user_id, name FROM users u WHERE id=$1', [to])).rows
+    : kind === 'knight' ? (await q(`SELECT u.id user_id, u.name FROM users u WHERE ${base} AND u.knight_no IS NULL AND ${FILLED_SQL} ORDER BY u.last_seen DESC NULLS LAST`)).rows
+    : (await q(`SELECT u.id user_id, u.name FROM users u WHERE ${base} AND NOT ${FILLED_SQL} ORDER BY u.last_seen DESC NULLS LAST`)).rows;
+  const ch = CHANNEL.replace(/^@/, '');
+  const res = { kind, preview: !!to, left, targets: rows.length, sent: 0, failed: 0, awarded_now: 0 };
+  for (const r of rows) {
+    if (!to && kind === 'knight' && (await tryAwardKnight(r.user_id)) === 'awarded') { res.awarded_now++; continue; }
+    const msg = kind === 'knight' ? {
+      text: `⚔️ <b>Ritsarlikka 1 qadam qoldi!</b>\n\nProfilingiz tayyor. Endi faqat BlackKnight kanaliga obuna bo‘ling — Ritsar unvoni darhol sizniki.\n\nRitsar bo‘lsangiz:\n• muammoni <b>anonim</b> yozasiz\n• <b>Market</b>’da savdo qilasiz\n• jamoa <b>vakansiyalariga</b> ariza berasiz\n\n229 o‘rindan atigi <b>${left} tasi</b> qoldi. Raqamingiz qanchalik kichik bo‘lsa, shunchalik qadrli 👀`,
+      reply_markup: { inline_keyboard: [[{ text: '📢 Obuna bo‘lish', url: `https://t.me/${ch}` }], [{ text: '✅ Tekshirish', callback_data: 'kn:check' }]] },
+    } : {
+      text: `👋 <b>Salom! Ovozingiz kerak.</b>\n\nTalabalar muammolari endi to‘g‘ridan-to‘g‘ri fakultetingiz Head’iga boradi. Buning uchun bizga faqat 2 narsa kerak: <b>fakultetingiz va kursingiz</b>.\n\n⏱ 10 soniya, 2 ta bosish.\n\nProfilni to‘ldirganlar Ritsarlikka bir qadam yaqinlashadi — 229 o‘rindan <b>${left} tasi</b> hali bo‘sh.`,
+      reply_markup: WEBAPP_URL ? { inline_keyboard: [[{ text: '✍️ Profilni to‘ldirish', web_app: { url: WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + 'open=profil' } }]] } : undefined,
+    };
+    const t = await tg('sendMessage', { chat_id: r.user_id.slice(2), parse_mode: 'HTML', ...msg }).catch(() => null);
+    const ok = !!(t && t.ok); res[ok ? 'sent' : 'failed']++;
+    if (!to) await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, tag, ok]);
+  }
+  await q('INSERT INTO selftest (result) VALUES ($1) RETURNING 1 x', [JSON.stringify({ campaign: res })]).catch(() => {});
   return json(res);
 }
 
@@ -1831,6 +1875,11 @@ export default {
         const [, , , key, id] = path.split('/');
         if (!ADMIN_KEY || key !== ADMIN_KEY) return bad('forbidden', 403);
         return await announceEvent(+id, new URL(req.url).searchParams.get('to') || '');
+      }
+      if (path.startsWith('/tg/campaign/')) {
+        const [, , , key, kind] = path.split('/');
+        if (!ADMIN_KEY || key !== ADMIN_KEY) return bad('forbidden', 403);
+        return await campaignJob(kind, new URL(req.url).searchParams.get('to') || '');
       }
       if (path.startsWith('/tg/remind/')) {
         if (!ADMIN_KEY || path.split('/')[3] !== ADMIN_KEY) return bad('forbidden', 403);

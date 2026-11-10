@@ -257,7 +257,7 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-05.5';
+const BUILD = '2026-11-11.1';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
@@ -1081,8 +1081,9 @@ function profileSheet(required) {
       <label class="field">Ism<input id="pf-name" maxlength="60" autocomplete="name" value="${esc(me.name || tgName)}" required></label>
       <div class="two"><label class="field">Yo‘nalish<select id="pf-major-sel">${['', ...MAJORS, 'Boshqa'].map((m) => `<option value="${esc(m)}" ${(m === majorSel) ? 'selected' : ''}>${m ? esc(m) : '— tanlang —'}</option>`).join('')}</select>
         <input id="pf-major" maxlength="80" placeholder="Yo‘nalishingizni yozing" value="${esc(majorSel === 'Boshqa' ? me.major || '' : '')}" ${majorSel === 'Boshqa' ? '' : 'hidden'} style="margin-top:6px"></label>
-      <label class="field">Kurs<input id="pf-year" maxlength="20" inputmode="numeric" placeholder="1" value="${esc(me.year || '')}"></label></div>
-      <div class="field">Qiziqishlar<div class="chips" id="pf-int">${all.map((t) => `<button type="button" class="chip" aria-pressed="${sel.has(t)}">${esc(t)}</button>`).join('')}</div></div>
+      <label class="field">Kurs<select id="pf-year">${['', '1', '2', '3', '4', 'Magistratura'].map((y) => `<option value="${esc(y)}" ${String(me.year || '') === y ? 'selected' : ''}>${y ? (/^\d$/.test(y) ? y + '-kurs' : y) : '— tanlang —'}</option>`).join('')}${me.year && !['1', '2', '3', '4', 'Magistratura'].includes(String(me.year)) ? `<option value="${esc(me.year)}" selected>${esc(me.year)}</option>` : ''}</select></label></div>
+      <div class="small" style="margin-top:-6px">♞ Ritsarlik uchun yo‘nalish va kurs yetarli. Qolgani — ixtiyoriy.</div>
+      <div class="field">Qiziqishlar <span class="small">(ixtiyoriy)</span><div class="chips" id="pf-int">${all.map((t) => `<button type="button" class="chip" aria-pressed="${sel.has(t)}">${esc(t)}</button>`).join('')}</div></div>
       <div class="two"><label class="field">O‘rgataman<input id="pf-teach" maxlength="80" placeholder="No-code dasturlar" value="${esc(me.teach || '')}"></label>
       <label class="field">O‘rganaman<input id="pf-learn" maxlength="80" placeholder="Ingliz tili" value="${esc(me.learn || '')}"></label></div>
       <div class="field">Kim menga Telegram’da yoza oladi?<div class="chips" id="pf-contact">
@@ -1099,13 +1100,14 @@ function profileSheet(required) {
       e.preventDefault();
       const name = $('#pf-name', el).value.trim();
       if (!name) { $('#pf-err', el).textContent = 'Ismingizni yozing.'; return; }
+      if (!required && (!$('#pf-major-sel', el).value || !$('#pf-year', el).value)) { $('#pf-err', el).textContent = 'Yo‘nalish va kursni tanlang.'; return; }
       const btn = $('button[type=submit]', el); btn.disabled = true;
       try {
         const msel = $('#pf-major-sel', el).value;
         const r = await api('/api/me', { method: 'PUT', body: { uid, name, major: msel === 'Boshqa' ? $('#pf-major', el).value : msel, year: $('#pf-year', el).value,
           interests: [...el.querySelectorAll('#pf-int [aria-pressed="true"]')].map((b) => b.textContent), teach: $('#pf-teach', el).value, learn: $('#pf-learn', el).value, contact: (el.querySelector('#pf-contact [aria-pressed="true"]') || {}).dataset?.c || 'request' } });
         S.me = r.user; closeSheet();
-        toast(r.knight === 'awarded' ? `♞ Tabriklaymiz! Siz Birinchi ritsar #${r.user.knight_no}` : r.knight === 'not-subscribed' ? 'Saqlandi. Nishon uchun @blackknightmu kanaliga obuna bo‘ling' : r.knight === 'incomplete' ? 'Saqlandi. Nishon uchun yo‘nalish va qiziqishni ham kiriting' : 'Profil saqlandi'); await Promise.all([loadMe(), loadMatches()]); render();
+        toast(r.knight === 'awarded' ? `♞ Tabriklaymiz! Siz Birinchi ritsar #${r.user.knight_no}` : r.knight === 'not-subscribed' ? 'Saqlandi. Nishon uchun @blackknightsp kanaliga obuna bo‘ling' : r.knight === 'incomplete' ? 'Saqlandi. Nishon uchun yo‘nalish va kursni ham tanlang' : 'Profil saqlandi'); await Promise.all([loadMe(), loadMatches()]); render();
         if (pendingAction) { const a = pendingAction; pendingAction = null; a(); }
       } catch (err) { $('#pf-err', el).textContent = err.message; btn.disabled = false; }
     });
@@ -1368,7 +1370,8 @@ async function refresh() {
   if (sp.startsWith('job_')) {}
   else if (want === 'bolim' && S.head) { S.tab = 'bolim'; await loadHead(); render(); }
   else if (want === 'jamoa') { S.tab = 'jamoa'; await loadTeamData(); render(); }
-  if (!S.offline && !sp.startsWith('job_')) { if (!store.get('bk_welcome') && profileEmpty(S.me)) welcomeSheet(); else if (!S.me) profileSheet(true); }
+  else if ((want === 'profil' || sp === 'profil') && !S.offline) { store.set('bk_welcome', '1'); profileSheet(false); }
+  if (!S.offline && !sp.startsWith('job_') && want !== 'profil' && sp !== 'profil') { if (!store.get('bk_welcome') && profileEmpty(S.me)) welcomeSheet(); else if (!S.me) profileSheet(true); }
   setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 20000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
 })();
