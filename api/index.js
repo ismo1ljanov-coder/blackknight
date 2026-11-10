@@ -276,9 +276,12 @@ async function announceEvent(eventId, to) {
   const send = async (uid) => {
     const cached = (await q('SELECT value FROM settings WHERE key=$1', [key])).rows[0];
     if (!cached && !src) return tg('sendMessage', { chat_id: uid.slice(2), text: caption, parse_mode: 'HTML', reply_markup: kb }).catch(() => null);
-    const video = cached ? cached.value : WEBAPP_URL.replace(/\/$/, '') + '/' + src;
-    const r = await tg('sendVideo', { chat_id: uid.slice(2), video, caption, parse_mode: 'HTML', supports_streaming: true, reply_markup: kb }).catch(() => null);
-    const fid = r && r.ok && r.result.video && r.result.video.file_id;
+    const media = cached ? cached.value : WEBAPP_URL.replace(/\/$/, '') + '/' + src;
+    const isPhoto = /\.(jpe?g|png|webp)$/i.test(src || '');
+    const r = isPhoto
+      ? await tg('sendPhoto', { chat_id: uid.slice(2), photo: media, caption, parse_mode: 'HTML', reply_markup: kb }).catch(() => null)
+      : await tg('sendVideo', { chat_id: uid.slice(2), video: media, caption, parse_mode: 'HTML', supports_streaming: true, reply_markup: kb }).catch(() => null);
+    const fid = r && r.ok && (isPhoto ? (r.result.photo || []).slice(-1)[0]?.file_id : r.result.video && r.result.video.file_id);
     if (fid && !cached) await q('INSERT INTO settings (key,value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2, updated_at=now() RETURNING 1 x', [key, fid]);
     return r;
   };
