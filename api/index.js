@@ -1760,7 +1760,7 @@ async function remindJob() {
 
 // Two targeted nudges (Nov 2026). kind=knight: profile filled but no badge yet. kind=profile: profile not filled.
 // ?to=tg<id> sends a preview to that one person only and logs nothing. Team members are never targeted.
-async function campaignJob(kind, to) {
+async function campaignJob(kind, to, budgetMs = 0) {
   const left = Math.max(0, KNIGHT_LIMIT - (await q('SELECT count(*)::int n FROM users WHERE knight_no IS NOT NULL')).rows[0].n);
   const tag = { knight: 'cmp_knight1', profile: 'cmp_profile1' }[kind];
   if (!tag) return bad('kind: knight | profile');
@@ -1770,8 +1770,9 @@ async function campaignJob(kind, to) {
     : kind === 'knight' ? (await q(`SELECT u.id user_id, u.name FROM users u WHERE ${base} AND u.knight_no IS NULL AND ${FILLED_SQL} ORDER BY u.last_seen DESC NULLS LAST`)).rows
     : (await q(`SELECT u.id user_id, u.name FROM users u WHERE ${base} AND NOT ${FILLED_SQL} ORDER BY u.last_seen DESC NULLS LAST`)).rows;
   const ch = CHANNEL.replace(/^@/, '');
-  const res = { kind, preview: !!to, left, targets: rows.length, sent: 0, failed: 0, awarded_now: 0 };
+  const res = { kind, preview: !!to, left, targets: rows.length, sent: 0, failed: 0, awarded_now: 0, stopped: null }, started = Date.now();
   for (const r of rows) {
+    if (budgetMs && Date.now() - started > budgetMs) { res.stopped = 'time'; break; }
     if (!to && kind === 'knight' && (await tryAwardKnight(r.user_id)) === 'awarded') { res.awarded_now++; continue; }
     const msg = kind === 'knight' ? {
       text: `⚔️ <b>Ritsarlikka 1 qadam qoldi!</b>\n\nProfilingiz tayyor. Endi faqat BlackKnight kanaliga obuna bo‘ling — Ritsar unvoni darhol sizniki.\n\nRitsar bo‘lsangiz:\n• muammoni <b>anonim</b> yozasiz\n• <b>Market</b>’da savdo qilasiz\n• jamoa <b>vakansiyalariga</b> ariza berasiz\n\n229 o‘rindan atigi <b>${left} tasi</b> qoldi. Raqamingiz qanchalik kichik bo‘lsa, shunchalik qadrli 👀`,
@@ -1783,9 +1784,25 @@ async function campaignJob(kind, to) {
     const t = await tg('sendMessage', { chat_id: r.user_id.slice(2), parse_mode: 'HTML', ...msg }).catch(() => null);
     const ok = !!(t && t.ok); res[ok ? 'sent' : 'failed']++;
     if (!to) await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, tag, ok]);
+    await new Promise((z) => setTimeout(z, 50));
   }
   await q('INSERT INTO selftest (result) VALUES ($1) RETURNING 1 x', [JSON.stringify({ campaign: res })]).catch(() => {});
   return json(res);
+}
+
+// Cron-driven queue (trigger "campaign-queue", every 5 min). settings.campaign_queue = JSON list of
+// {kind, to?, run_after?}; the first due job runs for up to 45 s and is dropped once it has reached everyone.
+async function campaignQueue() {
+  const row = (await q("SELECT value FROM settings WHERE key='campaign_queue'")).rows[0];
+  let list = []; try { list = JSON.parse(row ? row.value : '[]'); } catch {}
+  const i = list.findIndex((j) => !j.run_after || Date.parse(j.run_after) <= Date.now());
+  if (i < 0) return json({ queue: list.length, due: 0 });
+  const job = list[i];
+  const r = await (await campaignJob(job.kind, job.to || '', 45000)).json();
+  if (job.to || !r.stopped) list.splice(i, 1);
+  if (list.length) await q("UPDATE settings SET value=$1, updated_at=now() WHERE key='campaign_queue' RETURNING 1 x", [JSON.stringify(list)]);
+  else await q("DELETE FROM settings WHERE key='campaign_queue' RETURNING 1 x");
+  return json({ ran: job, result: r, left_in_queue: list.length });
 }
 
 async function selftest() {
@@ -1876,6 +1893,7 @@ export default {
         if (!ADMIN_KEY || key !== ADMIN_KEY) return bad('forbidden', 403);
         return await announceEvent(+id, new URL(req.url).searchParams.get('to') || '');
       }
+      if (path === '/tg/campaign-queue') return await campaignQueue();
       if (path.startsWith('/tg/campaign/')) {
         const [, , , key, kind] = path.split('/');
         if (!ADMIN_KEY || key !== ADMIN_KEY) return bad('forbidden', 403);
