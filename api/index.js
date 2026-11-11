@@ -423,14 +423,39 @@ async function thanksEvent(eventId) {
   const e = (await q('SELECT * FROM events WHERE id=$1', [eventId])).rows[0];
   if (!e) return bad('Tadbir topilmadi', 404);
   const kind = 'thanks_' + eventId;
-  const rows = (await q(`SELECT user_id FROM rsvps WHERE event_id=$1 AND user_id LIKE 'tg%' UNION SELECT user_id FROM event_guests WHERE event_id=$1
+  const setting = async (k) => ((await q('SELECT value FROM settings WHERE key=$1', [k])).rows[0] || {}).value;
+  const toAll = (await setting('thanks_target_' + eventId)) === 'all';
+  const only = await setting('thanks_only_' + eventId); // test: send to a single user id
+  const rows = only ? [{ user_id: only }] : toAll
+    ? (await q(`SELECT user_id FROM bot_starts WHERE user_id LIKE 'tg%' EXCEPT SELECT user_id FROM reminders WHERE kind=$1`, [kind])).rows
+    : (await q(`SELECT user_id FROM rsvps WHERE event_id=$1 AND user_id LIKE 'tg%' UNION SELECT user_id FROM event_guests WHERE event_id=$1
     EXCEPT SELECT user_id FROM reminders WHERE kind=$2`, [eventId, kind])).rows;
-  const text = `<b>Picnic'da bo‘lganingiz uchun rahmat!</b> 🧺\n\nBugun yangi tanishlar, o‘yinlar, kulgi va iliq suhbatlar bo‘ldi — bularning hammasini sizlar yaratdingiz.\n\nBu BlackKnight Club'ning birinchi ochiq tadbiri edi, va bu hali boshlanishi. Keyingi tadbirlarni birinchilardan bo‘lib bilish uchun botni o‘chirmang 😉\n\nBitta savol: bugun Picnic'ga bora oldingizmi? 👇`;
-  const kb = { inline_keyboard: [[{ text: '✅ Bordim', callback_data: `at:${eventId}:y` }, { text: '❌ Bora olmadim', callback_data: `at:${eventId}:n` }]] };
+  const text = (await setting('thanks_text_' + eventId)) || `<b>Picnic'da bo‘lganingiz uchun rahmat!</b> 🧺\n\nBugun yangi tanishlar, o‘yinlar, kulgi va iliq suhbatlar bo‘ldi — bularning hammasini sizlar yaratdingiz.\n\nBu BlackKnight Club'ning birinchi ochiq tadbiri edi, va bu hali boshlanishi. Keyingi tadbirlarni birinchilardan bo‘lib bilish uchun botni o‘chirmang 😉\n\nBitta savol: bugun Picnic'ga bora oldingizmi? 👇`;
+  const btnMode = await setting('thanks_buttons_' + eventId);
+  const extended = btnMode === 'extended';
+  const kb = btnMode === 'rsvp'
+    ? { inline_keyboard: [[{ text: '✅ Qatnashaman', callback_data: `ev:${eventId}` }]] }
+    : extended
+    ? { inline_keyboard: [
+        [{ text: '✅ Qatnashdim', callback_data: `at:${eventId}:y` }, { text: '🙋 Volontyor edim', callback_data: `at:${eventId}:v` }],
+        [{ text: '❌ Qatnasha olmadim', callback_data: `at:${eventId}:n` }, { text: '🤷 Xabarim yo‘q edi', callback_data: `at:${eventId}:u` }],
+        [{ text: '🤝 Volontyor bo‘lmoqchiman', callback_data: `vol:${eventId}` }]] }
+    : { inline_keyboard: [[{ text: '✅ Bordim', callback_data: `at:${eventId}:y` }, { text: '❌ Bora olmadim', callback_data: `at:${eventId}:n` }]] };
+  const vsrc = await setting('thanks_video_' + eventId);
+  const vkey = 'thanks_video_fid_' + eventId;
   const res = { sent: 0, failed: 0 };
   for (const r of rows) {
-    const t = await tg('sendMessage', { chat_id: r.user_id.slice(2), parse_mode: 'HTML', text, reply_markup: kb }).catch(() => null);
+    let t;
+    if (vsrc) {
+      const fid = await setting(vkey);
+      t = await tg('sendVideo', { chat_id: r.user_id.slice(2), video: fid || WEBAPP_URL.replace(/\/$/, '') + '/' + vsrc, caption: text, parse_mode: 'HTML', supports_streaming: true, reply_markup: kb }).catch(() => null);
+      const nf = t && t.ok && t.result.video && t.result.video.file_id;
+      if (nf && !fid) await q(`INSERT INTO settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2 RETURNING 1 x`, [vkey, nf]);
+    } else {
+      t = await tg('sendMessage', { chat_id: r.user_id.slice(2), parse_mode: 'HTML', text, reply_markup: kb }).catch(() => null);
+    }
     const ok = !!(t && t.ok); res[ok ? 'sent' : 'failed']++;
+    if (only) break;
     await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, kind, ok]);
     await new Promise((z) => setTimeout(z, 50));
   }
@@ -438,20 +463,64 @@ async function thanksEvent(eventId) {
   return json(res);
 }
 
-async function attendanceCallback(cb, eventId, came) {
+async function volunteerLink() {
+  return ((await q(`SELECT value FROM settings WHERE key='volunteer_link'`)).rows[0] || {}).value || null;
+}
+
+async function attendanceCallback(cb, eventId, status) {
   const me = 'tg' + cb.from.id;
+  const came = status === 'y' || status === 'v';
   const e = (await q('SELECT link FROM events WHERE id=$1', [eventId])).rows[0];
   if (!e) return tg('answerCallbackQuery', { callback_query_id: cb.id, text: 'Tadbir topilmadi' });
-  await q(`INSERT INTO event_attendance (event_id, user_id, came) VALUES ($1,$2,$3)
-    ON CONFLICT (event_id, user_id) DO UPDATE SET came=$3, at=now() RETURNING 1 x`, [eventId, me, came]);
+  await q(`INSERT INTO event_attendance (event_id, user_id, came, status) VALUES ($1,$2,$3,$4)
+    ON CONFLICT (event_id, user_id) DO UPDATE SET came=$3, status=$4, at=now() RETURNING 1 x`, [eventId, me, came, status]);
   await tg('answerCallbackQuery', { callback_query_id: cb.id, text: 'Javobingiz uchun rahmat!' });
-  if (cb.message) {
-    const reply = came
-      ? '✅ Kelganingizdan xursandmiz! Rasm va videolarni guruhga tashlang — xotira bo‘lib qolsin 📸'
-      : '🤝 Hechqisi yo‘q — keyingi tadbirda albatta kutamiz!';
-    const kb = came && e.link ? { inline_keyboard: [[{ text: '👥 Guruhga o‘tish', url: e.link }]] } : { inline_keyboard: [] };
-    await tg('editMessageReplyMarkup', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, reply_markup: { inline_keyboard: [] } }).catch(() => {});
-    await tg('sendMessage', { chat_id: cb.message.chat.id, text: reply, reply_markup: kb }).catch(() => {});
+  if (!cb.message) return;
+  const chat = cb.message.chat.id;
+  const vlink = await volunteerLink();
+  let reply, kb = { inline_keyboard: [] };
+  if (status === 'v') {
+    reply = '🙌 Yordamingiz uchun katta rahmat! Tadbir sizsiz bunday o‘tmas edi.\n\nKeyingi tadbirlarda ham birga bo‘lish uchun volontyorlar guruhiga qo‘shiling 👇';
+    if (vlink) kb = { inline_keyboard: [[{ text: '🤝 Volontyorlar guruhi', url: vlink }]] };
+  } else if (status === 'y') {
+    reply = '✅ Kelganingizdan xursandmiz! Rasm va videolarni guruhga tashlang — xotira bo‘lib qolsin 📸';
+    if (e.link) kb = { inline_keyboard: [[{ text: '👥 Guruhga o‘tish', url: e.link }]] };
+  } else if (status === 'u') {
+    reply = '📣 Tushunarli, rahmat! Keyingi tadbirlarni o‘tkazib yubormaslik uchun kanalimizga obuna bo‘ling 👇';
+    kb = { inline_keyboard: [[{ text: '📢 @blackknightsp', url: 'https://t.me/blackknightsp' }]] };
+  } else {
+    reply = '🤝 Hechqisi yo‘q — keyingi tadbirda albatta kutamiz!';
+  }
+  // keep only the "volontyor bo'lmoqchiman" button on the original message
+  const rest = (cb.message.reply_markup && cb.message.reply_markup.inline_keyboard || []).filter((row) => row.some((b) => String(b.callback_data || '').startsWith('vol:')));
+  await tg('editMessageReplyMarkup', { chat_id: chat, message_id: cb.message.message_id, reply_markup: { inline_keyboard: status === 'v' ? [] : rest } }).catch(() => {});
+  await tg('sendMessage', { chat_id: chat, text: reply, reply_markup: kb }).catch(() => {});
+}
+
+async function volunteerCallback(cb, eventId) {
+  const me = 'tg' + cb.from.id;
+  await q(`INSERT INTO volunteer_interest (user_id, source) VALUES ($1,$2) ON CONFLICT (user_id) DO UPDATE SET at=now() RETURNING 1 x`, [me, 'event_' + eventId]);
+  const vlink = await volunteerLink();
+  await tg('answerCallbackQuery', { callback_query_id: cb.id, text: 'Zo‘r! 🙌' });
+  const reply = vlink
+    ? '🤝 Ajoyib! Volontyorlar guruhiga qo‘shiling — keyingi tadbirlar tayyorgarligi o‘sha yerda boshlanadi 👇'
+    : '🤝 Ajoyib! Ismingizni yozib oldik — volontyorlar guruhi havolasini tez orada yuboramiz.';
+  await tg('sendMessage', { chat_id: cb.message ? cb.message.chat.id : cb.from.id, text: reply, reply_markup: vlink ? { inline_keyboard: [[{ text: '🤝 Volontyorlar guruhi', url: vlink }]] } : { inline_keyboard: [] } }).catch(() => {});
+}
+
+// Bot added/promoted in a group: remember it; a "volontyor" group gets an invite link automatically.
+async function chatMemberUpdate(m) {
+  const chat = m.chat || {};
+  const st = (m.new_chat_member || {}).status;
+  await q(`INSERT INTO settings (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2, updated_at=now() RETURNING 1 x`,
+    ['chat_' + chat.id, JSON.stringify({ title: chat.title, type: chat.type, status: st })]);
+  if (st === 'administrator' && /volont|волонт/i.test(chat.title || '')) {
+    const r = await tg('createChatInviteLink', { chat_id: chat.id, name: 'Black Knight bot' }).catch(() => null);
+    const link = r && r.ok && r.result.invite_link;
+    if (link) {
+      await q(`INSERT INTO settings (key, value) VALUES ('volunteer_link',$1) ON CONFLICT (key) DO UPDATE SET value=$1, updated_at=now() RETURNING 1 x`, [link]);
+      await q(`INSERT INTO settings (key, value) VALUES ('volunteer_chat',$1) ON CONFLICT (key) DO UPDATE SET value=$1, updated_at=now() RETURNING 1 x`, [String(chat.id)]);
+    }
   }
 }
 
@@ -461,7 +530,15 @@ async function tgWebhook(req) {
   const cb = upd.callback_query;
   if (cb && typeof cb.data === 'string' && cb.data.startsWith('at:')) {
     const [, id, v] = cb.data.split(':');
-    await attendanceCallback(cb, +id, v === 'y');
+    await attendanceCallback(cb, +id, v);
+    return json({ ok: true });
+  }
+  if (cb && typeof cb.data === 'string' && cb.data.startsWith('vol:')) {
+    await volunteerCallback(cb, +cb.data.slice(4));
+    return json({ ok: true });
+  }
+  if (upd.my_chat_member) {
+    await chatMemberUpdate(upd.my_chat_member).catch(() => {});
     return json({ ok: true });
   }
   if (cb && typeof cb.data === 'string' && cb.data.startsWith('ev:')) {
@@ -559,7 +636,7 @@ async function tgWebhook(req) {
 async function tgSetup() {
   const out = {};
   out.before = await tg('getWebhookInfo', {});
-  out.webhook = await tg('setWebhook', { url: SELF_URL + '/tg/webhook', secret_token: WEBHOOK_SECRET, allowed_updates: ['message', 'callback_query'] });
+  out.webhook = await tg('setWebhook', { url: SELF_URL + '/tg/webhook', secret_token: WEBHOOK_SECRET, allowed_updates: ['message', 'callback_query', 'my_chat_member'] });
   if (WEBAPP_URL) out.menu = await tg('setChatMenuButton', { menu_button: { type: 'web_app', text: 'Ochish', web_app: { url: WEBAPP_URL } } });
   out.commands = await tg('setMyCommands', { commands: [{ command: 'start', description: 'Black Knight ilovasini ochish' }, { command: 'qollanma', description: 'Qo‘llanma video' }, { command: 'vazifam', description: 'Lavozimim: vazifa va huquqlar' }] });
   out.desc = await tg('setMyShortDescription', { short_description: 'Millat Umidi talabalari ovozi: muammolar, tadbirlar, Skill Swap.' });
@@ -1883,6 +1960,11 @@ export default {
       const path = new URL(req.url).pathname;
       if (path === '/__selftest') return await selftest();
       if (path === '/tg/webhook' && req.method === 'POST') return await tgWebhook(req);
+      if (path === '/tg/rehook') {
+        const r = await q(`DELETE FROM settings WHERE key='rehook' AND value='armed' RETURNING 1 x`);
+        if (!r.rowCount) return bad('not armed', 403);
+        return await tgSetup();
+      }
       if (path.startsWith('/tg/thanks/')) return await thanksEvent(+path.split('/')[3]);
       if (path.startsWith('/tg/live/')) return await liveEvent(+path.split('/')[3]);
       if (path.startsWith('/tg/promo/')) return await promoJob(path.split('/')[3]);
