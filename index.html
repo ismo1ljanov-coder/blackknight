@@ -294,6 +294,14 @@ nav button.create svg{width:26px;height:26px}
 .club-main{flex:1;min-width:0;display:flex;gap:12px;align-items:center;background:none;border:0;padding:0;text-align:left;color:var(--fg)}
 .club-ico{flex:none;width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font-size:24px;color:var(--fg);font-family:'Segoe UI Symbol','Noto Sans Symbols 2','Apple Color Emoji',sans-serif;background:var(--gold-bg);border:1px solid var(--gold-line)}
 .club-ico.big{width:60px;height:60px;font-size:30px}
+.club.has-cover{position:relative;overflow:hidden;background-image:linear-gradient(90deg,rgba(8,7,5,.94) 0%,rgba(8,7,5,.8) 45%,rgba(8,7,5,.45) 100%),var(--cover);background-size:cover;background-position:center}
+.club.has-cover .club-t span{color:rgba(255,255,255,.78)}
+.ctabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;border-radius:999px;border:1px solid var(--line);background:rgba(var(--wh),.04)}
+.ctabs button{height:42px;border-radius:999px;border:0;background:none;color:var(--muted);font-weight:700;font-size:14px}
+.ctabs button[aria-selected="true"]{background:var(--gold-bg);color:var(--gold-hi);box-shadow:inset 0 0 0 1px var(--gold-line)}
+.cbanner{height:150px;margin:-4px 0 0;border-radius:18px;background-size:cover;background-position:center;mask-image:linear-gradient(180deg,#000 55%,transparent);-webkit-mask-image:linear-gradient(180deg,#000 55%,transparent)}
+.sheet.sheet-cover{background-image:linear-gradient(180deg,rgba(10,9,7,.9),rgba(10,9,7,.97)),var(--cover);background-size:cover;background-position:center}
+.cprev{height:110px;margin:6px 0 8px;border-radius:14px;border:1px dashed var(--line-2);background-size:cover;background-position:center;display:grid;place-items:center;font-size:13px;color:var(--dim)}
 .club-ico.pic{overflow:hidden;padding:0;background:rgba(var(--wh),.04)}
 .club-ico.pic img{width:100%;height:100%;object-fit:contain}
 .cmini{width:16px;height:16px;border-radius:4px;object-fit:contain;vertical-align:-3px}
@@ -339,7 +347,7 @@ nav button.create svg{width:26px;height:26px}
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-12.4';
+const BUILD = '2026-11-12.5';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
@@ -391,7 +399,7 @@ if (!uid) { uid = 'u' + (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '
 let adminKey = store.get('bk_admin') || '';
 let isAdmin = false;
 
-const S = { tab: 'ovoz', ptab: 'top', kind: '', problems: null, events: null, stats: null, me: null, myStats: null, matches: [], open: {}, offline: false };
+const S = { clubTab: 'all', tab: 'ovoz', ptab: 'top', kind: '', problems: null, events: null, stats: null, me: null, myStats: null, matches: [], open: {}, offline: false };
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -1185,6 +1193,22 @@ const clubImg = (id, v) => `${API}/api/clubs/img/${id}?v=${v}`;
 const clubIco = (c, big = false) => c.logo_v
   ? `<span class="club-ico pic${big ? ' big' : ''}" aria-hidden="true"><img src="${clubImg(c.id, c.logo_v)}" alt="" loading="lazy"></span>`
   : `<span class="club-ico${big ? ' big' : ''}" aria-hidden="true">${esc(c.emoji || '♟')}</span>`;
+const clubCover = (id, v) => `${API}/api/clubs/cover/${id}?v=${v}`;
+// Wide club background: centre-cropped to 1000×500 JPEG.
+function shrinkCover(file) {
+  return new Promise((ok, no) => {
+    if (!file.type.startsWith('image/')) return no(new Error('Rasm tanlang'));
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const W = 1000, H = 500, c = document.createElement('canvas'); c.width = W; c.height = H;
+      const k = Math.max(W / im.naturalWidth, H / im.naturalHeight), w = im.naturalWidth * k, h = im.naturalHeight * k;
+      const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, W, H); x.drawImage(im, (W - w) / 2, (H - h) / 2, w, h);
+      URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', 0.8));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); no(new Error('Bu faylni ochib bo‘lmadi')); };
+    im.src = url;
+  });
+}
 const clubMini = (c) => c.logo_v ? `<img class="cmini" src="${clubImg(c.id, c.logo_v)}" alt="">` : esc(c.emoji || '');
 // Square 256px; stickers and PNGs keep transparency and fit whole, photos fill the square.
 function shrinkLogo(file) {
@@ -1214,13 +1238,16 @@ function viewKlublar() {
   let body;
   if (S.clubs === null || S.clubs === undefined) body = '<div class="skeleton" style="height:160px"></div>';
   else if (!S.clubs.length) body = `<div class="glass empty"><b>Hali klub qo‘shilmagan</b>${isAdmin ? 'Tepadagi + orqali birinchi klubni oching va rahbarini tayinlang.' : 'Universitet klublari tez orada shu yerda chiqadi.'}</div>`;
-  else body = `<div class="list">${S.clubs.map((c) => `<article class="glass club">
+  else if (S.clubTab === 'mine' && !S.clubs.some((c) => c.joined || c.mine)) body = '<div class="glass empty"><b>Hali hech bir klubga qo‘shilmagansiz</b>«Barcha klublar»dan o‘zingizga yoqqanini tanlang.</div>';
+  else body = `<div class="list">${S.clubs.filter((c) => S.clubTab !== 'mine' || c.joined || c.mine).map((c) => `<article class="glass club${c.cover_v ? ' has-cover' : ''}"${c.cover_v ? ` style="--cover:url('${clubCover(c.id, c.cover_v)}')"` : ''}>
       <button class="club-main" data-club="${c.id}">${clubIco(c)}
         <span class="club-t"><b>${esc(c.name)}</b><span>${c.members} a’zo${c.leader_name ? ' · Rahbar: ' + esc(c.leader_name) : ''}</span>
         ${c.next_event ? `<span class="club-next">🗓 ${whenTxt(c.next_event.starts_at)} · ${esc(c.next_event.title)}</span>` : ''}</span></button>
       <button class="btn ${c.joined ? 'done' : ''}" data-cjoin="${c.id}" aria-pressed="${c.joined}">${c.mine ? 'Rahbar' : c.joined ? '✓ A’zosiz' : 'Qo‘shilish'}</button>
     </article>`).join('')}</div>`;
-  return head('Klublar', add) + offlineNote() + `<div class="small">Klubga qo‘shiling — tadbirlari haqida bot xabar beradi, har bir qatnashgan tadbir uchun <b style="display:inline;color:var(--gold-hi)">+5 ball</b>.</div>` + body;
+  const mineN = (S.clubs || []).filter((c) => c.joined || c.mine).length;
+  const tabs = `<div class="ctabs" role="tablist"><button role="tab" data-ctab="all" aria-selected="${S.clubTab !== 'mine'}">Barcha klublar</button><button role="tab" data-ctab="mine" aria-selected="${S.clubTab === 'mine'}">★ Mening klublarim${mineN ? ` (${mineN})` : ''}</button></div>`;
+  return head('Klublar', add) + offlineNote() + tabs + `<div class="small">Klubga qo‘shiling — tadbirlari haqida bot xabar beradi, har bir qatnashgan tadbir uchun <b style="display:inline;color:var(--gold-hi)">+5 ball</b>.</div>` + body;
 }
 async function clubSheet(id) {
   openSheet(sheetTop('Klub') + '<div id="cs-body" style="display:flex;flex-direction:column;gap:12px"><div class="skeleton" style="height:160px"></div></div>');
@@ -1234,7 +1261,9 @@ async function clubSheet(id) {
       ${c.manage ? `<button class="btn ghost" data-attn="${e.id}">Davomat</button>` : past ? '' : `<button class="btn ${e.joined ? 'done' : ''}" data-crsvp="${e.id}">${e.joined ? '✓' : 'Boraman'}</button>`}</div>`;
   }).join('');
   const tasks = r.tasks.map((t) => `<div class="cev"><div class="cev-t"><b>🤝 ${esc(t.title)}</b><span>${t.starts_at ? whenTxt(t.starts_at) + ' · ' : ''}${t.hours} soat · ${t.taken}/${t.slots} joy</span></div></div>`).join('');
+  if (c.cover_v) el.classList.add('sheet-cover'), el.style.setProperty('--cover', `url('${clubCover(c.id, c.cover_v)}')`);
   $('#cs-body', el).innerHTML = `
+    ${c.cover_v ? `<div class="cbanner" style="background-image:url('${clubCover(c.id, c.cover_v)}')" role="img" aria-label="${esc(c.name)} fon rasmi"></div>` : ''}
     <div class="club-head">${clubIco(c, true)}<div><h3>${esc(c.name)}</h3><div class="small">${c.members} a’zo${c.leader_name ? ' · Rahbar: ' + esc(c.leader_name) : ''}</div></div></div>
     ${c.description ? `<p style="margin:0;font-size:15px;line-height:1.55;white-space:pre-wrap">${esc(c.description)}</p>` : ''}
     <div style="display:flex;gap:8px">
@@ -1329,6 +1358,10 @@ function clubFormSheet(c) {
           <label class="logo-emoji">yoki belgi <input id="cf-emoji" maxlength="4" value="${esc(edit ? c.emoji : '♟')}" aria-label="Belgi (emoji)"></label></div></div>
         <span class="small" style="font-size:12px">Stikerni Telegram'da «Saqlash» qilib, keyin shu yerdan tanlang. Rasm bo‘lmasa, belgi ko‘rinadi.</span>
         <input id="cf-file" type="file" accept="image/*" hidden></div>
+      <div class="field">Orqa fon rasmi <span class="small">(klub mavzusiga mos: shaxmat taxtasi, sakura, kitob javoni…)</span>
+        <div id="cf-cprev" class="cprev"></div>
+        <div style="display:flex;gap:8px"><button type="button" class="btn" id="cf-pickcov" style="flex:1">🖼 Fon tanlash</button><button type="button" class="btn ghost" id="cf-rmcov" style="flex:1">Olib tashlash</button></div>
+        <input id="cf-cfile" type="file" accept="image/*" hidden></div>
       <label class="field">Tavsif<textarea id="cf-desc" rows="3" maxlength="600" placeholder="Klub nima qiladi, qachon yig‘iladi">${esc(edit ? c.description || '' : '')}</textarea></label>
       <label class="field">Telegram guruhi havolasi<input id="cf-tg" maxlength="200" value="${esc(edit ? c.tg_link || '' : '')}" placeholder="https://t.me/..."></label>
       <label class="field">Telegram kanali havolasi<input id="cf-ch" maxlength="200" value="${esc(edit ? c.tg_channel || '' : '')}" placeholder="https://t.me/..."></label>
@@ -1353,6 +1386,17 @@ function clubFormSheet(c) {
       try { logo = await shrinkLogo(f); prev(); } catch (err) { toast(err.message); }
     });
     $('#cf-prev', el).addEventListener('click', (e) => { if (e.target.closest('#cf-rmimg')) { logo = ''; prev(); } });
+    let cover;
+    const cprev = () => {
+      const src = cover ? cover : cover === '' ? null : edit && c.cover_v ? clubCover(c.id, c.cover_v) : null;
+      $('#cf-cprev', el).style.backgroundImage = src ? `url('${src}')` : '';
+      $('#cf-cprev', el).textContent = src ? '' : 'Fon tanlanmagan';
+      $('#cf-rmcov', el).hidden = !src;
+    };
+    cprev();
+    $('#cf-pickcov', el).addEventListener('click', () => $('#cf-cfile', el).click());
+    $('#cf-rmcov', el).addEventListener('click', () => { cover = ''; cprev(); });
+    $('#cf-cfile', el).addEventListener('change', async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { cover = await shrinkCover(f); cprev(); } catch (err) { toast(err.message); } });
     const showLeader = () => { const b = $('#cf-leader', el); if (b) b.innerHTML = leader ? `Tanlandi: <b style="display:inline">${esc(leader.name)}</b> <button type="button" class="admin-rm" id="cf-unset">×</button>` : 'Hali tanlanmagan'; };
     showLeader();
     let tmr;
@@ -1381,6 +1425,7 @@ function clubFormSheet(c) {
       if ([payload.tg_link, payload.tg_channel].some((l) => l && !/^https:\/\/(t\.me|telegram\.me)\//.test(l))) { $('#cf-err', el).textContent = 'Guruh va kanal havolasi https://t.me/ bilan boshlansin.'; return; }
       if (isAdmin) payload.leader_id = leader ? leader.id : '';
       if (logo !== undefined) payload.logo = logo;
+      if (cover !== undefined) payload.cover = cover;
       const btn = $('button[type=submit]', el); btn.disabled = true;
       try {
         if (edit) await api(`/api/clubs/${c.id}`, { method: 'PATCH', body: payload }); else await api('/api/clubs', { method: 'POST', body: payload });
@@ -1819,6 +1864,7 @@ document.addEventListener('click', async (e) => {
   if (d.ptab) { S.ptab = d.ptab; S.problems = null; render(); await loadProblems(); render(); return; }
   if (d.act === 'new') return newProblemSheet();
   if (d.newclub !== undefined) return clubFormSheet(null);
+  if (d.ctab) { S.clubTab = d.ctab; render(); return; }
   if (d.club) return clubSheet(d.club);
   if (d.cjoin) {
     const c = (S.clubs || []).find((x) => x.id == d.cjoin);

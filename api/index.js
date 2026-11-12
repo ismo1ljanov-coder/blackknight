@@ -1320,6 +1320,22 @@ function logoOf(v) {
   if (mt[2].length > 400000) return { error: 'Rasm juda katta' };
   return { mime: mt[1], data: mt[2] };
 }
+// Cover: a wide background photo for the club card and page (shrunk in the app to ~1000px).
+function coverOf(v) {
+  if (v === '') return { clear: true };
+  const mt = typeof v === 'string' && v.match(/^data:(image\/(?:webp|jpeg));base64,([A-Za-z0-9+/=]+)$/);
+  if (!mt) return null;
+  if (mt[2].length > 1200000) return { error: 'Fon rasmi juda katta' };
+  return { mime: mt[1], data: mt[2] };
+}
+async function saveCover(id, v) {
+  const cv = coverOf(v);
+  if (!cv) return null;
+  if (cv.error) return cv.error;
+  if (cv.clear) await q('UPDATE clubs SET cover=NULL, cover_mime=NULL, cover_v=coalesce(cover_v,0)+1 WHERE id=$1 RETURNING 1 x', [id]);
+  else await q('UPDATE clubs SET cover=$2, cover_mime=$3, cover_v=coalesce(cover_v,0)+1 WHERE id=$1 RETURNING 1 x', [id, cv.data, cv.mime]);
+  return null;
+}
 async function clubOf(id) { return (await q('SELECT id, name, emoji, description, tg_link, tg_channel, leader_id, logo_v, active FROM clubs WHERE id=$1 AND active', [id])).rows[0] || null; }
 const canRunClub = (club, me, admin) => !!club && (!!admin || (!!me && club.leader_id === me));
 
@@ -1337,7 +1353,7 @@ async function clubsRoute(p, m, url, body, uid, me, admin, myPos) {
   let mm;
   // ---------- clubs
   if (p === '/api/clubs' && m === 'GET') {
-    const r = await q(`SELECT c.id, c.name, c.emoji, c.description, c.tg_link, c.tg_channel, c.leader_id, CASE WHEN c.logo IS NOT NULL THEN c.logo_v END logo_v,
+    const r = await q(`SELECT c.id, c.name, c.emoji, c.description, c.tg_link, c.tg_channel, c.leader_id, CASE WHEN c.logo IS NOT NULL THEN c.logo_v END logo_v, CASE WHEN c.cover IS NOT NULL THEN c.cover_v END cover_v,
       lu.name leader_name, (c.leader_id=$1) mine,
       (SELECT count(*) FROM club_members x WHERE x.club_id=c.id)::int members,
       EXISTS(SELECT 1 FROM club_members x WHERE x.club_id=c.id AND x.user_id=$1) joined,
@@ -1358,11 +1374,17 @@ async function clubsRoute(p, m, url, body, uid, me, admin, myPos) {
       [name, str(body.emoji, 8) || '♟', str(body.description, 600), safeLink(body.tg_link), safeLink(body.tg_channel), leader]);
     const id = r.rows[0].id;
     if (lg && lg.data) await q('UPDATE clubs SET logo=$2, logo_mime=$3, logo_v=1 WHERE id=$1 RETURNING 1 x', [id, lg.data, lg.mime]);
+    const ce = await saveCover(id, body.cover); if (ce) return bad(ce);
     if (leader) {
       await q('INSERT INTO club_members (club_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [id, leader]);
       await notify(leader, `🏛 Siz <b>${esc(name)}</b> klubining rahbari etib tayinlandingiz.\n\nIlovada: Ko‘proq → Klublar → ${esc(name)}. U yerda a’zolarni ko‘rasiz, tadbir e’lon qilasiz, davomatni belgilaysiz va volontyor so‘raysiz.`);
     }
     return json({ id }, 201);
+  }
+  if ((mm = p.match(/^\/api\/clubs\/cover\/(\d+)$/)) && m === 'GET') {
+    const r = await q('SELECT cover_mime, cover FROM clubs WHERE id=$1 AND cover IS NOT NULL', [+mm[1]]);
+    if (!r.rowCount) return new Response('not found', { status: 404, headers: CORS });
+    return new Response(Buffer.from(r.rows[0].cover, 'base64'), { headers: { 'content-type': r.rows[0].cover_mime, 'cache-control': 'public, max-age=31536000, immutable', ...CORS } });
   }
   if ((mm = p.match(/^\/api\/clubs\/img\/(\d+)$/)) && m === 'GET') {
     const r = await q('SELECT logo_mime, logo FROM clubs WHERE id=$1 AND logo IS NOT NULL', [+mm[1]]);
@@ -1370,7 +1392,7 @@ async function clubsRoute(p, m, url, body, uid, me, admin, myPos) {
     return new Response(Buffer.from(r.rows[0].logo, 'base64'), { headers: { 'content-type': r.rows[0].logo_mime, 'cache-control': 'public, max-age=31536000, immutable', ...CORS } });
   }
   if ((mm = p.match(/^\/api\/clubs\/(\d+)$/)) && m === 'GET') {
-    const c = (await q(`SELECT c.id, c.name, c.emoji, c.description, c.tg_link, c.tg_channel, c.leader_id, CASE WHEN c.logo IS NOT NULL THEN c.logo_v END logo_v, c.active, lu.name leader_name, (SELECT count(*) FROM club_members x WHERE x.club_id=c.id)::int members,
+    const c = (await q(`SELECT c.id, c.name, c.emoji, c.description, c.tg_link, c.tg_channel, c.leader_id, CASE WHEN c.logo IS NOT NULL THEN c.logo_v END logo_v, CASE WHEN c.cover IS NOT NULL THEN c.cover_v END cover_v, c.active, lu.name leader_name, (SELECT count(*) FROM club_members x WHERE x.club_id=c.id)::int members,
       EXISTS(SELECT 1 FROM club_members x WHERE x.club_id=c.id AND x.user_id=$2) joined FROM clubs c LEFT JOIN users lu ON lu.id=c.leader_id
       WHERE c.id=$1 AND c.active`, [+mm[1], uid])).rows[0];
     if (!c) return bad('Klub topilmadi', 404);
@@ -1403,6 +1425,7 @@ async function clubsRoute(p, m, url, body, uid, me, admin, myPos) {
         body.tg_link !== undefined ? safeLink(body.tg_link) : c.tg_link, leader]);
     const lg = logoOf(body.logo);
     if (lg && lg.error) return bad(lg.error);
+    const ce = await saveCover(c.id, body.cover); if (ce) return bad(ce);
     if (lg && lg.clear) await q('UPDATE clubs SET logo=NULL, logo_mime=NULL, logo_v=coalesce(logo_v,0)+1 WHERE id=$1 RETURNING 1 x', [c.id]);
     else if (lg) await q('UPDATE clubs SET logo=$2, logo_mime=$3, logo_v=coalesce(logo_v,0)+1 WHERE id=$1 RETURNING 1 x', [c.id, lg.data, lg.mime]);
     if (leader && leader !== c.leader_id) {
