@@ -155,15 +155,16 @@ const PROBLEM_PHOTOS = 3;
 const LEVELS = [{ name: 'Navkar', min: 0 }, { name: 'Ritsar', min: 100 }, { name: 'Qora ritsar', min: 300 }];
 const notify = (uid, text) => (uid && uid.startsWith('tg') ? tg('sendMessage', { chat_id: uid.slice(2), text, parse_mode: 'HTML', reply_markup: openKb() }).catch(() => {}) : null);
 
-// Points: 10 per post, 2 per vote from someone else, 15 per invited friend who opened the app.
+// Points: 10 per post, 2 per vote from someone else, 15 per invited friend who opened the app, 5 per club event attended.
 async function scoreOf(uid) {
   const r = await q(`SELECT
     (SELECT count(*) FROM problems WHERE author_id=$1)::int posts,
     (SELECT count(*) FROM votes v JOIN problems p ON p.id=v.problem_id WHERE p.author_id=$1 AND v.user_id<>$1)::int votes_recv,
     (SELECT count(*) FROM referrals r JOIN users u ON u.id=r.user_id WHERE r.referrer_id=$1 AND r.credited)::int invites,
-    (SELECT count(*) FROM referrals r JOIN users u ON u.id=r.user_id WHERE r.referrer_id=$1 AND NOT r.credited)::int invites_pending`, [uid]);
+    (SELECT count(*) FROM referrals r JOIN users u ON u.id=r.user_id WHERE r.referrer_id=$1 AND NOT r.credited)::int invites_pending,
+    (SELECT count(*) FROM club_attendance a WHERE a.user_id=$1)::int club_visits`, [uid]);
   const s = r.rows[0];
-  const points = s.posts * 10 + s.votes_recv * 2 + s.invites * 15;
+  const points = s.posts * 10 + s.votes_recv * 2 + s.invites * 15 + s.club_visits * CLUB_ATT_POINTS;
   let li = 0; LEVELS.forEach((l, i) => { if (points >= l.min) li = i; });
   const next = LEVELS[li + 1] || null;
   return { ...s, points, level: LEVELS[li].name, level_index: li, next_level: next ? next.name : null, next_at: next ? next.min : null, prev_at: LEVELS[li].min };
@@ -1291,6 +1292,278 @@ async function vacJob() {
   return json(res);
 }
 
+// ===================== Clubs and volunteering =====================
+// Clubs: admins open a club and name its leader; the leader runs it (members, events, attendance, messages).
+// Attendance marked by the leader earns CLUB_ATT_POINTS in the common points ladder.
+// Volunteering: admins, Heads and club leaders post tasks with seats and hours; marking a seat "done"
+// writes the hours into the service log. From CERT_HOURS hours a volunteer can get a certificate in the bot.
+const CLUB_ATT_POINTS = 5;
+const CERT_HOURS = 10;
+
+async function clubOf(id) { return (await q('SELECT * FROM clubs WHERE id=$1 AND active', [id])).rows[0] || null; }
+const canRunClub = (club, me, admin) => !!club && (!!admin || (!!me && club.leader_id === me));
+
+async function notifyMany(ids, text, kb) {
+  let sent = 0;
+  for (const u of ids) {
+    if (!u || !u.startsWith('tg')) continue;
+    const r = await tg('sendMessage', { chat_id: u.slice(2), text, parse_mode: 'HTML', reply_markup: kb || openKb() }).catch(() => null);
+    if (r && r.ok) sent++;
+  }
+  return sent;
+}
+
+async function clubsRoute(p, m, url, body, uid, me, admin, myPos) {
+  let mm;
+  // ---------- clubs
+  if (p === '/api/clubs' && m === 'GET') {
+    const r = await q(`SELECT c.id, c.name, c.emoji, c.description, c.tg_link, c.leader_id,
+      lu.name leader_name, (c.leader_id=$1) mine,
+      (SELECT count(*) FROM club_members x WHERE x.club_id=c.id)::int members,
+      EXISTS(SELECT 1 FROM club_members x WHERE x.club_id=c.id AND x.user_id=$1) joined,
+      (SELECT json_build_object('id', e.id, 'title', e.title, 'starts_at', e.starts_at, 'place', e.place) FROM events e
+         WHERE e.club_id=c.id AND e.starts_at > now() - interval '3 hours' ORDER BY e.starts_at LIMIT 1) next_event
+      FROM clubs c LEFT JOIN users lu ON lu.id=c.leader_id WHERE c.active ORDER BY members DESC, c.name`, [uid]);
+    return json({ clubs: r.rows });
+  }
+  if (p === '/api/clubs' && m === 'POST') {
+    if (!admin) return bad('Klubni faqat to‘liq adminlar ochadi', 403);
+    const name = str(body.name, 60);
+    if (name.length < 2) return bad('Klub nomini yozing');
+    const leader = str(body.leader_id, 64) || null;
+    if (leader && !(await userExists(leader))) return bad('Rahbar topilmadi', 404);
+    const r = await q('INSERT INTO clubs (name, emoji, description, tg_link, leader_id) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+      [name, str(body.emoji, 8) || '♟', str(body.description, 600), safeLink(body.tg_link), leader]);
+    const id = r.rows[0].id;
+    if (leader) {
+      await q('INSERT INTO club_members (club_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [id, leader]);
+      await notify(leader, `🏛 Siz <b>${esc(name)}</b> klubining rahbari etib tayinlandingiz.\n\nIlovada: Ko‘proq → Klublar → ${esc(name)}. U yerda a’zolarni ko‘rasiz, tadbir e’lon qilasiz, davomatni belgilaysiz va volontyor so‘raysiz.`);
+    }
+    return json({ id }, 201);
+  }
+  if ((mm = p.match(/^\/api\/clubs\/(\d+)$/)) && m === 'GET') {
+    const c = (await q(`SELECT c.*, lu.name leader_name, (SELECT count(*) FROM club_members x WHERE x.club_id=c.id)::int members,
+      EXISTS(SELECT 1 FROM club_members x WHERE x.club_id=c.id AND x.user_id=$2) joined FROM clubs c LEFT JOIN users lu ON lu.id=c.leader_id
+      WHERE c.id=$1 AND c.active`, [+mm[1], uid])).rows[0];
+    if (!c) return bad('Klub topilmadi', 404);
+    const manage = canRunClub(c, me, admin);
+    const events = (await q(`SELECT e.id, e.title, e.starts_at, e.place, e.capacity, e.date_only,
+      ((SELECT count(*) FROM rsvps r WHERE r.event_id=e.id))::int going,
+      EXISTS(SELECT 1 FROM rsvps r WHERE r.event_id=e.id AND r.user_id=$2) joined,
+      (SELECT count(*) FROM club_attendance a WHERE a.event_id=e.id)::int attended
+      FROM events e WHERE e.club_id=$1 AND e.starts_at > now() - interval '${manage ? '30 days' : '3 hours'}' ORDER BY e.starts_at LIMIT 20`, [c.id, uid])).rows;
+    const tasks = (await q(`SELECT t.id, t.title, t.starts_at, t.hours, t.slots, (SELECT count(*) FROM vol_signups s WHERE s.task_id=t.id)::int taken
+      FROM vol_tasks t WHERE t.club_id=$1 AND t.status='open' ORDER BY t.starts_at NULLS LAST LIMIT 10`, [c.id])).rows;
+    const out = { club: { ...c, manage, mine: !!me && c.leader_id === me }, events, tasks };
+    if (manage) out.people = (await q(`SELECT u.id, u.name, u.major, u.year, u.photo_url, x.joined_at FROM club_members x JOIN users u ON u.id=x.user_id
+      WHERE x.club_id=$1 ORDER BY x.joined_at DESC LIMIT 300`, [c.id])).rows;
+    return json(out);
+  }
+  if ((mm = p.match(/^\/api\/clubs\/(\d+)$/)) && m === 'PATCH') {
+    const c = await clubOf(+mm[1]);
+    if (!canRunClub(c, me, admin)) return bad('Ruxsat yo‘q', 403);
+    const name = body.name !== undefined ? str(body.name, 60) : c.name;
+    if (name.length < 2) return bad('Klub nomini yozing');
+    let leader = c.leader_id;
+    if (admin && body.leader_id !== undefined) {
+      leader = str(body.leader_id, 64) || null;
+      if (leader && !(await userExists(leader))) return bad('Rahbar topilmadi', 404);
+    }
+    await q('UPDATE clubs SET name=$2, emoji=$3, description=$4, tg_link=$5, leader_id=$6 WHERE id=$1 RETURNING 1 x',
+      [c.id, name, body.emoji !== undefined ? (str(body.emoji, 8) || '♟') : c.emoji, body.description !== undefined ? str(body.description, 600) : c.description,
+        body.tg_link !== undefined ? safeLink(body.tg_link) : c.tg_link, leader]);
+    if (leader && leader !== c.leader_id) {
+      await q('INSERT INTO club_members (club_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [c.id, leader]);
+      await notify(leader, `🏛 Siz <b>${esc(name)}</b> klubining rahbari etib tayinlandingiz. Ilovada: Ko‘proq → Klublar.`);
+    }
+    return json({ ok: true });
+  }
+  if ((mm = p.match(/^\/api\/clubs\/(\d+)$/)) && m === 'DELETE') {
+    if (!admin) return bad('Ruxsat yo‘q', 403);
+    await q('UPDATE clubs SET active=false WHERE id=$1 RETURNING 1 x', [+mm[1]]);
+    return json({ ok: true });
+  }
+  if ((mm = p.match(/^\/api\/clubs\/(\d+)\/join$/)) && m === 'POST') {
+    if (!validUid(body.uid) || !(await userExists(body.uid))) return bad('Avval profilni to‘ldiring', 401);
+    const c = await clubOf(+mm[1]);
+    if (!c) return bad('Klub topilmadi', 404);
+    const del = await q('DELETE FROM club_members WHERE club_id=$1 AND user_id=$2 AND user_id IS DISTINCT FROM $3 RETURNING 1 x', [c.id, body.uid, c.leader_id]);
+    if (!del.rowCount) {
+      if (body.uid === c.leader_id) return bad('Rahbar klubdan chiqa olmaydi');
+      await q('INSERT INTO club_members (club_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [c.id, body.uid]);
+      if (c.tg_link && body.uid.startsWith('tg')) await tg('sendMessage', { chat_id: body.uid.slice(2), parse_mode: 'HTML',
+        text: `🏛 Siz <b>${esc(c.name)}</b> klubiga qo‘shildingiz! Klub tadbirlari haqida shu bot orqali xabar olasiz.`,
+        reply_markup: { inline_keyboard: [[{ text: '👥 Klub guruhi', url: c.tg_link }]] } }).catch(() => {});
+    }
+    return json({ joined: !del.rowCount });
+  }
+  if ((mm = p.match(/^\/api\/clubs\/(\d+)\/message$/)) && m === 'POST') {
+    const c = await clubOf(+mm[1]);
+    if (!canRunClub(c, me, admin)) return bad('Ruxsat yo‘q', 403);
+    const text = str(body.text, 1500);
+    if (text.length < 5) return bad('Xabar matnini yozing');
+    const ids = (await q('SELECT user_id FROM club_members WHERE club_id=$1', [c.id])).rows.map((r) => r.user_id);
+    const sent = await notifyMany(ids, `🏛 <b>${esc(c.name)}</b>\n\n${esc(text)}`);
+    return json({ sent, total: ids.length });
+  }
+  // Attendance for a club event: the leader ticks who came; each tick is worth CLUB_ATT_POINTS.
+  if ((mm = p.match(/^\/api\/events\/(\d+)\/attendance$/)) && m === 'GET') {
+    const ev = (await q('SELECT id, club_id, title FROM events WHERE id=$1', [+mm[1]])).rows[0];
+    if (!ev || !ev.club_id) return bad('Bu klub tadbiri emas', 404);
+    if (!canRunClub(await clubOf(ev.club_id), me, admin)) return bad('Ruxsat yo‘q', 403);
+    const r = await q(`SELECT u.id, u.name, u.major, EXISTS(SELECT 1 FROM rsvps r WHERE r.event_id=$1 AND r.user_id=u.id) going,
+      EXISTS(SELECT 1 FROM club_attendance a WHERE a.event_id=$1 AND a.user_id=u.id) present
+      FROM users u WHERE u.id IN (SELECT user_id FROM club_members WHERE club_id=$2 UNION SELECT user_id FROM rsvps WHERE event_id=$1 UNION SELECT user_id FROM club_attendance WHERE event_id=$1)
+      ORDER BY going DESC, u.name LIMIT 400`, [ev.id, ev.club_id]);
+    return json({ event: ev, people: r.rows, points: CLUB_ATT_POINTS });
+  }
+  if ((mm = p.match(/^\/api\/events\/(\d+)\/attendance$/)) && m === 'POST') {
+    const ev = (await q('SELECT id, club_id, title FROM events WHERE id=$1', [+mm[1]])).rows[0];
+    if (!ev || !ev.club_id) return bad('Bu klub tadbiri emas', 404);
+    if (!canRunClub(await clubOf(ev.club_id), me, admin)) return bad('Ruxsat yo‘q', 403);
+    const who = str(body.user_id, 64);
+    if (!(await userExists(who))) return bad('Talaba topilmadi', 404);
+    if (body.present) {
+      const ins = await q('INSERT INTO club_attendance (event_id, user_id, marked_by) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [ev.id, who, me || 'key']);
+      if (ins.rowCount) await notify(who, `✅ «${esc(ev.title)}» tadbirida qatnashganingiz belgilandi: <b>+${CLUB_ATT_POINTS} ball</b>.`);
+    } else await q('DELETE FROM club_attendance WHERE event_id=$1 AND user_id=$2 RETURNING 1 x', [ev.id, who]);
+    return json({ ok: true });
+  }
+
+  // ---------- volunteering
+  const leadsClub = me ? (await q('SELECT id FROM clubs WHERE leader_id=$1 AND active', [me])).rows.map((r) => r.id) : [];
+  const canPostTasks = !!admin || !!myPos || leadsClub.length > 0;
+  if (p === '/api/vol' && m === 'GET') {
+    const tasks = (await q(`SELECT t.id, t.title, t.description, t.place, t.starts_at, t.slots, t.hours, t.status, t.club_id, c.name club_name, c.emoji club_emoji,
+      ou.name owner_name, (t.owner_id=$1) mine,
+      (SELECT count(*) FROM vol_signups s WHERE s.task_id=t.id)::int taken,
+      (SELECT status FROM vol_signups s WHERE s.task_id=t.id AND s.user_id=$1) my_status
+      FROM vol_tasks t LEFT JOIN clubs c ON c.id=t.club_id LEFT JOIN users ou ON ou.id=t.owner_id
+      WHERE (t.status='open' AND (t.starts_at IS NULL OR t.starts_at > now() - interval '1 day'))
+         OR ((t.owner_id=$1 OR $2) AND t.created_at > now() - interval '30 days')
+         OR EXISTS(SELECT 1 FROM vol_signups s WHERE s.task_id=t.id AND s.user_id=$1 AND t.created_at > now() - interval '30 days')
+      ORDER BY (t.status='open') DESC, t.starts_at NULLS LAST LIMIT 60`, [uid, !!admin])).rows;
+    const top = (await q(`SELECT u.id, u.name, u.photo_url, sum(s.hours)::float hours FROM service_log s JOIN users u ON u.id=s.user_id
+      WHERE u.id NOT LIKE 'selftest%' GROUP BY u.id ORDER BY hours DESC LIMIT 10`)).rows.map((r) => ({ ...r, ...vlevel(r.hours) }));
+    const mine = validUid(uid) ? await serviceOf(uid) : null;
+    const cert = validUid(uid) ? (await q('SELECT id, hours, issued_at FROM certificates WHERE user_id=$1 ORDER BY issued_at DESC LIMIT 1', [uid])).rows[0] || null : null;
+    return json({ tasks, top, mine, cert, cert_hours: CERT_HOURS, can_post: canPostTasks, clubs: leadsClub });
+  }
+  if (p === '/api/vol/tasks' && m === 'POST') {
+    if (!canPostTasks) return bad('Vazifani jamoa, Head yoki klub rahbari qo‘shadi', 403);
+    const title = str(body.title, 120);
+    if (title.length < 5) return bad('Vazifa nomini yozing');
+    const hours = Math.round(parseFloat(body.hours) * 2) / 2;
+    if (!(hours > 0 && hours <= 24)) return bad('Soat 0.5 dan 24 gacha bo‘lsin');
+    const slots = Math.max(1, Math.min(200, parseInt(body.slots) || 1));
+    const starts = body.starts_at ? new Date(body.starts_at) : null;
+    if (starts && isNaN(starts)) return bad('Sana noto‘g‘ri');
+    let club = parseInt(body.club_id) || null;
+    if (club && !admin && !leadsClub.includes(club)) return bad('Bu klub sizniki emas', 403);
+    const r = await q('INSERT INTO vol_tasks (title, description, place, starts_at, slots, hours, owner_id, club_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
+      [title, str(body.description, 800), str(body.place, 80), starts ? starts.toISOString() : null, slots, hours, me || 'key', club]);
+    let sent = 0;
+    if (body.announce) {
+      const ids = (await q(`SELECT id user_id FROM users WHERE role='volunteer' AND id LIKE 'tg%'
+        UNION SELECT user_id FROM volunteer_interest WHERE user_id LIKE 'tg%'
+        ${club ? 'UNION SELECT user_id FROM club_members WHERE club_id=' + club : ''} LIMIT 300`)).rows.map((x) => x.user_id).filter((x) => x !== me);
+      sent = await notifyMany(ids, `🤝 <b>Volontyor kerak</b>\n«${esc(title)}»\n${starts ? '🗓 ' + starts.toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + '\n' : ''}⏱ ${hours} soat · ${slots} ta joy\n\nIlovada: Ko‘proq → Volontyorlik.`);
+    }
+    return json({ id: r.rows[0].id, sent }, 201);
+  }
+  if ((mm = p.match(/^\/api\/vol\/tasks\/(\d+)\/join$/)) && m === 'POST') {
+    if (!validUid(body.uid) || !(await userExists(body.uid))) return bad('Avval profilni to‘ldiring', 401);
+    const t = (await q(`SELECT t.*, (SELECT count(*) FROM vol_signups s WHERE s.task_id=t.id)::int taken FROM vol_tasks t WHERE t.id=$1`, [+mm[1]])).rows[0];
+    if (!t) return bad('Vazifa topilmadi', 404);
+    const del = await q("DELETE FROM vol_signups WHERE task_id=$1 AND user_id=$2 AND status='joined' RETURNING 1 x", [t.id, body.uid]);
+    if (del.rowCount) return json({ joined: false });
+    if (t.status !== 'open') return bad('Bu vazifa yopilgan', 409);
+    if (t.taken >= t.slots) return bad('Joylar tugagan', 409);
+    const ins = await q('INSERT INTO vol_signups (task_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [t.id, body.uid]);
+    if (!ins.rowCount) return bad('Bu vazifa bo‘yicha belgingiz bor');
+    if (t.owner_id && t.owner_id !== body.uid) {
+      const u = (await q('SELECT name FROM users WHERE id=$1', [body.uid])).rows[0];
+      await notify(t.owner_id, `🤝 <b>${esc(u ? u.name : 'Talaba')}</b> «${esc(t.title)}» vazifasiga yozildi (${t.taken + 1}/${t.slots}).`);
+    }
+    return json({ joined: true });
+  }
+  if ((mm = p.match(/^\/api\/vol\/tasks\/(\d+)$/)) && m === 'GET') {
+    const t = (await q('SELECT * FROM vol_tasks WHERE id=$1', [+mm[1]])).rows[0];
+    if (!t) return bad('Vazifa topilmadi', 404);
+    if (!admin && t.owner_id !== me) return bad('Ruxsat yo‘q', 403);
+    const r = await q(`SELECT u.id, u.name, u.major, u.username, s.status, s.at FROM vol_signups s JOIN users u ON u.id=s.user_id WHERE s.task_id=$1 ORDER BY s.at`, [t.id]);
+    return json({ task: t, people: r.rows });
+  }
+  if ((mm = p.match(/^\/api\/vol\/tasks\/(\d+)$/)) && m === 'PATCH') {
+    const t = (await q('SELECT * FROM vol_tasks WHERE id=$1', [+mm[1]])).rows[0];
+    if (!t) return bad('Vazifa topilmadi', 404);
+    if (!admin && t.owner_id !== me) return bad('Ruxsat yo‘q', 403);
+    const st = ['open', 'closed'].includes(body.status) ? body.status : t.status;
+    await q('UPDATE vol_tasks SET status=$2 WHERE id=$1 RETURNING 1 x', [t.id, st]);
+    return json({ ok: true });
+  }
+  if ((mm = p.match(/^\/api\/vol\/tasks\/(\d+)$/)) && m === 'DELETE') {
+    const d = await q(`DELETE FROM vol_tasks t WHERE t.id=$1 AND ($2 OR t.owner_id=$3)
+      AND NOT EXISTS(SELECT 1 FROM vol_signups s WHERE s.task_id=t.id AND s.status='done') RETURNING 1 x`, [+mm[1], !!admin, me]);
+    if (!d.rowCount) return bad('O‘chirib bo‘lmaydi: vazifa sizniki emas yoki soatlar allaqachon yozilgan', 403);
+    return json({ ok: true });
+  }
+  // The task owner marks each volunteer: done (hours go to the service log), noshow, or back to joined.
+  if ((mm = p.match(/^\/api\/vol\/tasks\/(\d+)\/mark$/)) && m === 'POST') {
+    const t = (await q('SELECT * FROM vol_tasks WHERE id=$1', [+mm[1]])).rows[0];
+    if (!t) return bad('Vazifa topilmadi', 404);
+    if (!admin && t.owner_id !== me) return bad('Ruxsat yo‘q', 403);
+    const who = str(body.user_id, 64);
+    const s = (await q('SELECT * FROM vol_signups WHERE task_id=$1 AND user_id=$2', [t.id, who])).rows[0];
+    if (!s) return bad('Bu talaba vazifaga yozilmagan', 404);
+    const to = ['done', 'noshow', 'joined'].includes(body.status) ? body.status : null;
+    if (!to) return bad('Holat noto‘g‘ri');
+    if (to === s.status) return json({ ok: true });
+    if (s.status === 'done' && s.log_id) await q('DELETE FROM service_log WHERE id=$1 RETURNING 1 x', [s.log_id]);
+    let logId = null;
+    if (to === 'done') {
+      const before = await serviceOf(who);
+      logId = (await q('INSERT INTO service_log (user_id,hours,note,event_id,added_by) VALUES ($1,$2,$3,NULL,$4) RETURNING id',
+        [who, t.hours, ('Volontyorlik: ' + t.title).slice(0, 200), me || 'key'])).rows[0].id;
+      await q("UPDATE users SET role='volunteer' WHERE id=$1 AND role IS NULL RETURNING 1 x", [who]);
+      const after = await serviceOf(who);
+      let msg = `🤝 «${esc(t.title)}» — rahmat! Xizmat daftaringizga <b>+${t.hours} soat</b> yozildi.\nJami: <b>${after.hours} soat</b>.`;
+      if (after.level !== before.level) msg += `\n\n🎖 Tabriklaymiz! Endi siz — <b>${after.level}</b>.`;
+      if (before.hours < CERT_HOURS && after.hours >= CERT_HOURS) msg += `\n\n📜 ${CERT_HOURS} soatdan oshdingiz — ilovada (Ko‘proq → Volontyorlik) sertifikatingizni oling.`;
+      await notify(who, msg);
+    }
+    await q('UPDATE vol_signups SET status=$3, log_id=$4 WHERE task_id=$1 AND user_id=$2 RETURNING 1 x', [t.id, who, to, logId]);
+    return json({ ok: true });
+  }
+  // Certificate: the app draws the PNG; the server checks the hours, keeps a verification code and sends the file in the bot.
+  if (p === '/api/vol/certificate' && m === 'POST') {
+    if (!me) return bad('Sertifikatni Telegram ichida oling');
+    const sv = await serviceOf(me);
+    if (sv.hours < CERT_HOURS) return bad(`Sertifikat ${CERT_HOURS} soatdan keyin beriladi`);
+    const img = typeof body.image === 'string' && body.image.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
+    let cert = (await q('SELECT * FROM certificates WHERE user_id=$1 AND hours=$2', [me, sv.hours])).rows[0];
+    if (!cert) {
+      const code = 'BK-' + Date.now().toString(36).toUpperCase().slice(-5) + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+      cert = (await q('INSERT INTO certificates (id, user_id, hours, level) VALUES ($1,$2,$3,$4) RETURNING *', [code, me, sv.hours, sv.level])).rows[0];
+    }
+    if (!img) return json({ cert });
+    if (img[1].length > 3000000) return bad('Rasm juda katta');
+    const fd = new FormData();
+    fd.append('chat_id', me.slice(2));
+    fd.append('caption', `📜 Volontyorlik sertifikati · ${sv.hours} soat · ${sv.level}\nTekshirish kodi: ${cert.id}`);
+    fd.append('document', new Blob([Buffer.from(img[1], 'base64')], { type: 'image/png' }), `BlackKnight-sertifikat-${cert.id}.png`);
+    const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, { method: 'POST', body: fd }).then((x) => x.json()).catch(() => null);
+    return json({ cert, sent: !!(r && r.ok) });
+  }
+  if ((mm = p.match(/^\/api\/vol\/cert\/([A-Z0-9-]{6,30})$/)) && m === 'GET') {
+    const r = await q('SELECT c.id, c.hours, c.level, c.issued_at, u.name FROM certificates c JOIN users u ON u.id=c.user_id WHERE c.id=$1', [mm[1]]);
+    if (!r.rowCount) return bad('Sertifikat topilmadi', 404);
+    return json({ cert: r.rows[0] });
+  }
+  return null;
+}
+const safeLink = (v) => { const s = str(v, 200); return /^https:\/\/(t\.me|telegram\.me)\//.test(s) ? s : null; };
+
 async function route(req) {
   const url = new URL(req.url);
   const p = url.pathname.replace(/\/+$/, '') || '/';
@@ -1813,25 +2086,46 @@ async function route(req) {
   }
 
   // ---- events
+  if (p.startsWith('/api/clubs') || p.startsWith('/api/vol') || /^\/api\/events\/\d+\/attendance$/.test(p)) {
+    const r = await clubsRoute(p, m, url, body, uid, tu && tu.id ? uid : null, admin, myPos);
+    if (r) return r;
+  }
   if (p === '/api/events' && m === 'GET') {
     const r = await q(`SELECT e.*, ((SELECT count(*) FROM rsvps r WHERE r.event_id=e.id) + (SELECT count(*) FROM event_guests g WHERE g.event_id=e.id))::int going,
       (SELECT json_build_object('name', u.name, 'role', u.role, 'position', u.position) FROM users u WHERE u.id=e.created_by AND u.role='leader') organizer,
       (e.created_by=$1) mine,
-      EXISTS(SELECT 1 FROM rsvps r WHERE r.event_id=e.id AND r.user_id=$1) joined
+      EXISTS(SELECT 1 FROM rsvps r WHERE r.event_id=e.id AND r.user_id=$1) joined,
+      (SELECT json_build_object('id', c.id, 'name', c.name, 'emoji', c.emoji) FROM clubs c WHERE c.id=e.club_id) club
       FROM events e WHERE e.starts_at > now() - interval '3 hours' ORDER BY e.starts_at LIMIT 50`, [uid]);
     return json({ events: r.rows });
   }
   if (p === '/api/events' && m === 'POST') {
-    if (!admin && !leader) return bad('Tadbirni adminlar va ◇ yetakchilar qo‘sha oladi', 403);
+    const clubId = parseInt(body.club_id) || null;
+    const club = clubId ? (await q('SELECT id, name, leader_id FROM clubs WHERE id=$1 AND active', [clubId])).rows[0] : null;
+    if (clubId && !club) return bad('Klub topilmadi', 404);
+    const clubLeader = !!(club && tu && tu.id && club.leader_id === uid);
+    if (!admin && !leader && !clubLeader) return bad('Tadbirni adminlar, ◇ yetakchilar va klub rahbarlari qo‘sha oladi', 403);
     const title = str(body.title, 120);
     const starts = new Date(body.starts_at);
     if (!title || isNaN(starts)) return bad('Nom va sana kerak');
-    const r = await q('INSERT INTO events (title,description,starts_at,place,capacity,created_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-      [title, str(body.description, 1000), starts.toISOString(), str(body.place, 80), Math.max(0, parseInt(body.capacity) || 0), uid || 'key']);
-    return json({ id: r.rows[0].id }, 201);
+    const r = await q('INSERT INTO events (title,description,starts_at,place,capacity,created_by,club_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+      [title, str(body.description, 1000), starts.toISOString(), str(body.place, 80), Math.max(0, parseInt(body.capacity) || 0), uid || 'key', club ? club.id : null]);
+    let sent = 0;
+    if (club) {
+      // Club members hear about their club's events straight away.
+      const ids = (await q('SELECT user_id FROM club_members WHERE club_id=$1 AND user_id<>$2', [club.id, uid || ''])).rows.map((x) => x.user_id);
+      const when = starts.toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+      sent = await notifyMany(ids, `🏛 <b>${esc(club.name)}</b> — yangi tadbir
+«${esc(title)}»
+🗓 ${when}${str(body.place, 80) ? '\n📍 ' + esc(str(body.place, 80)) : ''}
+
+Ilovada «Qatnashaman»ni bosing — davomat uchun ball beriladi.`);
+    }
+    return json({ id: r.rows[0].id, sent }, 201);
   }
   if ((mm = p.match(/^\/api\/events\/(\d+)$/)) && m === 'DELETE') {
-    if (!admin && !leader) return bad('Ruxsat yo‘q', 403);
+    const own = tu && tu.id ? (await q('SELECT 1 x FROM events WHERE id=$1 AND created_by=$2', [+mm[1], uid])).rowCount > 0 : false;
+    if (!admin && !leader && !own) return bad('Ruxsat yo‘q', 403);
     const d = await q('DELETE FROM events WHERE id=$1 AND ($2 OR created_by=$3) RETURNING 1 x', [+mm[1], !!admin, uid]);
     if (!d.rowCount) return bad('Faqat o‘zingiz qo‘shgan tadbirni o‘chira olasiz', 403);
     return json({ ok: true });
@@ -1997,6 +2291,8 @@ async function selftest() {
     await call('POST', '/api/service', { user_id: uid, hours: 2, note: 'Selftest xizmati' }, { 'x-admin-key': ADMIN_KEY });
     await call('POST', '/api/service', { user_id: uid, hours: 9, note: 'Selftest ikkinchi' }, { 'x-admin-key': ADMIN_KEY });
     await call('POST', '/api/service', { user_id: uid, hours: 1, note: 'ruxsatsiz' });
+    await call('GET', `/api/clubs?uid=${uid}`);
+    await call('GET', `/api/vol?uid=${uid}`);
     const sv2 = await call('GET', `/api/service/${uid}`);
     if (sv2.entries && sv2.entries[0]) await call('DELETE', `/api/service/entry/${sv2.entries[0].id}`, null, { 'x-admin-key': ADMIN_KEY });
     await call('GET', '/api/volunteers');
