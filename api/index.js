@@ -147,6 +147,11 @@ async function loadChannel() {
 const BOT_USERNAME = 'blackknightsp_bot';
 const KNIGHT_LIMIT = 229;
 const MILESTONES = [5, 10, 25, 50, 100, 200];
+// Problem ladder: 15 votes → "Ko‘rib chiqilmoqda" (team answers within 24h), 100 votes → taken to the dekanat.
+const REVIEW_AT = 15;
+const DEKANAT_AT = 100;
+const TITLE_MIN = 10;
+const PROBLEM_PHOTOS = 3;
 const LEVELS = [{ name: 'Navkar', min: 0 }, { name: 'Ritsar', min: 100 }, { name: 'Qora ritsar', min: 300 }];
 const notify = (uid, text) => (uid && uid.startsWith('tg') ? tg('sendMessage', { chat_id: uid.slice(2), text, parse_mode: 'HTML', reply_markup: openKb() }).catch(() => {}) : null);
 
@@ -1058,6 +1063,28 @@ async function routeProblem(id, category, authorId, title) {
   await pingHead(pid, id, title, category);
   return pid;
 }
+// Moves a muammo up the ladder as votes come in; each step happens once.
+async function ladderCheck(id, n) {
+  if (n >= REVIEW_AT) {
+    const up = await q("UPDATE problems SET status='qabul' WHERE id=$1 AND status='yangi' RETURNING author_id, title, assigned_pos", [id]);
+    if (up.rowCount) {
+      const pr = up.rows[0];
+      await notify(pr.author_id, `📥 Murojaatingiz <b>${REVIEW_AT} ta ovoz</b> to‘pladi va <b>ko‘rib chiqilmoqda</b>:\n«${esc(pr.title)}»\n\nJamoa 24 soat ichida javob yozadi.`);
+      const to = new Set(await fullAdmins());
+      const h = await holderOf(pr.assigned_pos); if (h) to.add(h);
+      for (const u of to) await tg('sendMessage', { chat_id: u.slice(2), parse_mode: 'HTML', reply_markup: headKb(),
+        text: `⏱ <b>${REVIEW_AT} ovoz — javob kerak</b>\n«${esc(pr.title)}»\n\nHolat avtomatik «Ko‘rib chiqilmoqda»ga o‘tdi. 24 soat ichida postga jamoa nomidan izoh yozing.` }).catch(() => {});
+    }
+  }
+  if (n >= DEKANAT_AT) {
+    const up = await q('UPDATE problems SET dekanat_at=now() WHERE id=$1 AND dekanat_at IS NULL RETURNING author_id, title', [id]);
+    if (up.rowCount) {
+      await notify(up.rows[0].author_id, `🏛 Murojaatingiz <b>${DEKANAT_AT} ta ovoz</b> to‘pladi — jamoa uni dekanatga olib chiqadi:\n«${esc(up.rows[0].title)}»`);
+      for (const u of await fullAdmins()) await tg('sendMessage', { chat_id: u.slice(2), parse_mode: 'HTML',
+        text: `🏛 <b>${DEKANAT_AT} ovoz</b>: «${esc(up.rows[0].title)}»\nBu murojaatni dekanatga olib chiqish vaqti keldi.` }).catch(() => {});
+    }
+  }
+}
 async function pingHead(pid, id, title, category, from) {
   const holder = (await holderOf(pid)) || (pid !== 'vp' ? await holderOf('vp') : null);
   if (!holder) return;
@@ -1348,10 +1375,11 @@ async function route(req) {
     const r = await q(`SELECT count(*)::int total,
       count(*) FILTER (WHERE status IN ('qabul','jarayonda'))::int progress,
       count(*) FILTER (WHERE status='hal')::int done,
-      count(*) FILTER (WHERE status='hal' AND resolved_at > date_trunc('month', now()))::int done_month
+      count(*) FILTER (WHERE status='hal' AND resolved_at > date_trunc('month', now()))::int done_month,
+      (SELECT count(*) FROM votes v JOIN problems pp ON pp.id=v.problem_id WHERE pp.kind='muammo')::int votes
       FROM problems WHERE kind='muammo'`);
     const u = await q('SELECT count(*)::int n FROM users');
-    return json({ ...r.rows[0], members: u.rows[0].n });
+    return json({ ...r.rows[0], members: u.rows[0].n, review_at: REVIEW_AT, dekanat_at: DEKANAT_AT });
   }
 
   // ---- me / profile
@@ -1548,23 +1576,67 @@ async function route(req) {
     const tab = url.searchParams.get('tab') || 'top';
     const kind = KINDS.includes(url.searchParams.get('kind')) ? url.searchParams.get('kind') : '';
     let where = tab === 'done' ? "p.status='hal'" : "p.status<>'hal'";
-    if (kind) where += ` AND p.kind='${kind}'`;
+    // Plain questions live in their own FAQ list, not mixed into the main feed.
+    if (kind) where += ` AND p.kind='${kind}'`; else where += " AND p.kind<>'savol'";
     const order = tab === 'new' ? 'p.created_at DESC' : tab === 'done' ? 'p.resolved_at DESC NULLS LAST' : 'votes DESC, p.created_at DESC';
     const r = await q(`SELECT p.id, p.kind, p.title, p.body, p.category, p.status, p.created_at, p.anon,
       CASE WHEN p.anon THEN NULL ELSE u.name END author, CASE WHEN p.anon THEN NULL ELSE u.knight_no END author_knight, CASE WHEN p.anon THEN NULL ELSE u.title END author_title,
       CASE WHEN p.anon THEN NULL ELSE u.role END author_role, CASE WHEN p.anon THEN NULL ELSE u.position END author_position, (NOT p.anon AND EXISTS(SELECT 1 FROM admins a WHERE a.user_id=p.author_id)) author_team,
       (SELECT count(*) FROM votes v WHERE v.problem_id=p.id)::int votes,
       EXISTS(SELECT 1 FROM votes v WHERE v.problem_id=p.id AND v.user_id=$1) voted,
-      (p.author_id=$1) mine
+      (p.author_id=$1) mine,
+      (SELECT count(*) FROM problem_comments c WHERE c.problem_id=p.id)::int comments,
+      EXISTS(SELECT 1 FROM problem_comments c WHERE c.problem_id=p.id AND c.team) answered,
+      (SELECT coalesce(json_agg(ph.id ORDER BY ph.pos), '[]') FROM problem_photos ph WHERE ph.problem_id=p.id) photos,
+      (p.dekanat_at IS NOT NULL) dekanat
       FROM problems p LEFT JOIN users u ON u.id=p.author_id
       WHERE ${where} ORDER BY ${order} LIMIT 100`, [uid]);
-    return json({ problems: r.rows });
+    return json({ problems: r.rows, review_at: REVIEW_AT, dekanat_at: DEKANAT_AT });
+  }
+  if ((mm = p.match(/^\/api\/problems\/img\/(\d+)$/)) && m === 'GET') {
+    const r = await q('SELECT mime, data FROM problem_photos WHERE id=$1', [+mm[1]]);
+    if (!r.rowCount) return new Response('not found', { status: 404, headers: CORS });
+    return new Response(Buffer.from(r.rows[0].data, 'base64'), { headers: { 'content-type': r.rows[0].mime, 'cache-control': 'public, max-age=31536000, immutable', ...CORS } });
+  }
+  // ---- comments: anyone with a profile can comment; team answers are marked and tell the author
+  if ((mm = p.match(/^\/api\/problems\/(\d+)\/comments$/)) && m === 'GET') {
+    const r = await q(`SELECT c.id, c.body, c.team, c.created_at, (c.user_id=$2) mine,
+      u.name author, u.position author_position, u.knight_no author_knight
+      FROM problem_comments c LEFT JOIN users u ON u.id=c.user_id WHERE c.problem_id=$1 ORDER BY c.created_at LIMIT 300`, [+mm[1], uid]);
+    return json({ comments: r.rows });
+  }
+  if ((mm = p.match(/^\/api\/problems\/(\d+)\/comments$/)) && m === 'POST') {
+    if (!validUid(body.uid) || !(await userExists(body.uid))) return bad('Avval profilni to‘ldiring', 401);
+    const id = +mm[1];
+    const text = str(body.body, 1000);
+    if (text.length < 2) return bad('Izoh yozing');
+    const pr = (await q('SELECT author_id, title, kind, status, assigned_pos FROM problems WHERE id=$1', [id])).rows[0];
+    if (!pr) return bad('Post topilmadi', 404);
+    const recent = await q("SELECT count(*)::int n FROM problem_comments WHERE user_id=$1 AND created_at > now() - interval '1 hour'", [body.uid]);
+    if (recent.rows[0].n >= 20 && !admin) return bad('Bir soatda 20 tadan ko‘p izoh yozib bo‘lmaydi', 429);
+    // A team answer: full admins, or the Head the problem is routed to.
+    const team = !!admin || !!(myPos && pr.assigned_pos === myPos);
+    const r = await q('INSERT INTO problem_comments (problem_id,user_id,body,team) VALUES ($1,$2,$3,$4) RETURNING id', [id, body.uid, text, team]);
+    if (pr.author_id && pr.author_id !== body.uid) {
+      await notify(pr.author_id, team
+        ? `🛡 <b>Black Knight jamoasi</b> murojaatingizga javob yozdi:\n«${esc(pr.title)}»\n\n${esc(text.slice(0, 300))}`
+        : `💬 «${esc(pr.title)}» postingizga yangi izoh:\n\n${esc(text.slice(0, 200))}`);
+    }
+    return json({ id: r.rows[0].id, team }, 201);
+  }
+  if ((mm = p.match(/^\/api\/comments\/(\d+)$/)) && m === 'DELETE') {
+    const d = await q('DELETE FROM problem_comments WHERE id=$1 AND ($2 OR user_id=$3) RETURNING 1 x', [+mm[1], !!admin, uid]);
+    if (!d.rowCount) return bad('Ruxsat yo‘q', 403);
+    return json({ ok: true });
   }
   if (p === '/api/problems' && m === 'POST') {
     if (!validUid(body.uid) || !(await userExists(body.uid))) return bad('Avval profilni to‘ldiring', 401);
     const title = str(body.title, 140);
-    if (title.length < 5) return bad('Sarlavha juda qisqa');
+    if (title.length < TITLE_MIN) return bad(`Sarlavha kamida ${TITLE_MIN} belgidan iborat bo‘lsin — muammoni aniq yozing`);
     const kind = KINDS.includes(body.kind) ? body.kind : 'muammo';
+    const photos = (Array.isArray(body.photos) ? body.photos : []).slice(0, PROBLEM_PHOTOS)
+      .map((s) => typeof s === 'string' && s.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/)).filter(Boolean);
+    if (photos.some((x) => x[2].length > 700000)) return bad('Rasm juda katta');
     if (kind === 'elon' && !admin && !leader) return bad('E’lonni faqat adminlar va ◇ yetakchilar joylay oladi', 403);
     const category = kind === 'muammo' ? (CATS.includes(body.category) ? body.category : 'Boshqa') : '';
     // "Kerak" posts need a real name so people can respond; announcements are signed by the club.
@@ -1574,6 +1646,8 @@ async function route(req) {
     const r = await q('INSERT INTO problems (title,body,category,anon,author_id,kind) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
       [title, str(body.body, 2000), category, anon, body.uid, kind]);
     await q('INSERT INTO votes VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [r.rows[0].id, body.uid]);
+    // One photo per statement keeps each SQL request small.
+    for (let i = 0; i < photos.length; i++) await q('INSERT INTO problem_photos (problem_id,pos,mime,data) VALUES ($1,$2,$3,$4) RETURNING 1 x', [r.rows[0].id, i, photos[i][1], photos[i][2]]);
     if (kind === 'muammo') { await ensurePositions(); await routeProblem(r.rows[0].id, category, body.uid, title).catch((e) => console.error('route', e)); }
     return json({ id: r.rows[0].id }, 201);
   }
@@ -1594,6 +1668,7 @@ async function route(req) {
         }
         await tryAwardKnight(pr.author_id);
       }
+      if (pr && pr.kind === 'muammo') await ladderCheck(id, n).catch((e) => console.error('ladder', e));
     }
     return json({ voted: !del.rowCount, votes: n });
   }
@@ -1602,7 +1677,7 @@ async function route(req) {
     if (!STATUSES.includes(body.status)) return bad('Noto‘g‘ri holat');
     const up = await q("UPDATE problems SET status=$1, resolved_at = CASE WHEN $1='hal' THEN now() ELSE NULL END WHERE id=$2 RETURNING author_id, title", [body.status, +mm[1]]);
     if (up.rowCount) {
-      const labels = { yangi: 'Yangi', qabul: 'Qabul qilindi 📥', jarayonda: 'Jarayonda ⚙️', hal: 'Hal qilindi ✅' };
+      const labels = { yangi: 'Yangi', qabul: 'Ko‘rib chiqilmoqda 📥', jarayonda: 'Jarayonda ⚙️', hal: 'Hal qilindi ✅' };
       const extra = body.status === 'hal' ? '\n\nRahmat! Ovozingiz natija berdi.' : '';
       await notify(up.rows[0].author_id, `Murojaatingiz holati yangilandi:\n«${esc(up.rows[0].title)}»\n\n<b>${labels[body.status]}</b>${extra}`);
     }
@@ -1910,6 +1985,8 @@ async function selftest() {
     await call('GET', '/api/problems?tab=new&kind=savol&uid=' + uid);
     await call('DELETE', `/api/problems/${sv.id}`, null, { 'x-admin-key': ADMIN_KEY });
     await call('POST', `/api/problems/${p.id}/vote`, { uid });
+    await call('POST', `/api/problems/${p.id}/comments`, { uid, body: 'Selftest izohi' });
+    await call('GET', `/api/problems/${p.id}/comments?uid=${uid}`);
     await call('PATCH', `/api/problems/${p.id}`, { status: 'hal' }, { 'x-admin-key': ADMIN_KEY });
     const e = await call('POST', '/api/events', { title: 'Selftest', starts_at: new Date(Date.now() + 864e5).toISOString(), capacity: 5 }, { 'x-admin-key': ADMIN_KEY });
     await call('POST', `/api/events/${e.id}/rsvp`, { uid });

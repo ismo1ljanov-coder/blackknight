@@ -240,24 +240,74 @@ nav button[aria-current="page"]{background:var(--gold-bg);color:var(--gold)}
 .tm-warn{font-size:13px;color:var(--gold-hi);background:var(--gold-bg);border-radius:12px;padding:10px 12px;margin:4px 0 10px}
 .tm-case{padding:14px;display:flex;flex-direction:column;gap:8px}.tm-case h3{margin:0;font-size:15px}.tm-case.late{border-color:var(--red)}
 .tm-entry{text-align:left;width:100%;color:var(--fg)}
+/* nav: YouTube-style icons + centre create button */
+nav{justify-content:space-between;padding:0 6px}
+nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 2px;font-size:10.5px;height:56px}
+nav button svg{width:23px;height:23px;flex:none}
+nav button[aria-current="page"]{background:none;color:var(--gold-hi)}
+nav button[aria-current="page"] svg .fill{fill:currentColor}
+nav button.create{flex:0 0 auto;width:52px;height:52px;margin:0 4px;border-radius:50%;border:1px solid var(--gold-line);background:linear-gradient(135deg,rgba(var(--gh),.22),rgba(var(--gl),.18));color:var(--gold-hi);padding:0}
+nav button.create svg{width:26px;height:26px}
+.meava{position:relative;padding:0;overflow:visible;font-family:var(--crest);font-weight:700;font-size:17px;color:var(--gold-hi);border-color:var(--gold-line)}
+.meava img{width:100%;height:100%;border-radius:50%;object-fit:cover}
+.meava[aria-current="page"]{box-shadow:0 0 0 2px var(--gold)}
+.meava .dot{top:0;right:0}
+/* activity banner */
+.acts3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.acts3 b{display:block;font-family:var(--crest);font-size:28px;font-weight:700;line-height:1.1;background:var(--metal-text);-webkit-background-clip:text;background-clip:text;color:transparent;font-variant-numeric:tabular-nums}
+.acts3 span{font-size:12px;color:var(--muted)}
+/* problem card extras */
+.card .thumb{display:block;width:100%;height:150px;margin-top:10px;border-radius:14px;object-fit:cover;background:rgba(var(--wh),.05);border:0;padding:0}
+.card .ladderbar{margin-top:10px;display:flex;flex-direction:column;gap:5px}
+.card .ladderbar .small{font-size:12px}
+.card .foot{display:flex;align-items:center;gap:6px;margin-top:8px}
+.cmt{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 10px;border-radius:10px;border:1px solid var(--line);background:none;font-size:13px;font-weight:700;color:var(--muted)}
+.cmt svg{width:16px;height:16px}
+.answered{font-size:11px;font-weight:700;color:var(--gold-hi)}
+.card .titlebtn{display:block;width:100%;text-align:left;background:none;border:0;padding:0;color:inherit}
+/* problem sheet */
+.psteps{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:16px;border:1px solid var(--line)}
+.pstep{display:flex;gap:10px;align-items:flex-start}
+.pstep i{flex:none;width:12px;height:12px;margin-top:4px;border-radius:50%;border:2px solid var(--line-2)}
+.pstep.on i{background:var(--metal);border-color:transparent}
+.pstep b{display:block;font-size:14px}.pstep:not(.on) b{color:var(--muted)}
+.pstep span{font-size:12px;color:var(--dim)}
+.clist{display:flex;flex-direction:column;gap:8px}
+.cm{padding:10px 12px;border-radius:14px;background:rgba(var(--wh),.05);border:1px solid var(--line)}
+.cm.team{background:var(--gold-bg);border-color:var(--gold-line)}
+.cm .who{font-size:12px;color:var(--dim);margin-bottom:3px}
+.cm.team .who{color:var(--gold-hi);font-weight:700}
+.cm p{margin:0;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.cform{display:flex;gap:8px;align-items:flex-end}
+.cform textarea{flex:1;min-height:46px;max-height:140px;padding:12px 14px;border-radius:14px;border:1px solid rgba(var(--wh),.18);background:rgba(var(--wh),.08);font-size:16px;resize:none;color:var(--fg)}
+.cform textarea:focus{outline:none;border-color:var(--gold-line)}
+.cform button{height:46px}
+.cnt{font-size:12px;color:var(--dim)}.cnt.ok{color:var(--green)}.cnt.bad{color:var(--red)}
+/* onboarding */
+.onb{display:flex;flex-direction:column;gap:18px;padding:8px 2px 4px}
+.onb .ico{width:92px;height:92px;border-radius:28px;display:grid;place-items:center;background:var(--gold-bg);border:1px solid var(--gold-line);color:var(--gold-hi)}
+.onb .ico svg{width:44px;height:44px}
+.onb .stepno{font-size:12px;font-weight:800;letter-spacing:.12em;color:var(--gold)}
+.onb h2{font-size:26px}
+.onb p{margin:0;font-size:15.5px;line-height:1.55;color:var(--muted)}
+.onb .dots{display:flex;gap:6px}.onb .dots i{height:6px;width:6px;border-radius:3px;background:rgba(var(--wh),.25)}.onb .dots i.on{width:26px;background:var(--gold)}
 </style>
 </head>
 <body>
 <div class="bgmark" aria-hidden="true"><img src="emblem.webp" alt=""></div>
 <main class="app" id="app"></main>
 <nav aria-label="Bo‘limlar">
-  <button data-tab="ovoz" aria-current="page">Lenta</button>
-  <button data-tab="odamlar">Odamlar</button>
-  <button data-tab="tadbirlar">Tadbirlar</button>
-  <button data-tab="market">Market</button>
-  <button data-tab="jamoa">Jamoa</button>
-  <button data-tab="profil">Profil<span class="dot" id="reqdot" hidden></span></button>
+  <button data-tab="ovoz" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path class="fill" d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1Z"/></svg><span>Lenta</span></button>
+  <button data-tab="tadbirlar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/><rect class="fill" x="7" y="14" width="4" height="3" rx=".5" stroke="none"/></svg><span>Tadbirlar</span></button>
+  <button class="create" data-act="new" aria-label="Post yozish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+  <button data-tab="odamlar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle class="fill" cx="9" cy="8" r="4"/><path class="fill" d="M2 21a7 7 0 0 1 14 0Z"/><path d="M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3"/></svg><span>Odamlar</span></button>
+  <button data-tab="koproq"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect class="fill" x="3" y="3" width="7.5" height="7.5" rx="2"/><rect class="fill" x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect class="fill" x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect class="fill" x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg><span>Ko‘proq</span></button>
 </nav>
 <div id="layer"></div>
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-11.1';
+const BUILD = '2026-11-12.1';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
@@ -271,10 +321,11 @@ const BUILD = '2026-11-11.1';
 'use strict';
 const API = 'https://br-steep-haze-b9tabbet-api.compute.c-7.eu-central-1.aws.neon.tech';
 const CATS = ["O'quv jarayoni", 'Ustozlar bilan', 'Infratuzilma', 'Yotoqxona', 'Oshxona va bufet', 'Sport', 'Tadbirlar', 'Karyera va amaliyot', "Startap va g'oyalar", 'Hamkorlik va chegirma', 'Platforma (bot/sayt)', 'Huquq va adolat', 'Boshqa'];
-const STATUS = { yangi: 'Yangi', qabul: 'Qabul qilindi', jarayonda: 'Jarayonda', hal: 'Hal qilindi' };
+const STATUS = { yangi: 'Yangi', qabul: 'Ko‘rib chiqilmoqda', jarayonda: 'Jarayonda', hal: 'Hal qilindi' };
+const REVIEW_AT = 15, DEKANAT_AT = 100, TITLE_MIN = 10;
 const KINDS = {
   muammo: { label: 'Muammo', many: 'Muammolar', ph: 'Masalan: Wi-Fi 3-qavatda ishlamaydi', bph: 'Qayerda, qachondan beri, kimga ta’sir qilyapti?', ok: 'Murojaat yuborildi' },
-  savol: { label: 'Savol', many: 'Savollar', ph: 'Masalan: Amaliy matematikadan 11-variantni kim yechdi?', bph: 'Savolingizni batafsilroq yozing', ok: 'Savol joylandi' },
+  savol: { label: 'Savol', many: 'FAQ · Savollar', ph: 'Masalan: Amaliy matematikadan 11-variantni kim yechdi?', bph: 'Savolingizni batafsilroq yozing', ok: 'Savol joylandi' },
   kerak: { label: 'Kerak', many: 'Kerak', ph: 'Masalan: Menga Figma o‘rgatadigan odam kerak', bph: 'Nima kerak, qachon, evaziga nima bera olasiz?', ok: 'Post joylandi' },
   elon: { label: 'E’lon', many: 'E’lonlar', ph: 'Masalan: Shanba kuni ochiq uchrashuv', bph: 'E’lon matni', ok: 'E’lon joylandi' },
 };
@@ -348,7 +399,13 @@ function toast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
 }
 
-const head = (title, extra = '') => `<header class="head"><img class="logo" src="logo.jpg" alt="Black Knight Team logotipi"><div class="grow"><div class="team">Black Knight Team</div><div class="uni">Millat Umidi University</div></div><button class="iconbtn themebtn" data-act="theme" aria-label="${document.documentElement.getAttribute('data-theme') === 'light' ? 'Kechki rejim' : 'Kunduzgi rejim'}" style="font-size:17px">${document.documentElement.getAttribute('data-theme') === 'light' ? '☾' : '☀'}</button>${extra}</header>
+function meButton() {
+  const me = S.me || {};
+  const on = S.tab === 'profil' || S.tab === 'bolim';
+  const pic = me.photo_url ? `<img src="${esc(me.photo_url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : esc((me.name || '♞').trim().charAt(0).toUpperCase());
+  return `<button class="iconbtn meava" data-tab="profil" aria-label="Profil"${on ? ' aria-current="page"' : ''}>${pic}<span class="dot" id="reqdot"${(S.requests || []).length ? '' : ' hidden'}></span></button>`;
+}
+const head = (title, extra = '') => `<header class="head"><img class="logo" src="logo.jpg" alt="Black Knight Team logotipi"><div class="grow"><div class="team">Black Knight Team</div><div class="uni">Millat Umidi University</div></div>${extra}${meButton()}</header>
   <div class="pagetitle"><h1>${title}</h1><div class="rule" aria-hidden="true"><i></i></div></div>`;
 
 // ---------- data
@@ -407,47 +464,124 @@ async function loadAdmins() { try { S.admins = (await api('/api/admins')).admins
 function offlineNote() { return S.offline ? '<div class="offline" role="alert">Server bilan aloqa yo‘q. Internetni tekshirib, sahifani yangilang.</div>' : ''; }
 
 function viewOvoz() {
-  const st = S.stats || { total: 0, progress: 0, done: 0, done_month: 0 };
-  const pct = st.total ? Math.round(st.done / st.total * 100) : 0;
+  const st = S.stats || { total: 0, progress: 0, done: 0, done_month: 0, votes: 0 };
   const showIssues = S.kind === '' || S.kind === 'muammo';
   const tabs = [['top', 'Dolzarb'], ['new', 'Yangi']].concat(showIssues ? [['done', 'Hal qilingan']] : []);
   const kinds = [['', 'Hammasi']].concat(Object.keys(KINDS).map((k) => [k, KINDS[k].many]));
   let list;
   if (S.problems === null) list = '<div class="skeleton"></div><div class="skeleton"></div>';
-  else if (!S.problems.length) list = `<div class="glass empty"><b>${S.ptab === 'done' ? 'Hali hal qilingan muammo yo‘q' : 'Bu yerda hali post yo‘q'}</b>Birinchi bo‘lib yozing: “+ Post yozish” tugmasini bosing.</div>`;
+  else if (!S.problems.length) list = S.ptab === 'done'
+    ? '<div class="glass empty"><b>Birinchi natijalar yo‘lda</b>Jamoa dekanat bilan ishlayapti — hal qilingan muammolar shu yerda chiqadi.</div>'
+    : `<div class="glass empty"><b>${S.kind === 'savol' ? 'Hali savol yo‘q' : 'Bu yerda hali post yo‘q'}</b>Birinchi bo‘lib yozing: pastdagi <b style="display:inline;color:var(--gold-hi)">+</b> tugmasini bosing.</div>`;
   else list = S.problems.map(problemCard).join('');
-  return head('Talabalar lentasi', '<button class="iconbtn" data-act="welcome" aria-label="Black Knight nima?" style="font-family:var(--crest);font-weight:700;font-size:18px">?</button>') + offlineNote() + `
-  ${showIssues ? `<section class="glass stat" aria-label="Murojaatlar statistikasi">
-    <div class="row"><div><div class="small">Shu oy hal qilingan muammolar</div><div class="big">${st.done_month}</div></div>
-    <div class="small" style="text-align:right">${st.total} murojaat<br>${st.progress} tasi jarayonda</div></div>
-    <div class="bar" role="img" aria-label="${pct}% hal qilingan"><i style="width:${pct}%"></i></div>
+  return head('Talabalar lentasi', '<button class="iconbtn" data-act="onboard" aria-label="Platforma qanday ishlaydi?" style="font-family:var(--crest);font-weight:700;font-size:18px">?</button>') + offlineNote() + `
+  ${showIssues ? `<section class="glass stat" aria-label="Talabalar faolligi">
+    <div class="small" style="font-size:11px;letter-spacing:.12em;text-transform:uppercase">Talabalar ovozi</div>
+    <div class="acts3"><div><b>${st.total}</b><span>murojaat</span></div><div><b>${st.votes || 0}</b><span>ovoz</span></div><div><b>${st.done ? st.done : st.progress}</b><span>${st.done ? 'hal qilindi' : 'ko‘rib chiqilmoqda'}</span></div></div>
   </section>` : ''}
-  <button class="cta" data-act="new">+ Post yozish</button>
+  ${S.kind === 'savol' ? '<div class="small">Oddiy savollar (kontrakt, jadval, hujjatlar) shu yerda — ular muammolar lentasini to‘ldirib yubormaydi.</div>' : ''}
   <div class="kinds" role="group" aria-label="Post turi">${kinds.map(([k, l]) => `<button class="chip" data-kind="${k}" aria-pressed="${S.kind === k}">${l}</button>`).join('')}</div>
   <div class="seg" role="group" aria-label="Saralash">${tabs.map(([k, l]) => `<button data-ptab="${k}" aria-pressed="${S.ptab === k}">${l}</button>`).join('')}</div>
   <div class="list">${list}</div>`;
 }
 
-function problemCard(p) {
-  const open = S.open[p.id];
+function ladder(p) {
+  if (p.kind !== 'muammo') return null;
+  if (p.status === 'hal') return null;
+  if (p.dekanat || p.votes >= DEKANAT_AT) return { pct: 100, txt: 'Dekanatga olib chiqildi — javob kutilmoqda' };
+  if (p.status === 'yangi') return { pct: Math.min(100, Math.round(p.votes / REVIEW_AT * 100)), txt: `Ko‘rib chiqishgacha: ${p.votes} / ${REVIEW_AT} ovoz` };
+  return { pct: Math.min(100, p.votes), txt: `Dekanatgacha: ${p.votes} / ${DEKANAT_AT} ovoz` };
+}
+const ICON_CMT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12Z"/></svg>';
+const pImg = (id) => `${API}/api/problems/img/${id}`;
+function whoOf(p) {
   const kind = KINDS[p.kind] ? p.kind : 'muammo';
   const leaderPost = kind === 'elon' && p.author_role === 'leader';
-  const who = leaderPost ? `<span class="ldname">◇ ${esc(p.author_position || p.author || 'Yetakchi')}</span>` : kind === 'elon' ? 'Black Knight Team' : p.anon ? 'Anonim' : esc(p.author || 'Talaba') + marks({ title: p.author_title, team: p.author_team, role: p.author_role, position: p.author_position, knight_no: p.author_knight });
+  return leaderPost ? `<span class="ldname">◇ ${esc(p.author_position || p.author || 'Yetakchi')}</span>` : kind === 'elon' ? 'Black Knight Team' : p.anon ? 'Anonim' : esc(p.author || 'Talaba') + marks({ title: p.author_title, team: p.author_team, role: p.author_role, position: p.author_position, knight_no: p.author_knight });
+}
+function problemCard(p) {
+  const kind = KINDS[p.kind] ? p.kind : 'muammo';
+  const leaderPost = kind === 'elon' && p.author_role === 'leader';
   const badge = kind === 'muammo'
     ? `<span class="pill s-${p.status}">${STATUS[p.status]}</span><span class="cat">${esc(p.category)}</span>`
     : `<span class="pill ${leaderPost ? 'ldpill' : 'k-' + kind}">${KINDS[kind].label}</span>`;
-  const statusBtns = kind === 'muammo' ? Object.keys(STATUS).map((k) => `<button data-status="${k}" data-id="${p.id}" class="${p.status === k ? 'on' : ''}">${STATUS[k]}</button>`).join('') : '';
   const adminRow = (S.leader && p.mine && kind === 'elon') ? `<div class="admin"><button class="del" data-delp="${p.id}">O‘chirish</button></div>` : '';
+  const lad = ladder(p);
+  const photos = p.photos || [];
   return `<article class="glass card${kind === 'elon' ? (leaderPost ? ' elon ld' : ' elon') : ''}">
     <button class="vote" data-vote="${p.id}" aria-pressed="${p.voted}" aria-label="Ovoz berish, ${p.votes} ovoz">▲<br>${p.votes}</button>
     <div class="body">
       ${badge}
-      <h3>${esc(p.title)}</h3>
-      <div class="meta">${who} · ${ago(p.created_at)}${p.body ? ` · <button class="link" style="padding:0;font-size:12px" data-open="${p.id}" aria-expanded="${!!open}">${open ? 'Yopish' : 'Batafsil'}</button>` : ''}</div>
-      ${open && p.body ? `<div class="more">${esc(p.body)}</div>` : ''}
+      <button class="titlebtn" data-open="${p.id}"><h3>${esc(p.title)}</h3></button>
+      <div class="meta">${whoOf(p)} · ${ago(p.created_at)}</div>
+      ${photos.length ? `<button class="thumb" data-open="${p.id}" aria-label="Rasmni ko‘rish"><img class="thumb" style="margin:0" src="${pImg(photos[0])}" alt="" loading="lazy"></button>` : ''}
+      ${lad ? `<div class="ladderbar"><div class="bar"><i style="width:${lad.pct}%"></i></div><span class="small">${lad.txt}</span></div>` : ''}
+      <div class="foot"><button class="cmt" data-open="${p.id}" aria-label="${p.comments || 0} ta izoh">${ICON_CMT}${p.comments || 0}</button>${p.answered ? '<span class="answered">🛡 Jamoa javob berdi</span>' : ''}${photos.length > 1 ? `<span class="small" style="font-size:12px">📷 ${photos.length}</span>` : ''}</div>
       ${adminRow}
     </div>
   </article>`;
+}
+
+// One post: full text, photos, the ladder, comments and a reply box.
+async function problemSheet(id) {
+  const p = (S.problems || []).find((x) => x.id == id);
+  if (!p) return;
+  const kind = KINDS[p.kind] ? p.kind : 'muammo';
+  const photos = p.photos || [];
+  const cur = p.status === 'hal' ? 3 : (p.dekanat || p.votes >= DEKANAT_AT) ? 2 : p.status === 'yangi' ? 0 : 1;
+  const steps = [['Yuborildi', 'Lentaga chiqdi'], ['Ko‘rib chiqilmoqda', `${REVIEW_AT} ovozda avtomatik · jamoa 24 soatda javob yozadi`], ['Dekanatga', `${DEKANAT_AT} ovozda jamoa olib chiqadi`], ['Hal qilindi', 'Natija shu yerda e’lon qilinadi']];
+  const statusBtns = isAdmin && kind === 'muammo' ? `<div class="admin">${Object.keys(STATUS).map((k) => `<button data-status="${k}" data-id="${p.id}" class="${p.status === k ? 'on' : ''}">${STATUS[k]}</button>`).join('')}<button class="del" data-delp="${p.id}">O‘chirish</button></div>` : '';
+  openSheet(sheetTop(kind === 'muammo' ? 'Murojaat' : KINDS[kind].label) + `
+    <div>${kind === 'muammo' ? `<span class="pill s-${p.status}">${STATUS[p.status]}</span><span class="cat">${esc(p.category)}</span>` : ''}
+      <h3 style="margin:8px 0 4px;font-size:19px;line-height:1.3;overflow-wrap:anywhere">${esc(p.title)}</h3>
+      <div class="small" style="font-size:12px">${whoOf(p)} · ${ago(p.created_at)} · ${p.votes} ovoz</div></div>
+    ${p.body ? `<div style="font-size:15px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere">${esc(p.body)}</div>` : ''}
+    ${photos.length ? `<div class="gwrap"><div class="gallery">${photos.map((ph) => `<img src="${pImg(ph)}" alt="Post rasmi" data-full="${pImg(ph)}">`).join('')}</div>${photos.length > 1 ? `<span class="gcount">${photos.length} rasm</span>` : ''}</div>` : ''}
+    ${kind === 'muammo' ? `<div class="psteps" aria-label="Murojaat yo‘li">${steps.map(([t, h], i) => `<div class="pstep${i <= cur ? ' on' : ''}"><i></i><div><b>${t}</b><span>${h}</span></div></div>`).join('')}</div>` : ''}
+    <button class="btn" id="ps-vote" aria-pressed="${p.voted}" style="width:100%">${p.voted ? '✓ Ovoz berdingiz' : '▲ Ovoz berish'} · ${p.votes}</button>
+    ${statusBtns}
+    <div class="label">Izohlar</div>
+    <div class="clist" id="ps-list"><div class="small">Yuklanmoqda…</div></div>
+    <form class="cform" id="ps-form" novalidate><label for="ps-text" style="position:absolute;left:-9999px">Izoh</label><textarea id="ps-text" rows="1" maxlength="1000" placeholder="${isAdmin || S.head ? 'Jamoa nomidan javob yozing…' : 'Izoh yozing…'}"></textarea><button class="btn" type="submit">Yuborish</button></form>
+    <div class="err" id="ps-err" role="alert"></div>`, (el) => {
+    const list = $('#ps-list', el);
+    const draw = async () => {
+      let rows = [];
+      try { rows = (await api(`/api/problems/${p.id}/comments?uid=${uid}`)).comments; } catch (e) { list.innerHTML = `<div class="small">${esc(e.message)}</div>`; return; }
+      p.comments = rows.length; p.answered = rows.some((c) => c.team);
+      list.innerHTML = rows.length ? rows.map((c) => `<div class="cm${c.team ? ' team' : ''}"><div class="who">${c.team ? '🛡 Black Knight jamoasi' + (c.author_position ? ' · ' + esc(c.author_position) : '') : esc(c.author || 'Talaba') + (c.author_knight ? ' ♞' : '')} · ${ago(c.created_at)}${c.mine || isAdmin ? ` <button class="admin-rm" data-delc="${c.id}" aria-label="Izohni o‘chirish">×</button>` : ''}</div><p>${esc(c.body)}</p></div>`).join('')
+        : `<div class="small">${kind === 'muammo' && p.status !== 'yangi' && !isAdmin ? 'Jamoa javobi 24 soat ichida shu yerda chiqadi.' : 'Hali izoh yo‘q. Birinchi bo‘lib fikr bildiring.'}</div>`;
+    };
+    draw();
+    list.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-delc]'); if (!b) return;
+      try { await api(`/api/comments/${b.dataset.delc}?uid=${uid}`, { method: 'DELETE' }); await draw(); } catch (err) { toast(err.message); }
+    });
+    el.querySelectorAll('.gallery img').forEach((im, i) => im.addEventListener('click', () => photoViewer(photos, i, pImg)));
+    $('#ps-vote', el).addEventListener('click', async (e) => {
+      if (!needProfile(null)) return;
+      const b = e.currentTarget; b.disabled = true;
+      try { const r = await api(`/api/problems/${p.id}/vote`, { method: 'POST', body: { uid } }); p.voted = r.voted; p.votes = r.votes; b.textContent = `${p.voted ? '✓ Ovoz berdingiz' : '▲ Ovoz berish'} · ${p.votes}`; b.setAttribute('aria-pressed', p.voted);
+        if (p.voted && p.status === 'yangi' && p.kind === 'muammo' && p.votes >= REVIEW_AT) { p.status = 'qabul'; const st2 = el.querySelectorAll('.pstep')[1]; if (st2) st2.classList.add('on'); toast(`${REVIEW_AT} ovoz! Murojaat «Ko‘rib chiqilmoqda»ga o‘tdi`); } }
+      catch (err) { toast(err.message); }
+      b.disabled = false;
+    });
+    const ta = $('#ps-text', el);
+    ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(140, ta.scrollHeight) + 'px'; });
+    $('#ps-form', el).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!needProfile(() => problemSheet(id))) return;
+      const text = ta.value.trim(); if (text.length < 2) { $('#ps-err', el).textContent = 'Izoh yozing.'; return; }
+      const btn = $('button[type=submit]', el); btn.disabled = true; $('#ps-err', el).textContent = '';
+      try { await api(`/api/problems/${p.id}/comments`, { method: 'POST', body: { uid, body: text } }); ta.value = ''; ta.style.height = ''; await draw(); }
+      catch (err) { $('#ps-err', el).textContent = err.message; }
+      btn.disabled = false;
+    });
+  });
+  // The feed behind the sheet picks up new counts when it closes.
+  const layer = $('#layer');
+  const obs = new MutationObserver(() => { if (!$('.scrim', layer)) { obs.disconnect(); render(); } });
+  obs.observe(layer, { childList: true });
 }
 
 function viewTadbirlar() {
@@ -617,9 +751,9 @@ function marketIntro(next) {
   });
 }
 // Full-screen photo viewer: whole photo (not cropped), swipe between photos, ✕ to close.
-function photoViewer(ids, start) {
+function photoViewer(ids, start, urlFn = imgUrl) {
   const v = document.createElement('div'); v.className = 'viewer'; v.setAttribute('role', 'dialog'); v.setAttribute('aria-label', 'Rasm');
-  v.innerHTML = ids.map((p) => `<img src="${imgUrl(p)}" alt="">`).join('') + '<button type="button" aria-label="Yopish">✕</button>';
+  v.innerHTML = ids.map((p) => `<img src="${urlFn(p)}" alt="">`).join('') + '<button type="button" aria-label="Yopish">✕</button>';
   document.body.appendChild(v);
   requestAnimationFrame(() => { v.scrollLeft = start * v.clientWidth; });
   v.querySelector('button').addEventListener('click', () => v.remove());
@@ -1013,12 +1147,56 @@ function teamBoxes() {
 ;
 }
 
+// "Ko‘proq": everything that is not an everyday tab.
+function viewKoproq() {
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  const rows = [
+    ['market', '🛒', 'Market', 'Talabalar o‘zaro savdosi · Ritsarlar uchun'],
+    ['jamoa', '🛡', 'Jamoa va vakansiyalar', 'Lavozimlar, ariza topshirish'],
+  ];
+  if (S.head) rows.push(['bolim', '🎖', 'Mening bo‘limim', S.head.open ? `${S.head.open} ta yangi murojaat` : 'Yangi murojaat yo‘q']);
+  return head('Ko‘proq') + `
+  <section class="glass tm-list">${rows.map(([t, ic, n, sub]) => `<button class="tm-row" data-tab="${t}"><span class="tm-ico" aria-hidden="true">${ic}</span><span class="tm-t"><b>${n}</b><span>${esc(sub)}</span></span><span aria-hidden="true">›</span></button>`).join('')}
+    <button class="tm-row" data-kind="savol" data-go="faq"><span class="tm-ico" aria-hidden="true">❔</span><span class="tm-t"><b>FAQ · Savollar</b><span>Kontrakt, jadval, hujjatlar bo‘yicha savollar</span></span><span aria-hidden="true">›</span></button>
+  </section>
+  <section class="glass tm-list">
+    <button class="tm-row" data-act="onboard"><span class="tm-ico" aria-hidden="true">♞</span><span class="tm-t"><b>Platforma qanday ishlaydi?</b><span>Muammo → ovoz → javob</span></span><span aria-hidden="true">›</span></button>
+    <button class="tm-row themebtn-row" data-act="theme"><span class="tm-ico" aria-hidden="true">${light ? '☾' : '☀'}</span><span class="tm-t"><b>${light ? 'Kechki rejim' : 'Kunduzgi rejim'}</b><span>Ilova rangini almashtirish</span></span><span aria-hidden="true">›</span></button>
+  </section>`;
+}
+
 function render() {
   const app = $('#app');
   const y = window.scrollY;
-  app.innerHTML = S.tab === 'ovoz' ? viewOvoz() : S.tab === 'odamlar' ? viewOdamlar() : S.tab === 'tadbirlar' ? viewTadbirlar() : S.tab === 'market' ? viewMarket() : S.tab === 'jamoa' ? viewJamoa() : S.tab === 'bolim' ? viewBolim() : viewProfil();
+  app.innerHTML = S.tab === 'ovoz' ? viewOvoz() : S.tab === 'odamlar' ? viewOdamlar() : S.tab === 'tadbirlar' ? viewTadbirlar() : S.tab === 'market' ? viewMarket() : S.tab === 'jamoa' ? viewJamoa() : S.tab === 'bolim' ? viewBolim() : S.tab === 'koproq' ? viewKoproq() : viewProfil();
   window.scrollTo(0, y);
-  document.querySelectorAll('nav button').forEach((b) => b.toggleAttribute('aria-current', false) || (b.dataset.tab === (S.tab === 'bolim' ? 'profil' : S.tab) && b.setAttribute('aria-current', 'page')));
+  const navTab = ['market', 'jamoa', 'bolim', 'koproq'].includes(S.tab) ? 'koproq' : S.tab;
+  document.querySelectorAll('nav button').forEach((b) => b.toggleAttribute('aria-current', false) || (b.dataset.tab === navTab && b.setAttribute('aria-current', 'page')));
+}
+
+// First visit: three short slides on how the platform works.
+const ONB = [
+  ['<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>', 'Muammoni yozing', 'Universitetda nima bezovta qilyapti? Pastdagi <b style="color:var(--gold-hi)">+</b> tugmasi orqali qisqa va aniq yozing, kerak bo‘lsa rasm qo‘shing. Xohlasangiz — anonim.'],
+  ['<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>', 'Ovoz yig‘ing', `Boshqa talabalar ovoz beradi. <b>${REVIEW_AT} ovozda</b> jamoa ko‘rib chiqadi va 24 soat ichida javob yozadi. <b>${DEKANAT_AT} ovozda</b> — dekanatga olib chiqiladi.`],
+  ['<path d="M20 6 9 17l-5-5"/>', 'Javob oling', 'Murojaat holatini kuzating: Yangi → Ko‘rib chiqilmoqda → Dekanatga → Hal qilindi. Har bir o‘zgarish haqida bot sizga xabar beradi.'],
+];
+function onboardSheet(done) {
+  let i = 0;
+  const body = () => `<div class="onb"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ONB[i][0]}</svg></div>
+    <div class="stepno">${i + 1} / ${ONB.length}</div><h2>${ONB[i][1]}</h2><p>${ONB[i][2]}</p>
+    <div class="dots" aria-hidden="true">${ONB.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div></div>
+    <button class="primary" id="onb-next">${i === ONB.length - 1 ? 'Boshlash' : 'Keyingi'}</button>
+    <button class="link" id="onb-skip">O‘tkazib yuborish</button>`;
+  const finish = () => { store.set('bk_onb', '1'); closeSheet(); done && done(); };
+  openSheet('<div class="grab" aria-hidden="true"></div><div id="onb-box" style="display:flex;flex-direction:column;gap:14px"></div>', (el) => {
+    const box = $('#onb-box', el);
+    const draw = () => { box.innerHTML = body(); };
+    draw();
+    box.addEventListener('click', (e) => {
+      if (e.target.closest('#onb-skip')) return finish();
+      if (e.target.closest('#onb-next')) { if (i < ONB.length - 1) { i++; draw(); } else finish(); }
+    });
+  });
 }
 
 // ---------- sheets
@@ -1147,8 +1325,10 @@ function newProblemSheet() {
   openSheet(sheetTop('Post yozish') + `
     <form id="np" style="display:flex;flex-direction:column;gap:14px" novalidate>
       <div class="field">Post turi<div class="chips" id="np-kind">${kindKeys.map((k) => `<button type="button" class="chip" data-k="${k}" aria-pressed="${k === kind}">${KINDS[k].label}</button>`).join('')}</div></div>
-      <label class="field">Sarlavha<input id="np-title" maxlength="140" required></label>
+      <div class="small" id="np-faq" hidden style="padding:10px 12px;border-radius:12px;border:1px solid var(--line)">Oddiy savollar (kontrakt, jadval, hujjatlar) <b>FAQ</b> bo‘limiga tushadi va muammolar lentasini to‘ldirmaydi.</div>
+      <label class="field">Sarlavha<input id="np-title" maxlength="140" required><span class="cnt" id="np-cnt">Kamida ${TITLE_MIN} belgi</span></label>
       <label class="field">Batafsil<textarea id="np-body" rows="4" maxlength="2000"></textarea></label>
+      <div class="field" id="np-picwrap">Rasm <span class="small">(ixtiyoriy, 3 tagacha — muammoni isbotlash uchun)</span><div class="pickers" id="np-pics"></div><input id="np-file" type="file" accept="image/*" multiple hidden></div>
       <div class="field" id="np-catwrap">Yo‘nalish<div class="chips" id="np-cat">${CATS.map((c) => `<button type="button" class="chip" aria-pressed="${c === cat}">${esc(c)}</button>`).join('')}</div></div>
       <button type="button" class="toggle" id="np-anon" role="switch" aria-checked="true"><span style="flex:1"><b style="display:block">Anonim yuborish</b><span class="small">Ismingiz talabalarga ko‘rinmaydi</span></span><span class="sw" aria-hidden="true"></span></button>
       <div class="small" id="np-note"></div>
@@ -1159,24 +1339,36 @@ function newProblemSheet() {
       $('#np-title', el).placeholder = KINDS[kind].ph;
       $('#np-body', el).placeholder = KINDS[kind].bph;
       $('#np-catwrap', el).hidden = kind !== 'muammo';
+      $('#np-picwrap', el).hidden = kind === 'elon';
+      $('#np-faq', el).hidden = kind !== 'savol';
       $('#np-anon', el).hidden = !(kind === 'muammo' || kind === 'savol');
       $('#np-note', el).textContent = kind === 'kerak' ? 'Ismingiz ko‘rinadi, shunda yordam beradiganlar siz bilan bog‘lana oladi.' : kind === 'elon' ? (isAdmin ? 'E’lon Black Knight Team nomidan chiqadi.' : `E’lon «◇ ${(S.me && S.me.position) || 'sizning'}» nomidan chiqadi.`) : '';
       el.querySelectorAll('#np-kind .chip').forEach((x) => x.setAttribute('aria-pressed', x.dataset.k === kind));
     };
     sync();
+    const photos = [], pics = $('#np-pics', el), file = $('#np-file', el);
+    const drawPics = () => {
+      pics.innerHTML = photos.map((ph, i) => `<div class="pick"><img src="${ph}" alt="Rasm ${i + 1}"><button type="button" data-rm="${i}" aria-label="Rasmni olib tashlash">✕</button></div>`).join('')
+        + (photos.length < 3 ? '<button type="button" class="pick add" data-add aria-label="Rasm qo‘shish">+</button>' : '');
+    };
+    drawPics();
+    pics.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.add !== undefined) file.click(); else if (b.dataset.rm) { photos.splice(+b.dataset.rm, 1); drawPics(); } });
+    file.addEventListener('change', async () => { const list = [...file.files].slice(0, 3 - photos.length); file.value = ''; for (const f of list) { try { photos.push(await shrinkPhoto(f)); drawPics(); } catch (err) { toast(err.message); } } });
+    const ti = $('#np-title', el), cnt = $('#np-cnt', el);
+    ti.addEventListener('input', () => { const n = ti.value.trim().length; cnt.className = 'cnt' + (n >= TITLE_MIN ? ' ok' : n ? ' bad' : ''); cnt.textContent = n >= TITLE_MIN ? 'Yaxshi sarlavha ✓' : n ? `Juda qisqa: ${n} / ${TITLE_MIN} belgi — muammoni aniq yozing` : `Kamida ${TITLE_MIN} belgi`; });
     $('#np-kind', el).addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return; kind = b.dataset.k; sync(); });
     $('#np-cat', el).addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (!b) return; cat = b.textContent; el.querySelectorAll('#np-cat .chip').forEach((x) => x.setAttribute('aria-pressed', x === b)); });
     $('#np-anon', el).addEventListener('click', (e) => { anon = !anon; e.currentTarget.setAttribute('aria-checked', anon); });
     $('#np', el).addEventListener('submit', async (e) => {
       e.preventDefault();
       const title = $('#np-title', el).value.trim();
-      if (title.length < 5) { $('#np-err', el).textContent = 'Sarlavhani biroz batafsilroq yozing (kamida 5 belgi).'; return; }
-      const btn = $('button[type=submit]', el); btn.disabled = true;
+      if (title.length < TITLE_MIN) { $('#np-err', el).textContent = `Sarlavha kamida ${TITLE_MIN} belgi bo‘lsin. Masalan: «${KINDS[kind].ph.replace(/^Masalan: /, '')}»`; ti.focus(); return; }
+      const btn = $('button[type=submit]', el); btn.disabled = true; if (photos.length) btn.textContent = 'Yuklanmoqda…';
       try {
-        await api('/api/problems', { method: 'POST', body: { uid, kind, title, body: $('#np-body', el).value, category: cat, anon } });
-        closeSheet(); toast(KINDS[kind].ok); S.ptab = 'new'; S.kind = ''; S.tab = 'ovoz';
+        await api('/api/problems', { method: 'POST', body: { uid, kind, title, body: $('#np-body', el).value, category: cat, anon, photos: kind === 'elon' ? [] : photos } });
+        closeSheet(); toast(kind === 'muammo' ? `${KINDS[kind].ok}. ${REVIEW_AT} ovoz yig‘ilsa, jamoa ko‘rib chiqadi` : KINDS[kind].ok); S.ptab = 'new'; S.kind = kind === 'savol' ? 'savol' : ''; S.tab = 'ovoz';
         await Promise.all([loadProblems(), loadStats(), loadMe()]); render();
-      } catch (err) { $('#np-err', el).textContent = err.message; btn.disabled = false; }
+      } catch (err) { $('#np-err', el).textContent = err.message; btn.disabled = false; btn.textContent = 'Joylash'; }
     });
   });
 }
@@ -1234,8 +1426,10 @@ document.addEventListener('click', async (e) => {
   if (d.kind !== undefined && t.closest('.kinds')) { S.kind = d.kind; if (S.ptab === 'done' && S.kind && S.kind !== 'muammo') S.ptab = 'top'; S.problems = null; render(); await loadProblems(); render(); return; }
   if (d.ptab) { S.ptab = d.ptab; S.problems = null; render(); await loadProblems(); render(); return; }
   if (d.act === 'new') return newProblemSheet();
+  if (d.act === 'onboard') return onboardSheet();
+  if (d.go === 'faq') { S.tab = 'ovoz'; S.kind = 'savol'; S.ptab = 'top'; S.problems = null; render(); window.scrollTo(0, 0); await Promise.all([loadProblems(), loadStats()]); render(); return; }
   if (d.act === 'profile') return profileSheet(false);
-  if (d.act === 'theme') return toggleTheme();
+  if (d.act === 'theme') { toggleTheme(); if (S.tab === 'koproq') render(); return; }
   if (d.act === 'welcome') return welcomeSheet();
   if (d.dm) {
     openDm(d.dm, d.user);
@@ -1279,7 +1473,7 @@ document.addEventListener('click', async (e) => {
     try { await api('/api/admins/' + encodeURIComponent(d.rmadmin), { method: 'DELETE' }); toast('Admin olib tashlandi'); } catch (err) { toast(err.message); }
     await loadAdmins(); render(); return;
   }
-  if (d.open) { S.open[d.open] = !S.open[d.open]; render(); return; }
+  if (d.open) return problemSheet(d.open);
   if (d.vote) {
     if (!needProfile(null)) return;
     const p = S.problems.find((x) => x.id == d.vote); if (!p) return;
@@ -1353,6 +1547,7 @@ async function refresh() {
   else if (S.tab === 'market') await loadMarket();
   else if (S.tab === 'jamoa') await Promise.all([loadTeamData(), loadMe(), checkAdmin()]);
   else if (S.tab === 'bolim') await Promise.all([loadHead(), loadMe()]);
+  else if (S.tab === 'koproq') await loadMe();
   else await Promise.all([loadMe(), loadMatches(), loadRequests(), loadContacts()]);
   const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('form');
   if (!$('.scrim') && !typing) render();
@@ -1371,7 +1566,10 @@ async function refresh() {
   else if (want === 'bolim' && S.head) { S.tab = 'bolim'; await loadHead(); render(); }
   else if (want === 'jamoa') { S.tab = 'jamoa'; await loadTeamData(); render(); }
   else if ((want === 'profil' || sp === 'profil') && !S.offline) { store.set('bk_welcome', '1'); profileSheet(false); }
-  if (!S.offline && !sp.startsWith('job_') && want !== 'profil' && sp !== 'profil') { if (!store.get('bk_welcome') && profileEmpty(S.me)) welcomeSheet(); else if (!S.me) profileSheet(true); }
+  if (!S.offline && !sp.startsWith('job_') && want !== 'profil' && sp !== 'profil') {
+    const next = () => { if (!store.get('bk_welcome') && profileEmpty(S.me)) welcomeSheet(); else if (!S.me) profileSheet(true); };
+    if (!store.get('bk_onb')) onboardSheet(next); else next();
+  }
   setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 20000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
 })();
