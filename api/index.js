@@ -1328,6 +1328,15 @@ function coverOf(v) {
   if (mt[2].length > 1200000) return { error: 'Fon rasmi juda katta' };
   return { mime: mt[1], data: mt[2] };
 }
+async function saveEventCover(id, v) {
+  const cv = coverOf(v);
+  if (!cv) return 'Rasm noto‘g‘ri';
+  if (cv.error) return cv.error;
+  if (cv.clear) await q('DELETE FROM event_covers WHERE event_id=$1 RETURNING 1 x', [id]);
+  else await q(`INSERT INTO event_covers (event_id, mime, data) VALUES ($1,$2,$3)
+    ON CONFLICT (event_id) DO UPDATE SET mime=EXCLUDED.mime, data=EXCLUDED.data, v=event_covers.v+1 RETURNING 1 x`, [id, cv.mime, cv.data]);
+  return null;
+}
 async function saveCover(id, v) {
   const cv = coverOf(v);
   if (!cv) return null;
@@ -2164,9 +2173,25 @@ async function route(req) {
       (SELECT json_build_object('name', u.name, 'role', u.role, 'position', u.position) FROM users u WHERE u.id=e.created_by AND u.role='leader') organizer,
       (e.created_by=$1) mine,
       EXISTS(SELECT 1 FROM rsvps r WHERE r.event_id=e.id AND r.user_id=$1) joined,
-      (SELECT json_build_object('id', c.id, 'name', c.name, 'emoji', c.emoji, 'logo_v', CASE WHEN c.logo IS NOT NULL THEN c.logo_v END) FROM clubs c WHERE c.id=e.club_id) club
+      (SELECT json_build_object('id', c.id, 'name', c.name, 'emoji', c.emoji, 'logo_v', CASE WHEN c.logo IS NOT NULL THEN c.logo_v END, 'cover_v', CASE WHEN c.cover IS NOT NULL THEN c.cover_v END) FROM clubs c WHERE c.id=e.club_id) club,
+      (SELECT v FROM event_covers ec WHERE ec.event_id=e.id) cover_v
       FROM events e WHERE e.starts_at > now() - interval '3 hours' ORDER BY e.starts_at LIMIT 50`, [uid]);
     return json({ events: r.rows });
+  }
+  if ((mm = p.match(/^\/api\/events\/cover\/(\d+)$/)) && m === 'GET') {
+    const r = await q('SELECT mime, data FROM event_covers WHERE event_id=$1', [+mm[1]]);
+    if (!r.rowCount) return new Response('not found', { status: 404, headers: CORS });
+    return new Response(Buffer.from(r.rows[0].data, 'base64'), { headers: { 'content-type': r.rows[0].mime, 'cache-control': 'public, max-age=31536000, immutable', ...CORS } });
+  }
+  // Event picture: whoever may delete the event may also set or remove its picture.
+  if ((mm = p.match(/^\/api\/events\/(\d+)\/cover$/)) && m === 'POST') {
+    const ev = (await q('SELECT id, created_by, club_id FROM events WHERE id=$1', [+mm[1]])).rows[0];
+    if (!ev) return bad('Tadbir topilmadi', 404);
+    const lead = ev.club_id && tu && tu.id ? (await q('SELECT 1 x FROM clubs WHERE id=$1 AND leader_id=$2', [ev.club_id, uid])).rowCount > 0 : false;
+    if (!admin && !leader && !lead && !(tu && tu.id && ev.created_by === uid)) return bad('Ruxsat yo‘q', 403);
+    const err = await saveEventCover(ev.id, body.cover);
+    if (err) return bad(err);
+    return json({ ok: true });
   }
   if (p === '/api/events' && m === 'POST') {
     const clubId = parseInt(body.club_id) || null;
@@ -2177,8 +2202,9 @@ async function route(req) {
     const title = str(body.title, 120);
     const starts = new Date(body.starts_at);
     if (!title || isNaN(starts)) return bad('Nom va sana kerak');
-    const r = await q('INSERT INTO events (title,description,starts_at,place,capacity,created_by,club_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
-      [title, str(body.description, 1000), starts.toISOString(), str(body.place, 80), Math.max(0, parseInt(body.capacity) || 0), uid || 'key', club ? club.id : null]);
+    const r = await q('INSERT INTO events (title,description,starts_at,place,capacity,created_by,club_id,price) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
+      [title, str(body.description, 1000), starts.toISOString(), str(body.place, 80), Math.max(0, parseInt(body.capacity) || 0), uid || 'key', club ? club.id : null, str(body.price, 40) || null]);
+    if (body.cover) { const ce = await saveEventCover(r.rows[0].id, body.cover); if (ce) console.error('event cover', ce); }
     let sent = 0;
     if (club) {
       // Club members hear about their club's events straight away.

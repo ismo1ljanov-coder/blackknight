@@ -294,6 +294,37 @@ nav button.create svg{width:26px;height:26px}
 .club-main{flex:1;min-width:0;display:flex;gap:12px;align-items:center;background:none;border:0;padding:0;text-align:left;color:var(--fg)}
 .club-ico{flex:none;width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font-size:24px;color:var(--fg);font-family:'Segoe UI Symbol','Noto Sans Symbols 2','Apple Color Emoji',sans-serif;background:var(--gold-bg);border:1px solid var(--gold-line)}
 .club-ico.big{width:60px;height:60px;font-size:30px}
+.evhero{position:relative;overflow:hidden;border-radius:26px;border:1px solid var(--gold-line);padding:16px;display:flex;flex-direction:column;gap:14px;min-height:340px;background:var(--glass-2);box-shadow:0 0 0 1px rgba(var(--gh),.08),0 18px 40px -20px rgba(var(--gh),.45)}
+.evhero.has-pic{background-image:linear-gradient(180deg,rgba(8,7,5,.15) 0%,rgba(8,7,5,.35) 35%,rgba(8,7,5,.92) 78%),var(--pic);background-size:cover;background-position:center}
+.evh-top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.evpill{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 13px;border-radius:999px;border:1px solid var(--gold-line);background:rgba(8,7,5,.6);color:var(--gold-hi);font-size:13.5px;font-weight:700;backdrop-filter:blur(6px)}
+.evpill svg{width:16px;height:16px}
+.evpill.sm{height:24px;padding:0 9px;font-size:11.5px;align-self:flex-start}
+.evh-main{margin-top:auto;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.evhero h2{margin:0;font-family:var(--crest);font-size:26px;line-height:1.15;color:#fff;text-wrap:balance;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+.evhero p{margin:0;font-size:14.5px;line-height:1.45;color:rgba(255,255,255,.82);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}
+.evh-info,.evgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding-top:12px;border-top:1px solid rgba(var(--gh),.25)}
+.evh-info div,.evgrid div{display:flex;gap:7px;align-items:center;min-width:0}
+.evh-info svg,.evgrid svg{width:22px;height:22px;flex:none;color:var(--gold-hi)}
+.evh-info span,.evgrid span{display:flex;flex-direction:column;min-width:0}
+.evh-info small,.evgrid small{font-size:11px;color:rgba(255,255,255,.65)}
+.evh-info b,.evgrid b{font-size:13px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.evh-info b{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.2}
+.evgrid{grid-template-columns:1fr 1fr;row-gap:12px;border-top:0;padding:14px;border-radius:16px;border:1px solid var(--line)}
+.evgrid small{color:var(--dim)}.evgrid b{color:var(--fg);white-space:normal}
+.evh-btn{height:50px;border-radius:999px;border:1px solid var(--gold-line);background:rgba(8,7,5,.55);color:var(--gold-hi);font-weight:800;font-size:15px;backdrop-filter:blur(6px)}
+.evhero:not(.has-pic) h2{color:var(--fg);text-shadow:none}.evhero:not(.has-pic) p{color:var(--muted)}
+.evhero:not(.has-pic) .evh-info small{color:var(--dim)}.evhero:not(.has-pic) .evh-info b{color:var(--fg)}
+.evhero:not(.has-pic) .evpill,.evhero:not(.has-pic) .evh-btn{background:var(--gold-bg)}
+.evsec{display:flex;align-items:center;gap:10px;padding-top:6px;font-size:18px;font-weight:800}
+.evsec::before{content:"";width:4px;height:22px;border-radius:2px;background:var(--metal)}
+.evrow{display:flex;gap:12px;align-items:center;padding:8px;width:100%;text-align:left;color:var(--fg)}
+.evthumb{flex:none;width:96px;height:76px;border-radius:14px;background:var(--gold-bg) center/cover;border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.evthumb b{font-size:24px;line-height:1;color:var(--gold-hi)}.evthumb small{font-size:11px;color:var(--muted)}
+.evrow-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.evrow-t b{font-size:15.5px;line-height:1.25}
+.evrow-t>span:last-child{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.evchev{flex:none;width:34px;height:34px;border-radius:50%;border:1px solid var(--line-2);display:grid;place-items:center;font-size:20px;color:var(--gold-hi);margin-right:4px}
 .club.has-cover{position:relative;overflow:hidden;background-image:linear-gradient(90deg,rgba(8,7,5,.94) 0%,rgba(8,7,5,.8) 45%,rgba(8,7,5,.45) 100%),var(--cover);background-size:cover;background-position:center}
 .club.has-cover .club-t span{color:rgba(255,255,255,.78)}
 .ctabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;border-radius:999px;border:1px solid var(--line);background:rgba(var(--wh),.04)}
@@ -337,7 +368,7 @@ nav button.create svg{width:26px;height:26px}
 <div class="bgmark" aria-hidden="true"><img src="emblem.webp" alt=""></div>
 <main class="app" id="app"></main>
 <nav aria-label="Bo‘limlar">
-  <button data-tab="ovoz" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path class="fill" d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1Z"/></svg><span>Lenta</span></button>
+  <button data-tab="ovoz" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path class="fill" d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1Z"/></svg><span>Bosh sahifa</span></button>
   <button data-tab="tadbirlar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/><rect class="fill" x="7" y="14" width="4" height="3" rx=".5" stroke="none"/></svg><span>Tadbirlar</span></button>
   <button class="create" data-act="new" aria-label="Post yozish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   <button data-tab="odamlar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle class="fill" cx="9" cy="8" r="4"/><path class="fill" d="M2 21a7 7 0 0 1 14 0Z"/><path d="M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3"/></svg><span>Odamlar</span></button>
@@ -347,7 +378,7 @@ nav button.create svg{width:26px;height:26px}
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-12.5';
+const BUILD = '2026-11-12.6';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
@@ -628,35 +659,110 @@ function viewTadbirlar() {
   const evs = S.events;
   const addBtn = S.leader ? '<button class="iconbtn" data-act="newevent" aria-label="Tadbir qo‘shish"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>' : '';
   let body;
-  if (evs === null) body = '<div class="skeleton" style="height:200px"></div>';
+  if (evs === null) body = '<div class="skeleton" style="height:360px;border-radius:26px"></div>';
   else if (!evs.length) body = `<div class="glass empty"><b>Yaqin kunlarda tadbir yo‘q</b>Yangi tadbirlar e’lon qilinganda shu yerda chiqadi.</div>`;
   else {
     const [first, ...rest] = evs;
     const d = new Date(first.starts_at);
+    const pic = evPic(first);
     const cap = first.capacity;
-    const full = cap && first.going >= cap && !first.joined;
-    body = `<section class="glass hero">
-      <span style="display:flex;gap:6px;flex-wrap:wrap"><span class="pill s-jarayonda">${until(first.starts_at)}</span>${first.club ? `<button class="pill clubpill" data-club="${first.club.id}">${clubMini(first.club)} ${esc(first.club.name)}</button>` : ''}</span>
-      <h2>${esc(first.title)}</h2>
-      ${first.description ? `<p>${esc(first.description)}</p>` : ''}
-      <div class="small">${d.getDate()}-${MONTHS[d.getMonth()]}${first.date_only ? '' : ', ' + hhmm(d)}${first.place ? ' · ' + esc(first.place) : ''}</div>
-      ${first.organizer ? `<div class="small">Tashkil etuvchi: <span class="ldname">◇ ${esc(first.organizer.position || first.organizer.name)}</span></div>` : ''}
-      ${cap ? `<div class="bar"><i style="width:${Math.min(100, Math.round(first.going / cap * 100))}%"></i></div>` : ''}
-      <div class="foot"><span class="small">${cap ? `${first.going} / ${cap} joy band` : `${first.going} kishi qatnashadi`}</span>
-      <button class="btn ${first.joined ? 'done' : ''}" data-rsvp="${first.id}" ${full ? 'disabled' : ''}>${first.joined ? '✓ Yozildingiz' : full ? 'Joy qolmadi' : 'Qatnashaman'}</button></div>
-      ${first.joined && first.link ? `<button class="btn" data-glink="${esc(first.link)}" style="width:100%">👥 Tadbir guruhiga qo‘shilish</button>` : ''}
-      ${S.leader && first.mine ? `<div class="admin"><button class="del" data-att="${first.id}" style="color:inherit">Ishtirokchilar (${first.going})</button><button class="del" data-dele="${first.id}">O‘chirish</button></div>` : ''}
-    </section>
-    ${rest.length ? '<div class="label">Keyingi tadbirlar</div>' : ''}
+    const info = [
+      first.price ? [ICON_EV.money, 'Narx', esc(first.price)] : [ICON_EV.clock, 'Vaqt', first.date_only ? 'Kun bo‘yi' : hhmm(d)],
+      cap ? [ICON_EV.people, 'Joylar', `${first.going} / ${cap}`] : [ICON_EV.people, 'Qatnashadi', `${first.going} kishi`],
+      first.place ? [ICON_EV.pin, 'Manzil', esc(first.place)] : null,
+    ].filter(Boolean);
+    body = `<article class="evhero${pic ? ' has-pic' : ''}"${pic ? ` style="--pic:url('${pic}')"` : ''}>
+      <div class="evh-top"><span class="evpill">${ICON_EV.cal}${d.getDate()}-${MONTHS[d.getMonth()]}</span><span class="evpill">${ICON_EV.clock}${evLeft(first.starts_at)}</span></div>
+      <div class="evh-main">
+        ${first.club ? `<button class="pill clubpill" data-club="${first.club.id}">${clubMini(first.club)} ${esc(first.club.name)}</button>` : ''}
+        <h2>${esc(first.title)}</h2>
+        ${first.description ? `<p>${esc(first.description)}</p>` : ''}
+      </div>
+      <div class="evh-info">${info.map(([ic, k, v]) => `<div>${ic}<span><small>${k}</small><b>${v}</b></span></div>`).join('')}</div>
+      <button class="evh-btn" data-evopen="${first.id}">${first.joined ? '✓ Ro‘yxatdasiz · ' : ''}Batafsil ko‘rish <span aria-hidden="true">→</span></button>
+    </article>
+    ${rest.length ? '<div class="evsec"><span>Keyingi tadbirlar</span></div>' : ''}
     <div class="list">${rest.map((e) => {
-      const dd = new Date(e.starts_at);
-      return `<article class="glass ev"><div class="date"><b>${dd.getDate()}</b><span>${MONTHS[dd.getMonth()]}</span></div>
-        <div class="body">${e.club ? `<button class="pill clubpill" data-club="${e.club.id}">${clubMini(e.club)} ${esc(e.club.name)}</button>` : ''}<h3>${esc(e.title)}</h3><div class="meta small" style="font-size:12px">${e.date_only ? dd.getDate() + '-' + MONTHS[dd.getMonth()] : hhmm(dd)}${e.place ? ' · ' + esc(e.place) : ''} · ${e.capacity ? e.going + '/' + e.capacity : e.going + ' kishi'}${e.organizer ? ` · <span class="ldname">◇ ${esc(e.organizer.position || e.organizer.name)}</span>` : ''}</div>
-        ${S.leader && e.mine ? `<div class="admin"><button class="del" data-att="${e.id}" style="color:inherit">Ishtirokchilar</button><button class="del" data-dele="${e.id}">O‘chirish</button></div>` : ''}</div>
-        <button class="join" data-rsvp="${e.id}" aria-pressed="${e.joined}" aria-label="${e.joined ? 'Yozilishni bekor qilish' : 'Qatnashish'}">${e.joined ? '✓' : '+'}</button></article>`;
+      const dd = new Date(e.starts_at), p = evPic(e);
+      return `<button class="glass evrow" data-evopen="${e.id}">
+        <span class="evthumb"${p ? ` style="background-image:url('${p}')"` : ''}>${p ? '' : `<b>${dd.getDate()}</b><small>${MONTHS[dd.getMonth()].slice(0, 3)}</small>`}</span>
+        <span class="evrow-t"><span class="evpill sm">${dd.getDate()}-${MONTHS[dd.getMonth()]}${e.date_only ? '' : ' · ' + hhmm(dd)}</span>
+          <b>${esc(e.title)}</b><span>${e.club ? esc(e.club.name) + ' · ' : ''}${esc(e.place || (e.description || '').split('\n')[0] || (e.capacity ? e.going + '/' + e.capacity + ' joy' : e.going + ' kishi'))}</span></span>
+        <span class="evchev" aria-hidden="true">${e.joined ? '✓' : '›'}</span>
+      </button>`;
     }).join('')}</div>`;
   }
   return head('Tadbirlar', addBtn) + offlineNote() + body;
+}
+const evPic = (e) => (e.cover_v ? `${API}/api/events/cover/${e.id}?v=${e.cover_v}` : e.club && e.club.cover_v ? clubCover(e.club.id, e.club.cover_v) : null);
+function evLeft(iso) {
+  const days = Math.round((new Date(iso).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 864e5);
+  return days <= 0 ? 'Bugun' : days === 1 ? 'Ertaga' : `${days} kun qoldi`;
+}
+const svgI = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICON_EV = {
+  cal: svgI('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/>'),
+  clock: svgI('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  money: svgI('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 12h.01M18 12h.01"/>'),
+  people: svgI('<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0"/><path d="M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3"/>'),
+  pin: svgI('<path d="M12 22s7-7.2 7-12.5A7 7 0 0 0 5 9.5C5 14.8 12 22 12 22Z"/><circle cx="12" cy="9.5" r="2.5"/>'),
+};
+// One event, full page: picture, details, sign-up and the organiser's tools.
+function eventSheet(id) {
+  const e = (S.events || []).find((x) => x.id == id);
+  if (!e) return;
+  const d = new Date(e.starts_at), p = evPic(e), cap = e.capacity;
+  const full = cap && e.going >= cap && !e.joined;
+  const canEdit = isAdmin || S.leader && e.mine || (e.club && (S.clubs || []).some((c) => c.id === e.club.id && c.mine));
+  const rows = [
+    [ICON_EV.cal, 'Sana', `${d.getDate()}-${MONTHS[d.getMonth()]}, ${['yakshanba', 'dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba'][d.getDay()]}`],
+    [ICON_EV.clock, 'Vaqt', e.date_only ? 'Kun bo‘yi' : hhmm(d)],
+    e.price ? [ICON_EV.money, 'Narx', esc(e.price)] : null,
+    e.place ? [ICON_EV.pin, 'Manzil', esc(e.place)] : null,
+    [ICON_EV.people, cap ? 'Joylar' : 'Qatnashadi', cap ? `${e.going} / ${cap} band` : `${e.going} kishi`],
+  ].filter(Boolean);
+  openSheet(sheetTop('Tadbir') + `
+    ${p ? `<div class="cbanner" style="background-image:url('${p}');height:190px" role="img" aria-label="Tadbir rasmi"></div>` : ''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><span class="evpill">${ICON_EV.clock}${evLeft(e.starts_at)}</span>${e.club ? `<span class="pill clubpill">${clubMini(e.club)} ${esc(e.club.name)}</span>` : ''}</div>
+    <h2 style="margin:0;font-family:var(--crest);font-size:24px;line-height:1.2">${esc(e.title)}</h2>
+    ${e.description ? `<p style="margin:0;font-size:15px;line-height:1.55;color:var(--muted);white-space:pre-wrap">${esc(e.description)}</p>` : ''}
+    <div class="evgrid">${rows.map(([ic, k, v]) => `<div>${ic}<span><small>${k}</small><b>${v}</b></span></div>`).join('')}</div>
+    ${cap ? `<div class="bar"><i style="width:${Math.min(100, Math.round(e.going / cap * 100))}%"></i></div>` : ''}
+    ${e.organizer ? `<div class="small">Tashkil etuvchi: <span class="ldname">◇ ${esc(e.organizer.position || e.organizer.name)}</span></div>` : ''}
+    <button class="primary" id="es-rsvp" ${full ? 'disabled' : ''}>${e.joined ? '✓ Yozildingiz — bekor qilish' : full ? 'Joy qolmadi' : 'Qatnashaman'}</button>
+    ${e.joined && e.link ? `<button class="btn" id="es-glink" style="width:100%">👥 Tadbir guruhiga qo‘shilish</button>` : ''}
+    ${canEdit ? `<div class="label">Tashkilotchi uchun</div><div class="club-tools">
+      <button class="btn" id="es-pic">🖼 ${e.cover_v ? 'Rasmni almashtirish' : 'Rasm qo‘yish'}</button>
+      <button class="btn" id="es-att">Ishtirokchilar (${e.going})</button>
+      ${e.club ? '<button class="btn" id="es-davo">✅ Davomat</button>' : ''}
+      <button class="btn ghost" id="es-del" style="color:var(--red)">O‘chirish</button>
+    </div><input type="file" id="es-file" accept="image/*" hidden>` : ''}`, (el) => {
+    el.addEventListener('click', async (ev) => {
+      const b = ev.target.closest('button'); if (!b) return;
+      if (b.id === 'es-rsvp') {
+        if (!needProfile(() => eventSheet(id))) return;
+        b.disabled = true;
+        try { const r = await api(`/api/events/${e.id}/rsvp`, { method: 'POST', body: { uid } }); toast(r.joined ? 'Siz ro‘yxatga yozildingiz' : 'Yozilish bekor qilindi'); await loadEvents(); eventSheet(id); }
+        catch (err) { toast(err.message); b.disabled = false; }
+      } else if (b.id === 'es-glink') openTg(e.link);
+      else if (b.id === 'es-att') attendeesSheet(e.id);
+      else if (b.id === 'es-davo') attendanceSheet(e.id, e.club.id);
+      else if (b.id === 'es-pic') $('#es-file', el).click();
+      else if (b.id === 'es-del') {
+        if (!confirmTwice(b)) return;
+        try { await api(`/api/events/${e.id}`, { method: 'DELETE' }); closeSheet(); toast('O‘chirildi'); await loadEvents(); render(); } catch (err) { toast(err.message); }
+      }
+    });
+    const f = $('#es-file', el);
+    f && f.addEventListener('change', async () => {
+      const file = f.files[0]; f.value = ''; if (!file) return;
+      try { const cover = await shrinkCover(file); toast('Yuklanmoqda…'); await api(`/api/events/${e.id}/cover`, { method: 'POST', body: { cover } }); await loadEvents(); eventSheet(id); toast('Rasm qo‘yildi'); }
+      catch (err) { toast(err.message); }
+    });
+  });
+  const layer = $('#layer');
+  const obs = new MutationObserver(() => { if (!$('.scrim', layer)) { obs.disconnect(); render(); } });
+  obs.observe(layer, { childList: true });
 }
 
 // ---------- market
@@ -1819,17 +1925,23 @@ function newEventSheet(club) {
       <label class="field">Tavsif<textarea id="ne-desc" rows="3" maxlength="1000"></textarea></label>
       <div class="two"><label class="field">Sana va vaqt<input id="ne-date" type="datetime-local" value="${local}"></label>
       <label class="field">Joylar soni<input id="ne-cap" type="number" min="0" inputmode="numeric" placeholder="0 = cheksiz"></label></div>
-      <label class="field">Joy<input id="ne-place" maxlength="80" placeholder="Aktlar zali"></label>
+      <div class="two"><label class="field">Joy<input id="ne-place" maxlength="80" placeholder="Aktlar zali"></label>
+      <label class="field">Narx<input id="ne-price" maxlength="40" placeholder="Bepul / 220 000 so‘m"></label></div>
+      <div class="field">Rasm <span class="small">(kartochka foni)</span><div id="ne-cprev" class="cprev">Rasm tanlanmagan</div>
+        <button type="button" class="btn" id="ne-pick">🖼 Rasm tanlash</button><input id="ne-file" type="file" accept="image/*" hidden></div>
       <div class="err" id="ne-err" role="alert"></div>
       <button class="primary" type="submit">E’lon qilish</button>
     </form>`, (el) => {
+    let cover = null;
+    $('#ne-pick', el).addEventListener('click', () => $('#ne-file', el).click());
+    $('#ne-file', el).addEventListener('change', async (ev) => { const f = ev.target.files[0]; ev.target.value = ''; if (!f) return; try { cover = await shrinkCover(f); const pv = $('#ne-cprev', el); pv.style.backgroundImage = `url('${cover}')`; pv.textContent = ''; } catch (err) { toast(err.message); } });
     $('#ne', el).addEventListener('submit', async (e) => {
       e.preventDefault();
       const title = $('#ne-title', el).value.trim(), date = $('#ne-date', el).value;
       if (!title || !date) { $('#ne-err', el).textContent = 'Nom va sanani kiriting.'; return; }
       const btn = $('button[type=submit]', el); btn.disabled = true;
       try {
-        const r = await api('/api/events', { method: 'POST', body: { title, description: $('#ne-desc', el).value, starts_at: new Date(date).toISOString(), place: $('#ne-place', el).value, capacity: $('#ne-cap', el).value, club_id: club ? club.id : null } });
+        const r = await api('/api/events', { method: 'POST', body: { title, description: $('#ne-desc', el).value, starts_at: new Date(date).toISOString(), place: $('#ne-place', el).value, capacity: $('#ne-cap', el).value, club_id: club ? club.id : null, price: $('#ne-price', el).value, cover } });
         closeSheet(); toast(club ? `Tadbir e’lon qilindi · ${r.sent || 0} a’zoga xabar ketdi` : 'Tadbir e’lon qilindi'); await Promise.all([loadEvents(), club ? loadClubs() : null]); if (club) clubSheet(club.id); else render();
       } catch (err) { $('#ne-err', el).textContent = err.message; btn.disabled = false; }
     });
@@ -1866,6 +1978,7 @@ document.addEventListener('click', async (e) => {
   if (d.newclub !== undefined) return clubFormSheet(null);
   if (d.ctab) { S.clubTab = d.ctab; render(); return; }
   if (d.club) return clubSheet(d.club);
+  if (d.evopen) return eventSheet(d.evopen);
   if (d.cjoin) {
     const c = (S.clubs || []).find((x) => x.id == d.cjoin);
     if (c && c.mine) return clubSheet(c.id);
