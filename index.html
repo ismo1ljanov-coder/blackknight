@@ -339,7 +339,7 @@ nav button.create svg{width:26px;height:26px}
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-12.3';
+const BUILD = '2026-11-12.4';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
@@ -1239,12 +1239,16 @@ async function clubSheet(id) {
     ${c.description ? `<p style="margin:0;font-size:15px;line-height:1.55;white-space:pre-wrap">${esc(c.description)}</p>` : ''}
     <div style="display:flex;gap:8px">
       ${c.mine ? '' : `<button class="primary" id="cs-join" style="flex:1">${c.joined ? '✓ A’zosiz — chiqish' : 'Klubga qo‘shilish'}</button>`}
-      ${c.tg_link && (c.joined || c.manage) ? `<button class="btn" id="cs-tg" style="flex:1">👥 Klub guruhi</button>` : ''}
     </div>
+    ${(c.tg_link || c.tg_channel) && (c.joined || c.manage) ? `<div style="display:flex;gap:8px">${c.tg_link ? '<button class="btn" id="cs-tg" style="flex:1">👥 Klub guruhi</button>' : ''}${c.tg_channel ? '<button class="btn" id="cs-ch" style="flex:1">📢 Klub kanali</button>' : ''}</div>` : ''}
     <div class="label">Tadbirlar</div>
     ${evs || '<div class="small">Yaqin kunlarda tadbir yo‘q.</div>'}
     ${tasks ? `<div class="label">Volontyor kerak</div>${tasks}<button class="btn ghost" data-close data-gotab="volontyor">Volontyorlik bo‘limiga o‘tish</button>` : ''}
-    ${c.manage ? `<div class="label">Rahbar paneli</div>
+    ${c.manage ? `<div class="label">Klubga qo‘shilish havolasi</div>
+      <div class="glass" style="padding:12px;display:flex;flex-direction:column;gap:8px"><div class="small" style="font-size:12.5px">Guruh yoki kanalga tashlang — bosgan talaba botni ochadi va darhol klub a’zosiga aylanadi.</div>
+        <code id="cs-link" style="font-size:13px;word-break:break-all;color:var(--gold-hi)">${esc(c.link)}</code>
+        <div style="display:flex;gap:8px"><button class="btn" id="cs-copy" style="flex:1">Nusxalash</button><button class="btn" id="cs-share" style="flex:1">Ulashish</button></div></div>
+      <div class="label">Rahbar paneli</div>
       <div class="club-tools">
         <button class="btn" id="cs-ev">🗓 Tadbir e’lon qilish</button>
         <button class="btn" id="cs-msg">✉ A’zolarga xabar</button>
@@ -1261,6 +1265,9 @@ async function clubSheet(id) {
       b.disabled = true;
       try { const x = await api(`/api/clubs/${id}/join`, { method: 'POST', body: { uid } }); toast(x.joined ? `${c.name} klubiga qo‘shildingiz` : 'Klubdan chiqdingiz'); await loadClubs(); again(); } catch (err) { toast(err.message); b.disabled = false; }
     } else if (b.id === 'cs-tg') openTg(c.tg_link);
+    else if (b.id === 'cs-ch') openTg(c.tg_channel);
+    else if (b.id === 'cs-copy') { try { await navigator.clipboard.writeText(c.link); toast('Havola nusxalandi'); } catch (err) { const r = document.createRange(); r.selectNodeContents($('#cs-link', el)); const sl = getSelection(); sl.removeAllRanges(); sl.addRange(r); toast('Havolani belgilab nusxalang'); } }
+    else if (b.id === 'cs-share') openTg(`https://t.me/share/url?url=${encodeURIComponent(c.link)}&text=${encodeURIComponent(c.name + ' klubiga qo‘shiling!')}`);
     else if (b.dataset.crsvp) {
       if (!needProfile(again)) return;
       try { const x = await api(`/api/events/${b.dataset.crsvp}/rsvp`, { method: 'POST', body: { uid } }); toast(x.joined ? 'Ro‘yxatga yozildingiz' : 'Bekor qilindi'); again(); } catch (err) { toast(err.message); }
@@ -1324,6 +1331,7 @@ function clubFormSheet(c) {
         <input id="cf-file" type="file" accept="image/*" hidden></div>
       <label class="field">Tavsif<textarea id="cf-desc" rows="3" maxlength="600" placeholder="Klub nima qiladi, qachon yig‘iladi">${esc(edit ? c.description || '' : '')}</textarea></label>
       <label class="field">Telegram guruhi havolasi<input id="cf-tg" maxlength="200" value="${esc(edit ? c.tg_link || '' : '')}" placeholder="https://t.me/..."></label>
+      <label class="field">Telegram kanali havolasi<input id="cf-ch" maxlength="200" value="${esc(edit ? c.tg_channel || '' : '')}" placeholder="https://t.me/..."></label>
       ${isAdmin ? `<div class="field">Rahbar<div id="cf-leader" class="small"></div><input id="cf-q" placeholder="Ism bo‘yicha qidirish…" autocomplete="off"><div id="cf-res" class="clist"></div></div>` : ''}
       <div class="err" id="cf-err" role="alert"></div>
       <button class="primary" type="submit">${edit ? 'Saqlash' : 'Klubni ochish'}</button>
@@ -1369,8 +1377,8 @@ function clubFormSheet(c) {
     });
     $('#cf', el).addEventListener('submit', async (e) => {
       e.preventDefault();
-      const payload = { name: $('#cf-name', el).value, emoji: $('#cf-emoji', el).value, description: $('#cf-desc', el).value, tg_link: $('#cf-tg', el).value };
-      if (payload.tg_link && !/^https:\/\/(t\.me|telegram\.me)\//.test(payload.tg_link.trim())) { $('#cf-err', el).textContent = 'Havola https://t.me/ bilan boshlansin.'; return; }
+      const payload = { name: $('#cf-name', el).value, emoji: $('#cf-emoji', el).value, description: $('#cf-desc', el).value, tg_link: $('#cf-tg', el).value.trim(), tg_channel: $('#cf-ch', el).value.trim() };
+      if ([payload.tg_link, payload.tg_channel].some((l) => l && !/^https:\/\/(t\.me|telegram\.me)\//.test(l))) { $('#cf-err', el).textContent = 'Guruh va kanal havolasi https://t.me/ bilan boshlansin.'; return; }
       if (isAdmin) payload.leader_id = leader ? leader.id : '';
       if (logo !== undefined) payload.logo = logo;
       const btn = $('button[type=submit]', el); btn.disabled = true;
@@ -1967,11 +1975,18 @@ async function refresh() {
   const sp = (TG && TG.initDataUnsafe && TG.initDataUnsafe.start_param) || new URLSearchParams(location.search).get('tgWebAppStartParam') || '';
   if (sp.startsWith('job_')) { S.tab = 'jamoa'; await loadTeamData(); render(); positionSheet(sp.slice(4)); }
   const want = new URLSearchParams(location.search).get('open') || location.hash.slice(1);
+  const clubLinkId = (sp.match(/^club_(\d+)$/) || (want || '').match(/^club_(\d+)$/) || [])[1];
   if (sp.startsWith('job_')) {}
+  else if (clubLinkId) {
+    S.tab = 'klublar'; await loadClubs(); render();
+    const c = (S.clubs || []).find((x) => x.id == clubLinkId);
+    if (c && !c.joined && sp) { try { await api(`/api/clubs/${c.id}/join`, { method: 'POST', body: { uid } }); toast(`${c.name} klubiga qo‘shildingiz`); await loadClubs(); render(); } catch (e) {} }
+    clubSheet(clubLinkId);
+  }
   else if (want === 'bolim' && S.head) { S.tab = 'bolim'; await loadHead(); render(); }
   else if (want === 'jamoa') { S.tab = 'jamoa'; await loadTeamData(); render(); }
   else if ((want === 'profil' || sp === 'profil') && !S.offline) { store.set('bk_welcome', '1'); profileSheet(false); }
-  if (!S.offline && !sp.startsWith('job_') && want !== 'profil' && sp !== 'profil') {
+  if (!S.offline && !sp.startsWith('job_') && !clubLinkId && want !== 'profil' && sp !== 'profil') {
     const next = () => { if (!store.get('bk_welcome') && profileEmpty(S.me)) welcomeSheet(); else if (!S.me) profileSheet(true); };
     if (!store.get('bk_onb')) onboardSheet(next); else next();
   }

@@ -594,6 +594,18 @@ async function tgWebhook(req) {
     }
     const me = 'tg' + msg.from.id;
     if (text.startsWith('/start')) await q(`INSERT INTO bot_starts (user_id) VALUES ($1) ON CONFLICT (user_id) DO UPDATE SET last_at=now() RETURNING 1 x`, [me]).catch(() => {});
+    // Club link: t.me/<bot>?start=club_<id> — tapping it makes you a member right away.
+    const clm = text.match(/^\/start\s+club_(\d+)/);
+    if (clm) {
+      const c = await clubOf(+clm[1]);
+      if (!c) { await tg('sendMessage', { chat_id: msg.chat.id, text: 'Bu klub topilmadi yoki yopilgan.', reply_markup: openKb() }); return json({ ok: true }); }
+      const nm = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(' ').slice(0, 60) || msg.from.username || 'Talaba';
+      await q('INSERT INTO users (id, name, username) VALUES ($1,$2,$3) ON CONFLICT (id) DO NOTHING RETURNING 1 x', [me, nm, msg.from.username ? String(msg.from.username).toLowerCase().slice(0, 40) : null]);
+      const ins = await q('INSERT INTO club_members (club_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [c.id, me]);
+      if (ins.rowCount) await clubWelcome(msg.chat.id, c);
+      else await tg('sendMessage', { chat_id: msg.chat.id, parse_mode: 'HTML', text: `Siz allaqachon <b>${esc(c.name)}</b> klubi a’zosisiz ✓`, reply_markup: openKb() });
+      return json({ ok: true });
+    }
     const dmm = text.match(/^\/start\s+dm_(\d+)/);
     if (dmm) {
       const peerId = 'tg' + dmm[1];
@@ -1308,7 +1320,7 @@ function logoOf(v) {
   if (mt[2].length > 400000) return { error: 'Rasm juda katta' };
   return { mime: mt[1], data: mt[2] };
 }
-async function clubOf(id) { return (await q('SELECT id, name, emoji, description, tg_link, leader_id, logo_v, active FROM clubs WHERE id=$1 AND active', [id])).rows[0] || null; }
+async function clubOf(id) { return (await q('SELECT id, name, emoji, description, tg_link, tg_channel, leader_id, logo_v, active FROM clubs WHERE id=$1 AND active', [id])).rows[0] || null; }
 const canRunClub = (club, me, admin) => !!club && (!!admin || (!!me && club.leader_id === me));
 
 async function notifyMany(ids, text, kb) {
@@ -1325,7 +1337,7 @@ async function clubsRoute(p, m, url, body, uid, me, admin, myPos) {
   let mm;
   // ---------- clubs
   if (p === '/api/clubs' && m === 'GET') {
-    const r = await q(`SELECT c.id, c.name, c.emoji, c.description, c.tg_link, c.leader_id, CASE WHEN c.logo IS NOT NULL THEN c.logo_v END logo_v,
+    const r = await q(`SELECT c.id, c.name, c.emoji, c.description, c.tg_link, c.tg_channel, c.leader_id, CASE WHEN c.logo IS NOT NULL THEN c.logo_v END logo_v,
       lu.name leader_name, (c.leader_id=$1) mine,
       (SELECT count(*) FROM club_members x WHERE x.club_id=c.id)::int members,
       EXISTS(SELECT 1 FROM club_members x WHERE x.club_id=c.id AND x.user_id=$1) joined,
@@ -1342,8 +1354,8 @@ async function clubsRoute(p, m, url, body, uid, me, admin, myPos) {
     if (leader && !(await userExists(leader))) return bad('Rahbar topilmadi', 404);
     const lg = logoOf(body.logo);
     if (lg && lg.error) return bad(lg.error);
-    const r = await q('INSERT INTO clubs (name, emoji, description, tg_link, leader_id) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-      [name, str(body.emoji, 8) || '♟', str(body.description, 600), safeLink(body.tg_link), leader]);
+    const r = await q('INSERT INTO clubs (name, emoji, description, tg_link, tg_channel, leader_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+      [name, str(body.emoji, 8) || '♟', str(body.description, 600), safeLink(body.tg_link), safeLink(body.tg_channel), leader]);
     const id = r.rows[0].id;
     if (lg && lg.data) await q('UPDATE clubs SET logo=$2, logo_mime=$3, logo_v=1 WHERE id=$1 RETURNING 1 x', [id, lg.data, lg.mime]);
     if (leader) {
@@ -1358,7 +1370,7 @@ async function clubsRoute(p, m, url, body, uid, me, admin, myPos) {
     return new Response(Buffer.from(r.rows[0].logo, 'base64'), { headers: { 'content-type': r.rows[0].logo_mime, 'cache-control': 'public, max-age=31536000, immutable', ...CORS } });
   }
   if ((mm = p.match(/^\/api\/clubs\/(\d+)$/)) && m === 'GET') {
-    const c = (await q(`SELECT c.id, c.name, c.emoji, c.description, c.tg_link, c.leader_id, CASE WHEN c.logo IS NOT NULL THEN c.logo_v END logo_v, c.active, lu.name leader_name, (SELECT count(*) FROM club_members x WHERE x.club_id=c.id)::int members,
+    const c = (await q(`SELECT c.id, c.name, c.emoji, c.description, c.tg_link, c.tg_channel, c.leader_id, CASE WHEN c.logo IS NOT NULL THEN c.logo_v END logo_v, c.active, lu.name leader_name, (SELECT count(*) FROM club_members x WHERE x.club_id=c.id)::int members,
       EXISTS(SELECT 1 FROM club_members x WHERE x.club_id=c.id AND x.user_id=$2) joined FROM clubs c LEFT JOIN users lu ON lu.id=c.leader_id
       WHERE c.id=$1 AND c.active`, [+mm[1], uid])).rows[0];
     if (!c) return bad('Klub topilmadi', 404);
@@ -1370,7 +1382,7 @@ async function clubsRoute(p, m, url, body, uid, me, admin, myPos) {
       FROM events e WHERE e.club_id=$1 AND e.starts_at > now() - interval '${manage ? '30 days' : '3 hours'}' ORDER BY e.starts_at LIMIT 20`, [c.id, uid])).rows;
     const tasks = (await q(`SELECT t.id, t.title, t.starts_at, t.hours, t.slots, (SELECT count(*) FROM vol_signups s WHERE s.task_id=t.id)::int taken
       FROM vol_tasks t WHERE t.club_id=$1 AND t.status='open' ORDER BY t.starts_at NULLS LAST LIMIT 10`, [c.id])).rows;
-    const out = { club: { ...c, manage, mine: !!me && c.leader_id === me }, events, tasks };
+    const out = { club: { ...c, manage, mine: !!me && c.leader_id === me, link: clubLink(c.id) }, events, tasks };
     if (manage) out.people = (await q(`SELECT u.id, u.name, u.major, u.year, u.photo_url, x.joined_at FROM club_members x JOIN users u ON u.id=x.user_id
       WHERE x.club_id=$1 ORDER BY x.joined_at DESC LIMIT 300`, [c.id])).rows;
     return json(out);
@@ -1385,6 +1397,7 @@ async function clubsRoute(p, m, url, body, uid, me, admin, myPos) {
       leader = str(body.leader_id, 64) || null;
       if (leader && !(await userExists(leader))) return bad('Rahbar topilmadi', 404);
     }
+    await q('UPDATE clubs SET tg_channel=$2 WHERE id=$1 RETURNING 1 x', [c.id, body.tg_channel !== undefined ? safeLink(body.tg_channel) : c.tg_channel]);
     await q('UPDATE clubs SET name=$2, emoji=$3, description=$4, tg_link=$5, leader_id=$6 WHERE id=$1 RETURNING 1 x',
       [c.id, name, body.emoji !== undefined ? (str(body.emoji, 8) || '♟') : c.emoji, body.description !== undefined ? str(body.description, 600) : c.description,
         body.tg_link !== undefined ? safeLink(body.tg_link) : c.tg_link, leader]);
@@ -1411,9 +1424,7 @@ async function clubsRoute(p, m, url, body, uid, me, admin, myPos) {
     if (!del.rowCount) {
       if (body.uid === c.leader_id) return bad('Rahbar klubdan chiqa olmaydi');
       await q('INSERT INTO club_members (club_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING 1 x', [c.id, body.uid]);
-      if (c.tg_link && body.uid.startsWith('tg')) await tg('sendMessage', { chat_id: body.uid.slice(2), parse_mode: 'HTML',
-        text: `🏛 Siz <b>${esc(c.name)}</b> klubiga qo‘shildingiz! Klub tadbirlari haqida shu bot orqali xabar olasiz.`,
-        reply_markup: { inline_keyboard: [[{ text: '👥 Klub guruhi', url: c.tg_link }]] } }).catch(() => {});
+      if (body.uid.startsWith('tg')) await clubWelcome(body.uid.slice(2), c);
     }
     return json({ joined: !del.rowCount });
   }
@@ -1582,6 +1593,21 @@ async function clubsRoute(p, m, url, body, uid, me, admin, myPos) {
   }
   return null;
 }
+// Sent when someone joins: the club's group and channel as buttons, plus the app.
+async function clubWelcome(chatId, c) {
+  const kb = [];
+  const row = [];
+  if (c.tg_link) row.push({ text: '👥 Klub guruhi', url: c.tg_link });
+  if (c.tg_channel) row.push({ text: '📢 Klub kanali', url: c.tg_channel });
+  if (row.length) kb.push(row);
+  if (WEBAPP_URL) kb.push([{ text: 'Klubni ilovada ochish', web_app: { url: `${WEBAPP_URL}${WEBAPP_URL.includes('?') ? '&' : '?'}open=club_${c.id}` } }]);
+  await tg('sendMessage', { chat_id: chatId, parse_mode: 'HTML',
+    text: `🏛 Siz <b>${esc(c.name)}</b> klubi a’zosiga aylandingiz!
+
+Klub tadbirlari haqida shu bot orqali xabar olasiz. Har bir qatnashgan tadbir uchun +${CLUB_ATT_POINTS} ball.`,
+    reply_markup: kb.length ? { inline_keyboard: kb } : undefined }).catch(() => {});
+}
+const clubLink = (id) => `https://t.me/${BOT_USERNAME}?start=club_${id}`;
 const safeLink = (v) => { const s = str(v, 200); return /^https:\/\/(t\.me|telegram\.me)\//.test(s) ? s : null; };
 
 async function route(req) {
