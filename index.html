@@ -294,6 +294,14 @@ nav button.create svg{width:26px;height:26px}
 .club-main{flex:1;min-width:0;display:flex;gap:12px;align-items:center;background:none;border:0;padding:0;text-align:left;color:var(--fg)}
 .club-ico{flex:none;width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font-size:24px;color:var(--fg);font-family:'Segoe UI Symbol','Noto Sans Symbols 2','Apple Color Emoji',sans-serif;background:var(--gold-bg);border:1px solid var(--gold-line)}
 .club-ico.big{width:60px;height:60px;font-size:30px}
+.club-ico.pic{overflow:hidden;padding:0;background:rgba(var(--wh),.04)}
+.club-ico.pic img{width:100%;height:100%;object-fit:contain}
+.cmini{width:16px;height:16px;border-radius:4px;object-fit:contain;vertical-align:-3px}
+.logo-pick{display:flex;gap:12px;align-items:center;margin-top:6px}
+.logo-pick #cf-prev{display:flex;flex-direction:column;align-items:center;gap:6px}
+.logo-btns{display:flex;flex-direction:column;gap:8px;flex:1}
+.logo-emoji{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.logo-emoji input{width:64px;height:40px;text-align:center;font-size:20px;border-radius:12px;border:1px solid rgba(var(--wh),.18);background:rgba(var(--wh),.08);color:var(--fg)}
 .club-t{min-width:0;display:flex;flex-direction:column;gap:2px}.club-t b{font-size:15.5px}.club-t span{font-size:12.5px;color:var(--muted)}
 .club-t .club-next{color:var(--gold-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .club .btn{flex:none}
@@ -331,7 +339,7 @@ nav button.create svg{width:26px;height:26px}
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-12.2';
+const BUILD = '2026-11-12.3';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
@@ -620,7 +628,7 @@ function viewTadbirlar() {
     const cap = first.capacity;
     const full = cap && first.going >= cap && !first.joined;
     body = `<section class="glass hero">
-      <span style="display:flex;gap:6px;flex-wrap:wrap"><span class="pill s-jarayonda">${until(first.starts_at)}</span>${first.club ? `<button class="pill clubpill" data-club="${first.club.id}">${esc(first.club.emoji || '')} ${esc(first.club.name)}</button>` : ''}</span>
+      <span style="display:flex;gap:6px;flex-wrap:wrap"><span class="pill s-jarayonda">${until(first.starts_at)}</span>${first.club ? `<button class="pill clubpill" data-club="${first.club.id}">${clubMini(first.club)} ${esc(first.club.name)}</button>` : ''}</span>
       <h2>${esc(first.title)}</h2>
       ${first.description ? `<p>${esc(first.description)}</p>` : ''}
       <div class="small">${d.getDate()}-${MONTHS[d.getMonth()]}${first.date_only ? '' : ', ' + hhmm(d)}${first.place ? ' · ' + esc(first.place) : ''}</div>
@@ -635,7 +643,7 @@ function viewTadbirlar() {
     <div class="list">${rest.map((e) => {
       const dd = new Date(e.starts_at);
       return `<article class="glass ev"><div class="date"><b>${dd.getDate()}</b><span>${MONTHS[dd.getMonth()]}</span></div>
-        <div class="body">${e.club ? `<button class="pill clubpill" data-club="${e.club.id}">${esc(e.club.emoji || '')} ${esc(e.club.name)}</button>` : ''}<h3>${esc(e.title)}</h3><div class="meta small" style="font-size:12px">${e.date_only ? dd.getDate() + '-' + MONTHS[dd.getMonth()] : hhmm(dd)}${e.place ? ' · ' + esc(e.place) : ''} · ${e.capacity ? e.going + '/' + e.capacity : e.going + ' kishi'}${e.organizer ? ` · <span class="ldname">◇ ${esc(e.organizer.position || e.organizer.name)}</span>` : ''}</div>
+        <div class="body">${e.club ? `<button class="pill clubpill" data-club="${e.club.id}">${clubMini(e.club)} ${esc(e.club.name)}</button>` : ''}<h3>${esc(e.title)}</h3><div class="meta small" style="font-size:12px">${e.date_only ? dd.getDate() + '-' + MONTHS[dd.getMonth()] : hhmm(dd)}${e.place ? ' · ' + esc(e.place) : ''} · ${e.capacity ? e.going + '/' + e.capacity : e.going + ' kishi'}${e.organizer ? ` · <span class="ldname">◇ ${esc(e.organizer.position || e.organizer.name)}</span>` : ''}</div>
         ${S.leader && e.mine ? `<div class="admin"><button class="del" data-att="${e.id}" style="color:inherit">Ishtirokchilar</button><button class="del" data-dele="${e.id}">O‘chirish</button></div>` : ''}</div>
         <button class="join" data-rsvp="${e.id}" aria-pressed="${e.joined}" aria-label="${e.joined ? 'Yozilishni bekor qilish' : 'Qatnashish'}">${e.joined ? '✓' : '+'}</button></article>`;
     }).join('')}</div>`;
@@ -1172,6 +1180,33 @@ function teamBoxes() {
 }
 
 // ---------- clubs
+// A club shows its picture (photo or saved sticker) when it has one, else its emoji.
+const clubImg = (id, v) => `${API}/api/clubs/img/${id}?v=${v}`;
+const clubIco = (c, big = false) => c.logo_v
+  ? `<span class="club-ico pic${big ? ' big' : ''}" aria-hidden="true"><img src="${clubImg(c.id, c.logo_v)}" alt="" loading="lazy"></span>`
+  : `<span class="club-ico${big ? ' big' : ''}" aria-hidden="true">${esc(c.emoji || '♟')}</span>`;
+const clubMini = (c) => c.logo_v ? `<img class="cmini" src="${clubImg(c.id, c.logo_v)}" alt="">` : esc(c.emoji || '');
+// Square 256px; stickers and PNGs keep transparency and fit whole, photos fill the square.
+function shrinkLogo(file) {
+  return new Promise((ok, no) => {
+    if (!file.type.startsWith('image/')) return no(new Error('Rasm yoki stiker tanlang'));
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const N = 256, c = document.createElement('canvas'); c.width = N; c.height = N;
+      const x = c.getContext('2d');
+      const fit = /png|webp|gif|svg/.test(file.type) ? Math.min : Math.max;
+      const k = fit(N / im.naturalWidth, N / im.naturalHeight);
+      const w = im.naturalWidth * k, h = im.naturalHeight * k;
+      x.drawImage(im, (N - w) / 2, (N - h) / 2, w, h);
+      URL.revokeObjectURL(url);
+      let d = c.toDataURL('image/webp', 0.9);
+      if (!d.startsWith('data:image/webp')) d = c.toDataURL('image/png');
+      ok(d);
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); no(new Error('Bu faylni ochib bo‘lmadi — boshqa rasm tanlang')); };
+    im.src = url;
+  });
+}
 async function loadClubs() { try { S.clubs = (await api(`/api/clubs?uid=${uid}`)).clubs; S.offline = false; } catch (e) { S.offline = true; if (!S.clubs) S.clubs = []; } }
 const whenTxt = (iso) => { const d = new Date(iso); return `${d.getDate()}-${MONTHS[d.getMonth()]}, ${hhmm(d)}`; };
 function viewKlublar() {
@@ -1180,7 +1215,7 @@ function viewKlublar() {
   if (S.clubs === null || S.clubs === undefined) body = '<div class="skeleton" style="height:160px"></div>';
   else if (!S.clubs.length) body = `<div class="glass empty"><b>Hali klub qo‘shilmagan</b>${isAdmin ? 'Tepadagi + orqali birinchi klubni oching va rahbarini tayinlang.' : 'Universitet klublari tez orada shu yerda chiqadi.'}</div>`;
   else body = `<div class="list">${S.clubs.map((c) => `<article class="glass club">
-      <button class="club-main" data-club="${c.id}"><span class="club-ico" aria-hidden="true">${esc(c.emoji || '♟')}</span>
+      <button class="club-main" data-club="${c.id}">${clubIco(c)}
         <span class="club-t"><b>${esc(c.name)}</b><span>${c.members} a’zo${c.leader_name ? ' · Rahbar: ' + esc(c.leader_name) : ''}</span>
         ${c.next_event ? `<span class="club-next">🗓 ${whenTxt(c.next_event.starts_at)} · ${esc(c.next_event.title)}</span>` : ''}</span></button>
       <button class="btn ${c.joined ? 'done' : ''}" data-cjoin="${c.id}" aria-pressed="${c.joined}">${c.mine ? 'Rahbar' : c.joined ? '✓ A’zosiz' : 'Qo‘shilish'}</button>
@@ -1200,7 +1235,7 @@ async function clubSheet(id) {
   }).join('');
   const tasks = r.tasks.map((t) => `<div class="cev"><div class="cev-t"><b>🤝 ${esc(t.title)}</b><span>${t.starts_at ? whenTxt(t.starts_at) + ' · ' : ''}${t.hours} soat · ${t.taken}/${t.slots} joy</span></div></div>`).join('');
   $('#cs-body', el).innerHTML = `
-    <div class="club-head"><span class="club-ico big" aria-hidden="true">${esc(c.emoji || '♟')}</span><div><h3>${esc(c.name)}</h3><div class="small">${c.members} a’zo${c.leader_name ? ' · Rahbar: ' + esc(c.leader_name) : ''}</div></div></div>
+    <div class="club-head">${clubIco(c, true)}<div><h3>${esc(c.name)}</h3><div class="small">${c.members} a’zo${c.leader_name ? ' · Rahbar: ' + esc(c.leader_name) : ''}</div></div></div>
     ${c.description ? `<p style="margin:0;font-size:15px;line-height:1.55;white-space:pre-wrap">${esc(c.description)}</p>` : ''}
     <div style="display:flex;gap:8px">
       ${c.mine ? '' : `<button class="primary" id="cs-join" style="flex:1">${c.joined ? '✓ A’zosiz — chiqish' : 'Klubga qo‘shilish'}</button>`}
@@ -1280,8 +1315,13 @@ function clubFormSheet(c) {
   let leader = edit && c.leader_id ? { id: c.leader_id, name: c.leader_name } : null;
   openSheet(sheetTop(edit ? 'Klubni tahrirlash' : 'Yangi klub') + `
     <form id="cf" style="display:flex;flex-direction:column;gap:14px" novalidate>
-      <div class="two"><label class="field" style="max-width:90px">Belgi<input id="cf-emoji" maxlength="4" value="${esc(edit ? c.emoji : '♟')}"></label>
-      <label class="field" style="flex:1">Nomi<input id="cf-name" maxlength="60" value="${esc(edit ? c.name : '')}" placeholder="Shaxmat klubi"></label></div>
+      <label class="field">Nomi<input id="cf-name" maxlength="60" value="${esc(edit ? c.name : '')}" placeholder="Shaxmat klubi"></label>
+      <div class="field">Klub rasmi
+        <div class="logo-pick"><span id="cf-prev"></span>
+          <div class="logo-btns"><button type="button" class="btn" id="cf-pickimg">🖼 Rasm yoki stiker</button>
+          <label class="logo-emoji">yoki belgi <input id="cf-emoji" maxlength="4" value="${esc(edit ? c.emoji : '♟')}" aria-label="Belgi (emoji)"></label></div></div>
+        <span class="small" style="font-size:12px">Stikerni Telegram'da «Saqlash» qilib, keyin shu yerdan tanlang. Rasm bo‘lmasa, belgi ko‘rinadi.</span>
+        <input id="cf-file" type="file" accept="image/*" hidden></div>
       <label class="field">Tavsif<textarea id="cf-desc" rows="3" maxlength="600" placeholder="Klub nima qiladi, qachon yig‘iladi">${esc(edit ? c.description || '' : '')}</textarea></label>
       <label class="field">Telegram guruhi havolasi<input id="cf-tg" maxlength="200" value="${esc(edit ? c.tg_link || '' : '')}" placeholder="https://t.me/..."></label>
       ${isAdmin ? `<div class="field">Rahbar<div id="cf-leader" class="small"></div><input id="cf-q" placeholder="Ism bo‘yicha qidirish…" autocomplete="off"><div id="cf-res" class="clist"></div></div>` : ''}
@@ -1289,6 +1329,22 @@ function clubFormSheet(c) {
       <button class="primary" type="submit">${edit ? 'Saqlash' : 'Klubni ochish'}</button>
       ${edit && isAdmin ? '<button class="btn ghost" type="button" id="cf-del" style="color:var(--red)">Klubni yopish</button>' : ''}
     </form>`, (el) => {
+    // logo: undefined = unchanged, '' = remove, data URL = new picture
+    let logo;
+    const prev = () => {
+      const src = logo ? logo : logo === '' ? null : edit && c.logo_v ? clubImg(c.id, c.logo_v) : null;
+      $('#cf-prev', el).innerHTML = src
+        ? `<span class="club-ico pic big"><img src="${src}" alt="Klub rasmi"></span><button type="button" class="admin-rm" id="cf-rmimg">Olib tashlash</button>`
+        : `<span class="club-ico big">${esc($('#cf-emoji', el).value || '♟')}</span>`;
+    };
+    prev();
+    $('#cf-emoji', el).addEventListener('input', () => { if (!logo && !(edit && c.logo_v && logo !== '')) prev(); });
+    $('#cf-pickimg', el).addEventListener('click', () => $('#cf-file', el).click());
+    $('#cf-file', el).addEventListener('change', async (e) => {
+      const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+      try { logo = await shrinkLogo(f); prev(); } catch (err) { toast(err.message); }
+    });
+    $('#cf-prev', el).addEventListener('click', (e) => { if (e.target.closest('#cf-rmimg')) { logo = ''; prev(); } });
     const showLeader = () => { const b = $('#cf-leader', el); if (b) b.innerHTML = leader ? `Tanlandi: <b style="display:inline">${esc(leader.name)}</b> <button type="button" class="admin-rm" id="cf-unset">×</button>` : 'Hali tanlanmagan'; };
     showLeader();
     let tmr;
@@ -1316,6 +1372,7 @@ function clubFormSheet(c) {
       const payload = { name: $('#cf-name', el).value, emoji: $('#cf-emoji', el).value, description: $('#cf-desc', el).value, tg_link: $('#cf-tg', el).value };
       if (payload.tg_link && !/^https:\/\/(t\.me|telegram\.me)\//.test(payload.tg_link.trim())) { $('#cf-err', el).textContent = 'Havola https://t.me/ bilan boshlansin.'; return; }
       if (isAdmin) payload.leader_id = leader ? leader.id : '';
+      if (logo !== undefined) payload.logo = logo;
       const btn = $('button[type=submit]', el); btn.disabled = true;
       try {
         if (edit) await api(`/api/clubs/${c.id}`, { method: 'PATCH', body: payload }); else await api('/api/clubs', { method: 'POST', body: payload });
@@ -1342,7 +1399,7 @@ function viewVolontyor() {
     const full = t.taken >= t.slots && !t.my_status;
     const st = t.my_status === 'done' ? '<span class="pill s-hal">✓ Bajarildi</span>' : t.my_status === 'noshow' ? '<span class="pill s-yangi">Kelmadi</span>' : '';
     return `<article class="glass vtask">
-      <div class="vt-top">${t.club_name ? `<span class="cat">${esc(t.club_emoji || '')} ${esc(t.club_name)}</span>` : '<span class="cat">Black Knight</span>'}<span class="vt-h">⏱ ${t.hours} soat</span></div>
+      <div class="vt-top">${t.club_name ? `<span class="cat">${clubMini({ id: t.club_id, logo_v: t.club_logo_v, emoji: t.club_emoji })} ${esc(t.club_name)}</span>` : '<span class="cat">Black Knight</span>'}<span class="vt-h">⏱ ${t.hours} soat</span></div>
       <h3>${esc(t.title)}</h3>
       ${t.description ? `<p class="small" style="margin:0;white-space:pre-wrap">${esc(t.description)}</p>` : ''}
       <div class="small" style="font-size:12.5px">${t.starts_at ? '🗓 ' + whenTxt(t.starts_at) : '🗓 Vaqti kelishiladi'}${t.place ? ' · 📍 ' + esc(t.place) : ''}</div>
