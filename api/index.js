@@ -2303,8 +2303,9 @@ async function remindJob() {
 // ?to=tg<id> sends a preview to that one person only and logs nothing. Team members are never targeted.
 async function campaignJob(kind, to, budgetMs = 0) {
   const left = Math.max(0, KNIGHT_LIMIT - (await q('SELECT count(*)::int n FROM users WHERE knight_no IS NOT NULL')).rows[0].n);
-  const tag = { knight: 'cmp_knight1', profile: 'cmp_profile1' }[kind];
-  if (!tag) return bad('kind: knight | profile');
+  const tag = { knight: 'cmp_knight1', profile: 'cmp_profile1', vacsorry: 'cmp_vacsorry1' }[kind];
+  if (!tag) return bad('kind: knight | profile | vacsorry');
+  if (kind === 'vacsorry') return vacSorryJob(tag, to, budgetMs);
   const base = `u.id LIKE 'tg%' AND u.id NOT LIKE 'tg99000000%' AND NOT EXISTS (SELECT 1 FROM admins a WHERE a.user_id=u.id)
     AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.user_id=u.id AND r.kind='${tag}')`;
   const rows = to ? (await q('SELECT id user_id, name FROM users u WHERE id=$1', [to])).rows
@@ -2323,6 +2324,36 @@ async function campaignJob(kind, to, budgetMs = 0) {
       reply_markup: WEBAPP_URL ? { inline_keyboard: [[{ text: '✍️ Profilni to‘ldirish', web_app: { url: WEBAPP_URL + (WEBAPP_URL.includes('?') ? '&' : '?') + 'open=profil' } }]] } : undefined,
     };
     const t = await tg('sendMessage', { chat_id: r.user_id.slice(2), parse_mode: 'HTML', ...msg }).catch(() => null);
+    const ok = !!(t && t.ok); res[ok ? 'sent' : 'failed']++;
+    if (!to) await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, tag, ok]);
+    await new Promise((z) => setTimeout(z, 50));
+  }
+  await q('INSERT INTO selftest (result) VALUES ($1) RETURNING 1 x', [JSON.stringify({ campaign: res })]).catch(() => {});
+  return json(res);
+}
+
+// One-off apology (Nov 2026) to applicants whose vacancy was filled by someone else (status 'rad').
+// Each person gets it once, named with the position they applied for. Team members are skipped.
+// ?to=tg<id> sends a preview to that one person only and logs nothing.
+async function vacSorryJob(tag, to, budgetMs = 0) {
+  const rows = to
+    ? (await q(`SELECT u.id user_id, u.name, coalesce((SELECT p.title FROM applications a JOIN positions p ON p.id=a.position_id
+        WHERE a.user_id=u.id ORDER BY a.created_at DESC LIMIT 1), 'ELT Head') pos FROM users u WHERE u.id=$1`, [to])).rows
+    : (await q(`SELECT DISTINCT ON (u.id) u.id user_id, u.name, p.title pos FROM applications a
+        JOIN users u ON u.id=a.user_id JOIN positions p ON p.id=a.position_id
+        WHERE a.status='rad' AND u.id LIKE 'tg%' AND NOT EXISTS (SELECT 1 FROM admins ad WHERE ad.user_id=u.id)
+          AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.user_id=u.id AND r.kind=$1)
+        ORDER BY u.id, a.created_at DESC`, [tag])).rows;
+  const volLink = ((await q("SELECT value FROM settings WHERE key='volunteer_link'")).rows[0] || {}).value || '';
+  const kb = [];
+  if (volLink) kb.push([{ text: '🙋 Volontyor bo‘lish', url: volLink }]);
+  if (WEBAPP_URL) kb.push([{ text: '📋 Ochiq vakansiyalar', web_app: { url: WEBAPP_URL + '#jamoa' } }]);
+  const res = { kind: 'vacsorry', preview: !!to, targets: rows.length, sent: 0, failed: 0, stopped: null }, started = Date.now();
+  for (const r of rows) {
+    if (budgetMs && Date.now() - started > budgetMs) { res.stopped = 'time'; break; }
+    const text = `Assalomu alaykum, <b>${esc(firstName(r.name))}</b>! 👋\n\n<b>${esc(r.pos)}</b> lavozimiga ariza qoldirganingiz uchun rahmat — bu bizga katta qadr.\n\nOchig‘ini aytamiz: bu lavozim band bo‘lib qoldi, shuning uchun arizangiz «rad» holatiga tushdi. Bu sizning qobiliyatingizga baho emas — biz siz kabi faol odamlarni yo‘qotishni istamaymiz.\n\nShuning uchun sizga <b>shaxsan</b> ikki yo‘lni taklif qilamiz:\n\n🙋 <b>Volontyor bo‘lish</b> — tadbir va loyihalarda jamoa bilan birga ishlaysiz. Har bir hissangiz botda qayd etib boriladi.\n📋 <b>Boshqa vakansiyaga ariza berish</b> — hozir <b>BM Head, AAF Head</b> va <b>Dormitory &amp; Social Head</b> lavozimlari ochiq.\n\nQaysi biri sizga yaqin bo‘lsa, pastdagi tugmani bosing yoki botda <b>Profil → Jamoa va vakansiyalar</b> bo‘limiga kiring.\n\nSiz bilan birga ishlashni kutib qolamiz. 🤝\n— <i>BlackKnight jamoasi</i>`;
+    const t = await tg('sendMessage', { chat_id: r.user_id.slice(2), parse_mode: 'HTML', text, disable_web_page_preview: true,
+      reply_markup: kb.length ? { inline_keyboard: kb } : undefined }).catch(() => null);
     const ok = !!(t && t.ok); res[ok ? 'sent' : 'failed']++;
     if (!to) await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING 1 x', [r.user_id, tag, ok]);
     await new Promise((z) => setTimeout(z, 50));
