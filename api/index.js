@@ -93,7 +93,7 @@ Nega qo‘shilish kerak?
 
 1️⃣ Ovozingiz eshitiladi. Kampusdagi muammoni yozing (anonim ham bo‘ladi). Ko‘p ovoz to‘plaganini jamoamiz ma’muriyatga olib chiqadi, natijani sizga xabar qilamiz.
 2️⃣ Kerakli odamni topasiz. Kim nimani biladi — «Odamlar»da qidiring, bilim almashing.
-3️⃣ Ritsarga aylanasiz. Post, ovoz va do‘st taklifi uchun ball. Profilini to‘ldirgan va @blackknightmu kanaliga obuna bo‘lgan birinchi 229 kishiga — raqamli «Birinchi ritsar» nishoni.
+3️⃣ Ritsarga aylanasiz. Post, ovoz va do‘st taklifi uchun ball. Profilini to‘ldirgan va @blackknightsp kanaliga obuna bo‘lgan birinchi 229 kishiga — raqamli «Birinchi ritsar» nishoni.
 
 Boshlash — 1 daqiqa: ilovani oching, profilingizni to‘ldiring va bitta muammoga ovoz bering 👇`;
 
