@@ -383,7 +383,7 @@ const BUILD = '2026-11-14.9';
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
     fetch(location.pathname + '?nc=' + Date.now(), { cache: 'no-store' }).then((r) => r.text()).then((t) => {
-      const m = t.match(/const BUILD = '2026-11-14.9']+)'/);
+      const m = t.match(/const BUILD = '([^']+)'/);
       if (m && m[1] !== BUILD) { sessionStorage.setItem('bk_upd', BUILD); const u = new URLSearchParams(location.search); u.set('v', m[1]); location.replace(location.pathname + '?' + u.toString() + location.hash); }
     }).catch(() => {});
   } catch (e) {}
