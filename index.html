@@ -9,7 +9,7 @@
 <title>BlackKnight Club</title>
 <meta name="description" content="BlackKnight Club — Millat Umidi talabalari ovozi: muammolar, tadbirlar, Skill Swap.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Manrope:wght@400;500;600;700;800&family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 /* Black Knight Glass: black ground, knight emblem watermark, warm-gold frosted cards, Cinzel crest type */
@@ -33,6 +33,17 @@
   --glass:rgba(255,255,255,.62); --glass-2:rgba(255,255,255,.85); --line:rgba(138,100,32,.22); --line-2:rgba(138,100,32,.38);
   --blue:#3550c8; --green:#1f7a46; --red:#b3392a; --silver:#566070;
   --sheet:rgba(250,246,236,.97); --nav:rgba(250,246,236,.82); --scrim:rgba(40,30,10,.42); --emblem:.09;
+  color-scheme:light;
+}
+:root[data-theme="uv"]{
+  --bg:#F6F2EC; --fg:#1F1B3D; --muted:rgba(31,27,61,.68); --dim:rgba(31,27,61,.56);
+  --wh:31,27,61; --gd:79,63,217; --gh:120,105,255; --gl:79,63,217; --gn:23,138,124; --bl:79,63,217; --rd:194,65,45; --fgc:31,27,61; --sv:90,90,112;
+  --gold:#4F3FD9; --gold-hi:#3B2DB8; --gold-lo:#7A6CF0; --gold-bg:rgba(79,63,217,.10); --gold-line:rgba(79,63,217,.32);
+  --metal:#4F3FD9; --metal-text:linear-gradient(135deg,#4F3FD9 0%,#1FA594 100%);
+  --glass:#FFFFFF; --glass-2:#FFFFFF; --line:rgba(31,27,61,.08); --line-2:rgba(31,27,61,.14);
+  --crest:"Onest",system-ui,sans-serif; --font:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --blue:#4F3FD9; --blue-bg:rgba(79,63,217,.10); --green:#178A7C; --green-bg:rgba(31,165,148,.14); --red:#C2412D; --silver:#5A5A70;
+  --sheet:#FBF8F3; --nav:#FFFFFF; --scrim:rgba(31,27,61,.32); --emblem:0;
   color-scheme:light;
 }
 *{box-sizing:border-box}
@@ -375,6 +386,50 @@ nav button.create svg{width:26px;height:26px}
 .vtask .foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .field select{height:48px;padding:0 12px;border-radius:14px;border:1px solid rgba(var(--wh),.18);background:rgba(var(--wh),.08);color:var(--fg);font-size:16px}
 .onb .dots{display:flex;gap:6px}.onb .dots i{height:6px;width:6px;border-radius:3px;background:rgba(var(--wh),.25)}.onb .dots i.on{width:26px;background:var(--gold)}
+:root[data-theme="uv"] .bgmark,:root[data-theme="uv"] .rule{display:none}
+:root[data-theme="uv"] .glass{-webkit-backdrop-filter:none;backdrop-filter:none;border-color:transparent;border-radius:24px;box-shadow:0 6px 22px -14px rgba(60,40,20,.28)}
+:root[data-theme="uv"] .pagetitle h1{font-weight:700;letter-spacing:-.02em;font-size:28px}
+:root[data-theme="uv"] .head .team{font-family:var(--font);font-weight:800;font-size:20px;letter-spacing:-.02em;background:none;color:var(--fg)}
+:root[data-theme="uv"] .head .team span{color:#4F3FD9}
+:root[data-theme="uv"] .uvlogo{width:40px;height:40px;border:0;box-shadow:none;background:none;border-radius:0}
+:root[data-theme="uv"] .primary{background:#4F3FD9;color:#fff;border-radius:999px;box-shadow:0 10px 22px -10px rgba(79,63,217,.7);font-weight:700}
+:root[data-theme="uv"] .btn{border-radius:999px;border-color:transparent;background:#EDEAFF;color:#3B2DB8}
+:root[data-theme="uv"] .btn.ghost{background:#fff;border-color:var(--line-2);color:var(--fg)}
+:root[data-theme="uv"] .btn.done{background:#DDF4F0;color:#178A7C}
+:root[data-theme="uv"] .iconbtn{border:0;background:#fff;box-shadow:0 3px 12px -4px rgba(60,40,20,.2)}
+:root[data-theme="uv"] .vote{border:0;background:#EDEAFF;color:#4F3FD9;border-radius:18px}
+:root[data-theme="uv"] .vote[aria-pressed="true"]{background:#4F3FD9;color:#fff}
+:root[data-theme="uv"] nav{border:0!important;box-shadow:0 14px 34px -14px rgba(60,40,20,.35);border-radius:999px;height:70px;-webkit-backdrop-filter:none;backdrop-filter:none}
+:root[data-theme="uv"] nav button[aria-current="page"]{color:#4F3FD9}
+:root[data-theme="uv"] nav button.create{background:#4F3FD9;color:#fff;border:0;box-shadow:0 10px 20px -8px rgba(79,63,217,.8)}
+:root[data-theme="uv"] .sheet{-webkit-backdrop-filter:none;backdrop-filter:none;border-top:0}
+:root[data-theme="uv"] .field input,:root[data-theme="uv"] .field textarea,:root[data-theme="uv"] .field select{background:#fff;border-color:rgba(31,27,61,.12)}
+:root[data-theme="uv"] .ctabs{background:#fff;border:0}
+:root[data-theme="uv"] .ctabs button[aria-selected="true"]{background:#1F1B3D;color:#fff;box-shadow:none}
+:root[data-theme="uv"] .evhero{border:0}
+:root[data-theme="uv"] .evh-btn{background:#fff;color:#4F3FD9;border:0}
+:root[data-theme="uv"] .evpill{border:0;background:#fff;color:#1F1B3D}
+:root[data-theme="uv"] .evsec::before{background:#4F3FD9}
+:root[data-theme="uv"] .cta{background:#4F3FD9;color:#fff;border:0;border-radius:999px}
+:root[data-theme="uv"] .toast{background:#1F1B3D;color:#fff;border:0}
+:root[data-theme="uv"] .hev.has-pic,:root[data-theme="uv"] .club.has-cover{--fg:#fff;--muted:rgba(255,255,255,.78);--dim:rgba(255,255,255,.65);--line:rgba(255,255,255,.18);color:#fff}
+:root[data-theme="uv"] .hev.has-pic .btn.ghost{background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.3)}
+:root[data-theme="uv"] .hev.has-pic .hev-next button span:first-child{color:#C9C2FF}
+.club.has-cover .club-t b{color:#fff}
+/* website front door */
+.gate{min-height:calc(100vh - 140px);display:flex;flex-direction:column;align-items:stretch;gap:14px;padding:8px 4px 20px}
+.gate-top{display:flex;align-items:center;gap:10px}.gate-top b{font-size:22px;font-weight:800;letter-spacing:-.02em}.gate-top b span{color:#4F3FD9}
+.gate-art{width:220px;height:200px;align-self:center;margin:10px 0 0}
+.gate h1{margin:0;font-size:36px;line-height:1.08;font-weight:700;letter-spacing:-.025em}
+.gate p{margin:0;font-size:16px;line-height:1.55;color:var(--muted)}
+.gate-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-height:58px}
+.gate-stats div{background:#fff;border-radius:20px;padding:10px 12px;display:flex;flex-direction:column;box-shadow:0 6px 18px -12px rgba(60,40,20,.25)}
+.gate-stats b{font-size:22px;font-weight:800;color:#4F3FD9}.gate-stats span{font-size:12px;color:var(--muted)}
+.gate-tg{display:flex;justify-content:center;min-height:48px;margin-top:6px}
+.gate-guest{height:48px;border:0;background:none;color:var(--fg);font-size:15px;text-decoration:underline;text-underline-offset:4px}
+.gate-note{text-align:center;font-size:12.5px}
+body.gate-on nav{display:none}
+@media (min-width:900px){ :root[data-theme="uv"] .app{max-width:560px} }
 </style>
 </head>
 <body>
@@ -391,7 +446,7 @@ nav button.create svg{width:26px;height:26px}
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-14.9';
+const BUILD = '2026-11-19.1';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
@@ -416,19 +471,25 @@ const KINDS = {
 const MONTHS = ['yanvar','fevral','mart','aprel','may','iyun','iyul','avgust','sentabr','oktabr','noyabr','dekabr'];
 const TG = window.Telegram && window.Telegram.WebApp;
 if (TG) { try { TG.ready(); TG.expand(); } catch (e) {} }
-const THEME_BG = { dark: '#050505', light: '#f6f1e5' };
+// univoice.uz (or ?uv) runs the same app as the UniVoice website: soft cream/violet theme, Telegram Login instead of the Mini App.
+const UV = /univoice/i.test(location.hostname) || new URLSearchParams(location.search).has('uv');
+const BRAND = UV ? 'UniVoice' : 'Black Knight';
+const BRAND_TEAM = UV ? 'UniVoice jamoasi' : 'Black Knight Team';
+const THEME_BG = { dark: '#050505', light: '#f6f1e5', uv: '#F6F2EC' };
 function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
   const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', THEME_BG[t]);
   if (TG) { try { TG.setHeaderColor && TG.setHeaderColor(THEME_BG[t]); TG.setBackgroundColor && TG.setBackgroundColor(THEME_BG[t]); } catch (e) {} }
 }
 function toggleTheme() {
+  if (UV) return;
   const t = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
   try { localStorage.setItem('bk_theme', t); } catch (e) {}
   applyTheme(t);
   document.querySelectorAll('.themebtn').forEach(b => { b.textContent = t === 'light' ? '☾' : '☀'; b.setAttribute('aria-label', t === 'light' ? 'Kechki rejim' : 'Kunduzgi rejim'); });
 }
 let _th = 'dark'; try { _th = localStorage.getItem('bk_theme') === 'light' ? 'light' : 'dark'; } catch (e) {}
+if (UV) { _th = 'uv'; document.title = 'UniVoice — universitet ovozi'; }
 applyTheme(_th);
 
 const store = {
@@ -438,7 +499,10 @@ const store = {
 };
 const TG_INIT = TG && TG.initData ? TG.initData : '';
 const TG_USER = TG && TG.initDataUnsafe && TG.initDataUnsafe.user;
-let uid = TG_USER && TG_INIT ? 'tg' + TG_USER.id : store.get('bk_uid');
+// Website: a session token from Telegram Login stands in for the Mini App's initData.
+const UV_TOKEN = !TG_INIT ? store.get('uv_token') : '';
+const WEB_LOGIN = UV && !TG_INIT;
+let uid = TG_USER && TG_INIT ? 'tg' + TG_USER.id : UV_TOKEN && store.get('uv_uid') ? store.get('uv_uid') : store.get('bk_uid');
 if (!uid) { uid = 'u' + (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Math.random().toString(36).slice(2) + Date.now().toString(36)); store.set('bk_uid', uid); }
 let adminKey = store.get('bk_admin') || '';
 let isAdmin = false;
@@ -452,6 +516,7 @@ async function api(path, opts = {}) {
   const headers = { 'content-type': 'application/json' };
   if (adminKey) headers['x-admin-key'] = adminKey;
   if (TG_INIT) headers['x-tg-init'] = TG_INIT;
+  else if (UV_TOKEN) headers['x-uv-token'] = UV_TOKEN;
   const res = await fetch(API + path, { method: opts.method || 'GET', headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
   let data = {};
   try { data = await res.json(); } catch (e) {}
@@ -489,7 +554,8 @@ function meButton() {
   const pic = me.photo_url ? `<img src="${esc(me.photo_url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : esc((me.name || '♞').trim().charAt(0).toUpperCase());
   return `<button class="iconbtn meava" data-tab="profil" aria-label="Profil"${on ? ' aria-current="page"' : ''}>${pic}<span class="dot" id="reqdot"${(S.requests || []).length ? '' : ' hidden'}></span></button>`;
 }
-const head = (title, extra = '') => `<header class="head"><img class="logo" src="logo.jpg" alt="Black Knight Team logotipi"><div class="grow"><div class="team">Black Knight Team</div><div class="uni">Millat Umidi University</div></div>${extra}${meButton()}</header>
+const UV_LOGO = '<svg class="logo uvlogo" viewBox="0 0 36 36" role="img" aria-label="UniVoice logotipi"><rect x="2" y="5" width="32" height="24" rx="10" fill="#4F3FD9"/><path d="M11 28l-3 7 9-6z" fill="#4F3FD9"/><path d="M18 9l9 3-9 3-9-3z" fill="#fff"/><path d="M13 13.5v3c0 1.5 2.3 2.5 5 2.5s5-1 5-2.5v-3l-5 1.7z" fill="#fff" opacity=".85"/></svg>';
+const head = (title, extra = '') => `<header class="head">${UV ? UV_LOGO : '<img class="logo" src="logo.jpg" alt="Black Knight Team logotipi">'}<div class="grow"><div class="team">${UV ? 'Uni<span>Voice</span>' : 'Black Knight Team'}</div><div class="uni">Millat Umidi University</div></div>${extra}${meButton()}</header>
   <div class="pagetitle"><h1>${title}</h1><div class="rule" aria-hidden="true"><i></i></div></div>`;
 
 // ---------- data
@@ -601,7 +667,7 @@ const pImg = (id) => `${API}/api/problems/img/${id}`;
 function whoOf(p) {
   const kind = KINDS[p.kind] ? p.kind : 'muammo';
   const leaderPost = kind === 'elon' && p.author_role === 'leader';
-  return leaderPost ? `<span class="ldname">◇ ${esc(p.author_position || p.author || 'Yetakchi')}</span>` : kind === 'elon' ? 'Black Knight Team' : p.anon ? 'Anonim' : esc(p.author || 'Talaba') + marks({ title: p.author_title, team: p.author_team, role: p.author_role, position: p.author_position, knight_no: p.author_knight });
+  return leaderPost ? `<span class="ldname">◇ ${esc(p.author_position || p.author || 'Yetakchi')}</span>` : kind === 'elon' ? BRAND_TEAM : p.anon ? 'Anonim' : esc(p.author || 'Talaba') + marks({ title: p.author_title, team: p.author_team, role: p.author_role, position: p.author_position, knight_no: p.author_knight });
 }
 function problemCard(p) {
   const kind = KINDS[p.kind] ? p.kind : 'muammo';
@@ -653,7 +719,7 @@ async function problemSheet(id) {
       let rows = [];
       try { rows = (await api(`/api/problems/${p.id}/comments?uid=${uid}`)).comments; } catch (e) { list.innerHTML = `<div class="small">${esc(e.message)}</div>`; return; }
       p.comments = rows.length; p.answered = rows.some((c) => c.team);
-      list.innerHTML = rows.length ? rows.map((c) => `<div class="cm${c.team ? ' team' : ''}"><div class="who">${c.team ? '🛡 Black Knight jamoasi' + (c.author_position ? ' · ' + esc(c.author_position) : '') : esc(c.author || 'Talaba') + (c.author_knight ? ' ♞' : '')} · ${ago(c.created_at)}${c.mine || isAdmin ? ` <button class="admin-rm" data-delc="${c.id}" aria-label="Izohni o‘chirish">×</button>` : ''}</div><p>${esc(c.body)}</p></div>`).join('')
+      list.innerHTML = rows.length ? rows.map((c) => `<div class="cm${c.team ? ' team' : ''}"><div class="who">${c.team ? '🛡 ' + BRAND + ' jamoasi' + (c.author_position ? ' · ' + esc(c.author_position) : '') : esc(c.author || 'Talaba') + (c.author_knight ? ' ♞' : '')} · ${ago(c.created_at)}${c.mine || isAdmin ? ` <button class="admin-rm" data-delc="${c.id}" aria-label="Izohni o‘chirish">×</button>` : ''}</div><p>${esc(c.body)}</p></div>`).join('')
         : `<div class="small">${kind === 'muammo' && p.status !== 'yangi' && !isAdmin ? 'Jamoa javobi 24 soat ichida shu yerda chiqadi.' : 'Hali izoh yo‘q. Birinchi bo‘lib fikr bildiring.'}</div>`;
     };
     draw();
@@ -1591,7 +1657,7 @@ function viewVolontyor() {
     const full = t.taken >= t.slots && !t.my_status;
     const st = t.my_status === 'done' ? '<span class="pill s-hal">✓ Bajarildi</span>' : t.my_status === 'noshow' ? '<span class="pill s-yangi">Kelmadi</span>' : '';
     return `<article class="glass vtask">
-      <div class="vt-top">${t.club_name ? `<span class="cat">${clubMini({ id: t.club_id, logo_v: t.club_logo_v, emoji: t.club_emoji })} ${esc(t.club_name)}</span>` : '<span class="cat">Black Knight</span>'}<span class="vt-h">⏱ ${t.hours} soat</span></div>
+      <div class="vt-top">${t.club_name ? `<span class="cat">${clubMini({ id: t.club_id, logo_v: t.club_logo_v, emoji: t.club_emoji })} ${esc(t.club_name)}</span>` : `<span class="cat">${BRAND}</span>`}<span class="vt-h">⏱ ${t.hours} soat</span></div>
       <h3>${esc(t.title)}</h3>
       ${t.description ? `<p class="small" style="margin:0;white-space:pre-wrap">${esc(t.description)}</p>` : ''}
       <div class="small" style="font-size:12.5px">${t.starts_at ? '🗓 ' + whenTxt(t.starts_at) : '🗓 Vaqti kelishiladi'}${t.place ? ' · 📍 ' + esc(t.place) : ''}</div>
@@ -1606,7 +1672,7 @@ function viewVolontyor() {
     <div class="small" style="font-size:11px;letter-spacing:.12em;text-transform:uppercase">Mening xizmatim</div>
     <div class="acts3"><div><b>${me.hours}</b><span>soat</span></div><div style="grid-column:span 2"><b style="font-size:22px">${esc(me.level)}</b><span>${me.next_level ? `${me.next_level}gacha: ${me.hours} / ${me.next_at} soat` : 'Eng yuqori daraja'}</span></div></div>
     <div class="bar"><i style="width:${pct}%"></i></div>
-    ${certReady ? `<button class="primary" data-cert style="margin-top:4px">📜 Sertifikatni olish</button>` : `<div class="small" style="font-size:12.5px">📜 ${v.cert_hours} soatdan keyin — Black Knight volontyorlik sertifikati.</div>`}
+    ${certReady ? `<button class="primary" data-cert style="margin-top:4px">📜 Sertifikatni olish</button>` : `<div class="small" style="font-size:12.5px">📜 ${v.cert_hours} soatdan keyin — ${BRAND} volontyorlik sertifikati.</div>`}
   </section>
   <div class="label">Volontyor kerak</div>
   ${open.length ? `<div class="list">${open.map(taskCard).join('')}</div>` : '<div class="glass empty"><b>Hozircha ochiq vazifa yo‘q</b>Yangi vazifa chiqqanda bot xabar beradi.</div>'}
@@ -1626,7 +1692,7 @@ function newTaskSheet(clubId) {
       <label class="field">Joy<input id="nt-place" maxlength="80" placeholder="Aktlar zali"></label></div>
       <div class="two"><label class="field">Necha kishi<input id="nt-slots" type="number" min="1" max="200" inputmode="numeric" value="5"></label>
       <label class="field">Necha soat<input id="nt-hours" type="number" min="0.5" max="24" step="0.5" inputmode="decimal" value="2"></label></div>
-      ${myClubs.length && !clubId ? `<label class="field">Klub (ixtiyoriy)<select id="nt-club"><option value="">— Black Knight —</option>${myClubs.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label>` : ''}
+      ${myClubs.length && !clubId ? `<label class="field">Klub (ixtiyoriy)<select id="nt-club"><option value="">— ${BRAND} —</option>${myClubs.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label>` : ''}
       <label class="attrow"><input type="checkbox" id="nt-ann" checked><span><b>Volontyorlarga bot orqali xabar berish</b><span class="small" style="font-size:12px">Volontyorlar${clubId ? ' va klub a’zolari' : ''} xabar oladi</span></span></label>
       <div class="err" id="nt-err" role="alert"></div>
       <button class="primary" type="submit">E’lon qilish</button>
@@ -1693,14 +1759,14 @@ async function certificate() {
   const gold = x.createLinearGradient(0, 0, W, 0); gold.addColorStop(0, '#9c7a3c'); gold.addColorStop(0.5, '#f1d48f'); gold.addColorStop(1, '#9c7a3c');
   x.strokeStyle = gold; x.lineWidth = 6; x.strokeRect(50, 50, W - 100, H - 100);
   x.lineWidth = 1.5; x.strokeRect(74, 74, W - 148, H - 148);
-  try { const logo = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = 'logo.jpg'; }); x.drawImage(logo, W / 2 - 80, 120, 160, 160); } catch (e) {}
+  try { const logo = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = UV ? 'data:image/svg+xml,' + encodeURIComponent(UV_LOGO.replace('class="logo uvlogo" ', 'xmlns="http://www.w3.org/2000/svg" width="160" height="160" ')) : 'logo.jpg'; }); x.drawImage(logo, W / 2 - 80, 120, 160, 160); } catch (e) {}
   x.textAlign = 'center'; x.fillStyle = gold;
-  x.font = '600 30px Manrope, sans-serif'; x.fillText('B L A C K   K N I G H T   T E A M', W / 2, 330);
+  x.font = '600 30px Manrope, sans-serif'; x.fillText(UV ? 'U N I V O I C E' : 'B L A C K   K N I G H T   T E A M', W / 2, 330);
   x.font = '700 92px Georgia, serif'; x.fillText('SERTIFIKAT', W / 2, 450);
   x.fillStyle = '#d9cfbd'; x.font = '400 32px Manrope, sans-serif'; x.fillText('Ushbu sertifikat', W / 2, 530);
   x.fillStyle = '#ffffff'; x.font = '700 70px Georgia, serif'; x.fillText(me.name || 'Talaba', W / 2, 625);
   x.fillStyle = '#d9cfbd'; x.font = '400 32px Manrope, sans-serif';
-  x.fillText(`Black Knight volontyorlik dasturida ${cert.hours} soat xizmat qilgani`, W / 2, 700);
+  x.fillText(`${BRAND} volontyorlik dasturida ${cert.hours} soat xizmat qilgani`, W / 2, 700);
   x.fillText(`va «${cert.level || v.level}» darajasiga erishgani uchun beriladi.`, W / 2, 748);
   const dt = new Date(cert.issued_at);
   x.font = '400 26px Manrope, sans-serif'; x.fillStyle = '#a99f8e';
@@ -1736,7 +1802,8 @@ function viewKoproq() {
   </section>
   <section class="glass tm-list">
     <button class="tm-row" data-act="onboard"><span class="tm-ico" aria-hidden="true">♞</span><span class="tm-t"><b>Platforma qanday ishlaydi?</b><span>Muammo → ovoz → javob</span></span><span aria-hidden="true">›</span></button>
-    <button class="tm-row themebtn-row" data-act="theme"><span class="tm-ico" aria-hidden="true">${light ? '☾' : '☀'}</span><span class="tm-t"><b>${light ? 'Kechki rejim' : 'Kunduzgi rejim'}</b><span>Ilova rangini almashtirish</span></span><span aria-hidden="true">›</span></button>
+    ${WEB_LOGIN ? (UV_TOKEN ? '<button class="tm-row" data-act="logout"><span class="tm-ico" aria-hidden="true">↩</span><span class="tm-t"><b>Chiqish</b><span>Bu qurilmada hisobdan chiqish</span></span><span aria-hidden="true">›</span></button>' : '<button class="tm-row" data-act="login"><span class="tm-ico" aria-hidden="true">➜</span><span class="tm-t"><b>Telegram orqali kirish</b><span>Yozish va ovoz berish uchun</span></span><span aria-hidden="true">›</span></button>') : ''}
+    ${UV ? '' : `<button class="tm-row themebtn-row" data-act="theme"><span class="tm-ico" aria-hidden="true">${light ? '☾' : '☀'}</span><span class="tm-t"><b>${light ? 'Kechki rejim' : 'Kunduzgi rejim'}</b><span>Ilova rangini almashtirish</span></span><span aria-hidden="true">›</span></button>`}
   </section>`;
 }
 
@@ -1877,10 +1944,10 @@ const profileEmpty = (me) => !me || !(me.major || me.teach || me.learn || (me.in
 function welcomeSheet() {
   store.set('bk_welcome', '1');
   const left = Math.max(0, (S.knightLimit || 229) - (S.knights || 0));
-  openSheet(sheetTop('Nega Black Knight?') + `
+  openSheet(sheetTop(`Nega ${BRAND}?`) + `
     <div class="small" style="font-size:15px;color:var(--fg)">Bu — Millat Umidi talabalarining o‘z platformasi. Bu yerda uch narsa bor:</div>
     <div class="why">
-      <div class="w"><b>1</b><div><h3>Ovozingiz eshitiladi</h3><p>Kampusdagi muammoni yozing — xohlasangiz anonim. Ko‘p ovoz to‘plagan muammoni Black Knight jamoasi ma’muriyatga olib chiqadi. Holati o‘zgarsa, bot sizga xabar beradi.</p></div></div>
+      <div class="w"><b>1</b><div><h3>Ovozingiz eshitiladi</h3><p>Kampusdagi muammoni yozing — xohlasangiz anonim. Ko‘p ovoz to‘plagan muammoni ${BRAND} jamoasi ma’muriyatga olib chiqadi. Holati o‘zgarsa, bot sizga xabar beradi.</p></div></div>
       <div class="w"><b>2</b><div><h3>Kerakli odamni topasiz</h3><p>Kim Python biladi, kim dizayn qiladi, kim ingliz tilida yordam beradi — «Odamlar»da qidiring. O‘zingiz nimani o‘rgata olishingizni yozsangiz, sizni ham topishadi.</p></div></div>
       <div class="w"><b>3</b><div><h3>Ritsarga aylanasiz</h3><p>Har bir post, ovoz va taklif qilgan do‘stingiz uchun ball: Navkar → Ritsar → Qora ritsar.${left ? ` Profilini to‘ldirgan va kanalga obuna bo‘lganlarga — «Birinchi ritsar» nishoni, ${left} ta joy qoldi.` : ''}</p></div></div>
     </div>
@@ -1890,7 +1957,59 @@ function welcomeSheet() {
   `, (el) => el.addEventListener('click', (e) => { if (e.target.closest('[data-act="welcome-profile"]')) { closeSheet(); profileSheet(!S.me); } }));
 }
 let pendingAction = null;
-function needProfile(action) { if (S.me) return true; pendingAction = action; profileSheet(true); return false; }
+function needProfile(action) {
+  if (WEB_LOGIN && !UV_TOKEN) { loginSheet(); return false; }
+  if (S.me) return true; pendingAction = action; profileSheet(true); return false;
+}
+// ---------- website login (Telegram Login Widget)
+const BOT_NAME = 'blackknightsp_bot';
+window.onTelegramAuth = async (user) => {
+  try {
+    const r = await api('/api/auth/telegram', { method: 'POST', body: user });
+    store.set('uv_token', r.token); store.set('uv_uid', r.uid);
+    location.reload();
+  } catch (e) { toast(e.message); }
+};
+function tgWidget(box) {
+  const sc = document.createElement('script');
+  sc.async = true; sc.src = 'https://telegram.org/js/telegram-widget.js?22';
+  sc.setAttribute('data-telegram-login', BOT_NAME); sc.setAttribute('data-size', 'large'); sc.setAttribute('data-radius', '20');
+  sc.setAttribute('data-onauth', 'onTelegramAuth(user)'); sc.setAttribute('data-request-access', 'write'); sc.setAttribute('data-userpic', 'false');
+  box.appendChild(sc);
+}
+function loginSheet() {
+  openSheet(sheetTop('Kirish') + `<p style="margin:0;font-size:15px;line-height:1.55;color:var(--muted)">Murojaat yozish, ovoz berish va klublarga qo‘shilish uchun Telegram orqali kiring. Parol kerak emas — bir bosishda.</p>
+    <div id="tgw" style="display:flex;justify-content:center;min-height:48px"></div>
+    <div class="small" style="text-align:center;font-size:12.5px">Telegram'dagi botimizdagi profilingiz, ballaringiz va Ritsar unvoningiz saqlanib qoladi.</div>`, (el) => tgWidget($('#tgw', el)));
+}
+function logout() { store.del('uv_token'); store.del('uv_uid'); location.reload(); }
+// The website's front door for visitors who have not signed in yet.
+function loginGate() {
+  document.body.classList.add('gate-on');
+  $('#app').innerHTML = `<section class="gate">
+    <div class="gate-top">${UV_LOGO}<b>Uni<span>Voice</span></b></div>
+    <svg class="gate-art" viewBox="0 0 250 230" role="img" aria-label="Diplom qalpoqli ovoz pufakchasi">
+      <defs><radialGradient id="ga" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="#FFF8EE"/><stop offset="1" stop-color="#E9DCC8"/></radialGradient>
+      <radialGradient id="gb" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#9B8CFF"/><stop offset="1" stop-color="#5141E0"/></radialGradient>
+      <radialGradient id="gc" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#7CE3D6"/><stop offset="1" stop-color="#1FA594"/></radialGradient></defs>
+      <ellipse cx="125" cy="195" rx="98" ry="26" fill="#E2D3BD"/><ellipse cx="125" cy="186" rx="98" ry="26" fill="url(#ga)"/>
+      <path d="M60 186c18-10 30-10 46 0s30 10 46 0 30-10 46 0" fill="none" stroke="url(#gc)" stroke-width="8" stroke-linecap="round"/>
+      <rect x="62" y="54" width="126" height="96" rx="34" fill="url(#gb)"/><path d="M96 140l-10 28 30-20z" fill="#5141E0"/>
+      <circle cx="100" cy="102" r="9" fill="#fff"/><circle cx="125" cy="102" r="9" fill="#fff"/><circle cx="150" cy="102" r="9" fill="#fff"/>
+      <path d="M125 20l52 18-52 18-52-18z" fill="#2B2560"/><path d="M95 46v14c0 6 14 12 30 12s30-6 30-12V46l-30 10z" fill="#3A3380"/>
+      <path d="M177 38v26" stroke="#F2B35A" stroke-width="4" stroke-linecap="round"/><circle cx="177" cy="68" r="6" fill="#F2B35A"/></svg>
+    <h1>Universitetning<br>ovozi — sizda</h1>
+    <p>Muammoni yozing, ovoz to‘plang, javob oling. Tadbirlar, klublar, volontyorlik va talabalar bozori — barchasi bir joyda.</p>
+    <div class="gate-stats" id="gate-stats"></div>
+    <div id="tgw" class="gate-tg"></div>
+    <button class="gate-guest" id="gate-guest">Kirmasdan ko‘rib chiqish</button>
+    <div class="small gate-note">Telegram'dagi botimizdagi profilingiz, ballaringiz va unvoningiz saqlanib qoladi.</div>
+  </section>`;
+  tgWidget($('#tgw'));
+  $('#gate-guest').addEventListener('click', () => { try { sessionStorage.setItem('uv_guest', '1'); } catch (e) {} document.body.classList.remove('gate-on'); boot(); });
+  api('/api/stats').then((st) => { const g = $('#gate-stats'); if (g) g.innerHTML = `<div><b>${st.members ?? '—'}</b><span>talaba</span></div><div><b>${st.total}</b><span>murojaat</span></div><div><b>${st.votes || 0}</b><span>ovoz</span></div>`; }).catch(() => {});
+}
+
 
 function newProblemSheet() {
   if (!needProfile(newProblemSheet)) return;
@@ -1917,7 +2036,7 @@ function newProblemSheet() {
       $('#np-picwrap', el).hidden = kind === 'elon';
       $('#np-faq', el).hidden = kind !== 'savol';
       $('#np-anon', el).hidden = !(kind === 'muammo' || kind === 'savol');
-      $('#np-note', el).textContent = kind === 'kerak' ? 'Ismingiz ko‘rinadi, shunda yordam beradiganlar siz bilan bog‘lana oladi.' : kind === 'elon' ? (isAdmin ? 'E’lon Black Knight Team nomidan chiqadi.' : `E’lon «◇ ${(S.me && S.me.position) || 'sizning'}» nomidan chiqadi.`) : '';
+      $('#np-note', el).textContent = kind === 'kerak' ? 'Ismingiz ko‘rinadi, shunda yordam beradiganlar siz bilan bog‘lana oladi.' : kind === 'elon' ? (isAdmin ? 'E’lon ' + BRAND_TEAM + ' nomidan chiqadi.' : `E’lon «◇ ${(S.me && S.me.position) || 'sizning'}» nomidan chiqadi.`) : '';
       el.querySelectorAll('#np-kind .chip').forEach((x) => x.setAttribute('aria-pressed', x.dataset.k === kind));
     };
     sync();
@@ -2030,6 +2149,8 @@ document.addEventListener('click', async (e) => {
     await loadVol(); render(); return;
   }
   if (d.act === 'onboard') return onboardSheet();
+  if (d.act === 'logout') return logout();
+  if (d.act === 'login') return loginSheet();
   if (d.go === 'faq') { S.tab = 'ovoz'; S.kind = 'savol'; S.ptab = 'top'; S.problems = null; render(); window.scrollTo(0, 0); await Promise.all([loadProblems(), loadStats()]); render(); return; }
   if (d.act === 'profile') return profileSheet(false);
   if (d.act === 'theme') { toggleTheme(); if (S.tab === 'koproq') render(); return; }
@@ -2053,7 +2174,7 @@ document.addEventListener('click', async (e) => {
     await Promise.all([loadHead(), loadMe()]); render(); return;
   }
   if (d.act === 'share' && S.refLink) {
-    const text = 'Black Knight — Millat Umidi talabalari platformasi. Muammo yoz, ovoz ber, kerakli odamni top:';
+    const text = BRAND + ' — Millat Umidi talabalari platformasi. Muammo yoz, ovoz ber, kerakli odamni top:';
     const url = 'https://t.me/share/url?url=' + encodeURIComponent(S.refLink) + '&text=' + encodeURIComponent(text);
     if (TG && TG.openTelegramLink) TG.openTelegramLink(url); else window.open(url, '_blank');
     return;
@@ -2158,7 +2279,12 @@ async function refresh() {
   if (!$('.scrim') && !typing) render();
 }
 
-(async () => {
+function startApp() {
+  let guest = false; try { guest = sessionStorage.getItem('uv_guest') === '1'; } catch (e) {}
+  if (WEB_LOGIN && !UV_TOKEN && !guest) return loginGate();
+  boot();
+}
+const boot = async () => {
   render();
   await Promise.all([checkAdmin(), loadMe(), loadStats(), loadProblems()]);
   render();
@@ -2184,7 +2310,8 @@ async function refresh() {
   }
   setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 20000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
-})();
+};
+startApp();
 })();
 </script>
 </body>

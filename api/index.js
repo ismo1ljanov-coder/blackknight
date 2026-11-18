@@ -15,7 +15,7 @@ const priceText = (p) => (p === null || p === undefined ? 'Kelishiladi' : +p ===
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-  'access-control-allow-headers': 'content-type,x-admin-key,x-tg-init',
+  'access-control-allow-headers': 'content-type,x-admin-key,x-tg-init,x-uv-token',
 };
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', ...CORS } });
@@ -61,6 +61,36 @@ const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const WEBAPP_URL = process.env.WEBAPP_URL || '';
 const SELF_URL = 'https://br-steep-haze-b9tabbet-api.compute.c-7.eu-central-1.aws.neon.tech';
 const WEBHOOK_SECRET = BOT_TOKEN ? createHash('sha256').update('bk-hook:' + BOT_TOKEN).digest('hex').slice(0, 48) : '';
+
+// ---- Website login (univoice.uz): Telegram Login Widget → signed session token.
+// The widget's hash uses sha256(bot token) as the key (Telegram spec); tokens last 30 days.
+const SESSION_DAYS = 30;
+const sessionKey = () => createHash('sha256').update('uv-session:' + BOT_TOKEN).digest();
+function loginWidgetUser(d) {
+  if (!BOT_TOKEN || !d || typeof d !== 'object' || !d.hash || !d.id) return null;
+  const check = Object.keys(d).filter((k) => k !== 'hash' && d[k] !== undefined && d[k] !== null).sort().map((k) => `${k}=${d[k]}`).join('\n');
+  const calc = createHmac('sha256', createHash('sha256').update(BOT_TOKEN).digest()).update(check).digest('hex');
+  const hash = String(d.hash);
+  if (calc.length !== hash.length || !timingSafeEqual(Buffer.from(calc), Buffer.from(hash))) return null;
+  if (Date.now() / 1000 - Number(d.auth_date || 0) > 86400) return null;
+  return { id: Number(d.id), first_name: d.first_name, last_name: d.last_name, username: d.username, photo_url: d.photo_url };
+}
+function makeSession(u) {
+  const payload = Buffer.from(JSON.stringify({ id: u.id, u: u.username || null, p: u.photo_url || null, f: [u.first_name, u.last_name].filter(Boolean).join(' ').slice(0, 60), e: Math.floor(Date.now() / 1000) + SESSION_DAYS * 86400 })).toString('base64url');
+  return payload + '.' + createHmac('sha256', sessionKey()).update(payload).digest('base64url');
+}
+function sessionUser(tok) {
+  if (!BOT_TOKEN || typeof tok !== 'string' || tok.length > 1200) return null;
+  const [payload, sig] = tok.split('.');
+  if (!payload || !sig) return null;
+  const calc = createHmac('sha256', sessionKey()).update(payload).digest('base64url');
+  if (calc.length !== sig.length || !timingSafeEqual(Buffer.from(calc), Buffer.from(sig))) return null;
+  try {
+    const d = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    if (!d.id || d.e < Date.now() / 1000) return null;
+    return { id: d.id, first_name: d.f || '', username: d.u || undefined, photo_url: d.p || undefined };
+  } catch { return null; }
+}
 
 // Validates Telegram Mini App initData (HMAC per Telegram spec); returns the Telegram user or null.
 function tgUser(initData) {
@@ -1663,7 +1693,12 @@ async function route(req) {
   const body = m === 'GET' ? {} : await req.json().catch(() => ({}));
 
   // A valid Telegram identity always wins over a client-chosen uid.
-  const tu = tgUser(req.headers.get('x-tg-init'));
+  if (p === '/api/auth/telegram' && m === 'POST') {
+    const u = loginWidgetUser(body);
+    if (!u) return bad('Telegram orqali kirish tasdiqlanmadi — qayta urinib ko‘ring', 401);
+    return json({ token: makeSession(u), uid: 'tg' + u.id, days: SESSION_DAYS });
+  }
+  const tu = tgUser(req.headers.get('x-tg-init')) || sessionUser(req.headers.get('x-uv-token'));
   if (tu && tu.id) {
     uid = 'tg' + tu.id;
     body.uid = uid;
