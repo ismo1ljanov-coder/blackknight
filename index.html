@@ -62,6 +62,19 @@ button{cursor:pointer}
 .rule i{width:7px;height:7px;background:var(--gold);transform:rotate(45deg);flex:none}
 .iconbtn{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--glass-2);display:grid;place-items:center;flex:none}
 .stat{padding:16px;display:flex;flex-direction:column;gap:12px}
+.hev{position:relative;overflow:hidden;padding:16px;display:flex;flex-direction:column;gap:12px}
+.hev.has-pic::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,.82)),var(--pic) center/cover;z-index:0}
+.hev>*{position:relative;z-index:1}
+.hev-main{display:flex;flex-direction:column;align-items:flex-start;gap:6px;background:none;border:0;padding:0;text-align:left;color:var(--fg);cursor:pointer}
+.hev-k{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.hev-main b{font-family:var(--crest);font-size:20px;line-height:1.2}
+.hev-meta{font-size:13px;color:var(--muted)}
+.hev-acts{display:grid;grid-template-columns:1.4fr 1fr;gap:8px}
+.hev-next{display:flex;flex-direction:column;border-top:1px solid var(--line);padding-top:4px}
+.hev-next button{display:flex;align-items:center;gap:10px;background:none;border:0;padding:8px 0;color:var(--fg);text-align:left;cursor:pointer;font:inherit}
+.hev-next span{flex:none;font-size:12px;font-weight:700;color:var(--gold);min-width:52px}
+.hev-next b{flex:1;min-width:0;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hev-next i{font-style:normal;color:var(--muted)}
 .stat .row{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
 .big{font-family:var(--crest);font-size:42px;font-weight:700;line-height:1;background:var(--metal-text);-webkit-background-clip:text;background-clip:text;color:transparent;font-variant-numeric:tabular-nums}
 .small{font-size:13px;color:var(--muted)}
@@ -546,14 +559,34 @@ function viewOvoz() {
     : `<div class="glass empty"><b>${S.kind === 'savol' ? 'Hali savol yo‘q' : 'Bu yerda hali post yo‘q'}</b>Birinchi bo‘lib yozing: pastdagi <b style="display:inline;color:var(--gold-hi)">+</b> tugmasini bosing.</div>`;
   else list = S.problems.map(problemCard).join('');
   return head('Talabalar lentasi', '<button class="iconbtn" data-act="onboard" aria-label="Platforma qanday ishlaydi?" style="font-family:var(--crest);font-weight:700;font-size:18px">?</button>') + offlineNote() + `
-  ${showIssues ? `<section class="glass stat" aria-label="Talabalar faolligi">
-    <div class="small" style="font-size:11px;letter-spacing:.12em;text-transform:uppercase">Talabalar ovozi</div>
-    <div class="acts3"><div><b>${st.total}</b><span>murojaat</span></div><div><b>${st.votes || 0}</b><span>ovoz</span></div><div><b>${st.done ? st.done : st.progress}</b><span>${st.done ? 'hal qilindi' : 'ko‘rib chiqilmoqda'}</span></div></div>
-  </section>` : ''}
+  ${homeEvents()}
   ${S.kind === 'savol' ? '<div class="small">Oddiy savollar (kontrakt, jadval, hujjatlar) shu yerda — ular muammolar lentasini to‘ldirib yubormaydi.</div>' : ''}
   <div class="kinds" role="group" aria-label="Post turi">${kinds.map(([k, l]) => `<button class="chip" data-kind="${k}" aria-pressed="${S.kind === k}">${l}</button>`).join('')}</div>
   <div class="seg" role="group" aria-label="Saralash">${tabs.map(([k, l]) => `<button data-ptab="${k}" aria-pressed="${S.ptab === k}">${l}</button>`).join('')}</div>
   <div class="list">${list}</div>`;
+}
+
+// Home: the nearest event up top (with a one-tap RSVP), the next two as compact rows.
+function homeEvents() {
+  const evs = (S.events || []).filter((e) => new Date(e.starts_at) > Date.now() - 3 * 36e5);
+  if (!evs.length) return '';
+  const [e, ...rest] = evs;
+  const d = new Date(e.starts_at), pic = evPic(e);
+  const when = `${evLeft(e.starts_at)}${e.date_only ? '' : ' · ' + hhmm(d)}`;
+  const meta = [e.place && esc(e.place), e.capacity ? `${e.going}/${e.capacity} joy` : `${e.going} kishi yozilgan`].filter(Boolean).join(' · ');
+  return `<section class="glass hev${pic ? ' has-pic' : ''}"${pic ? ` style="--pic:url('${pic}')"` : ''} aria-label="Eng yaqin tadbir">
+    <button class="hev-main" data-evopen="${e.id}">
+      <span class="hev-k">Eng yaqin tadbir</span>
+      <span class="evpill">${ICON_EV.clock}${when}</span>
+      <b>${esc(e.title)}</b>
+      <span class="hev-meta">${meta}</span>
+    </button>
+    <div class="hev-acts">
+      <button class="btn${e.joined ? ' ghost' : ''}" data-rsvp="${e.id}">${e.joined ? '✓ Ro‘yxatdasiz' : 'Qatnashaman'}</button>
+      <button class="btn ghost" data-evopen="${e.id}">Batafsil</button>
+    </div>
+    ${rest.length ? `<div class="hev-next">${rest.slice(0, 2).map((x) => { const xd = new Date(x.starts_at); return `<button data-evopen="${x.id}"><span>${xd.getDate()}-${MONTHS[xd.getMonth()].slice(0, 3)}</span><b>${esc(x.title)}</b><i aria-hidden="true">${x.joined ? '✓' : '›'}</i></button>`; }).join('')}</div>` : ''}
+  </section>`;
 }
 
 function ladder(p) {
@@ -2111,7 +2144,7 @@ document.addEventListener('submit', async (e) => {
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('.scrim')) { const req = !$('[data-close]'); if (!req) closeSheet(); } });
 
 async function refresh() {
-  if (S.tab === 'ovoz') await Promise.all([loadProblems(), loadStats()]);
+  if (S.tab === 'ovoz') await Promise.all([loadProblems(), loadStats(), loadEvents()]);
   else if (S.tab === 'tadbirlar') await loadEvents();
   else if (S.tab === 'odamlar') await loadPeople();
   else if (S.tab === 'market') await loadMarket();
@@ -2129,7 +2162,7 @@ async function refresh() {
   render();
   await Promise.all([checkAdmin(), loadMe(), loadStats(), loadProblems()]);
   render();
-  loadEvents(); loadMatches(); loadPeople(); loadRequests(); loadContacts();
+  loadEvents().then(() => { if (S.tab === 'ovoz' && !$('.scrim')) render(); }); loadMatches(); loadPeople(); loadRequests(); loadContacts();
   // Deep links: ?startapp=job_<seat> opens that vacancy; #bolim opens the Head's desk.
   const sp = (TG && TG.initDataUnsafe && TG.initDataUnsafe.start_param) || new URLSearchParams(location.search).get('tgWebAppStartParam') || '';
   if (sp.startsWith('job_')) { S.tab = 'jamoa'; await loadTeamData(); render(); positionSheet(sp.slice(4)); }
