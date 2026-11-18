@@ -606,6 +606,19 @@ async function tgWebhook(req) {
       else await tg('sendMessage', { chat_id: msg.chat.id, parse_mode: 'HTML', text: `Siz allaqachon <b>${esc(c.name)}</b> klubi a’zosisiz ✓`, reply_markup: openKb() });
       return json({ ok: true });
     }
+    // Event link: t.me/<bot>?start=ev_<id> — shows the event with the «Qatnashaman» button.
+    const evm = text.match(/^\/start\s+ev_(\d+)/);
+    if (evm) {
+      const e = (await q('SELECT * FROM events WHERE id=$1', [+evm[1]])).rows[0];
+      if (!e) { await tg('sendMessage', { chat_id: msg.chat.id, text: 'Bu tadbir topilmadi.', reply_markup: openKb() }); return json({ ok: true }); }
+      const nm = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(' ').slice(0, 60) || msg.from.username || 'Talaba';
+      await q('INSERT INTO users (id, name, username) VALUES ($1,$2,$3) ON CONFLICT (id) DO NOTHING RETURNING 1 x', [me, nm, msg.from.username ? String(msg.from.username).toLowerCase().slice(0, 40) : null]);
+      const custom = (await q('SELECT value FROM settings WHERE key=$1', ['event_caption_' + e.id])).rows[0];
+      const kb = { inline_keyboard: [[{ text: '✅ Qatnashaman', callback_data: 'ev:' + e.id }]] };
+      if (WEBAPP_URL) kb.inline_keyboard.push([{ text: 'Black Knight’ni ochish', web_app: { url: WEBAPP_URL } }]);
+      await tg('sendMessage', { chat_id: msg.chat.id, parse_mode: 'HTML', text: custom ? custom.value : eventCaption(e), reply_markup: kb });
+      return json({ ok: true });
+    }
     const dmm = text.match(/^\/start\s+dm_(\d+)/);
     if (dmm) {
       const peerId = 'tg' + dmm[1];
