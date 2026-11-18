@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UniVoice: universitet ovozi</title>
+<meta name="description" content="UniVoice talabalar muammosini mas‘ul odamga yetkazadi va hal bo‘lgunicha kuzatib boradi.">
+<meta property="og:title" content="UniVoice: universitet ovozi">
+<meta property="og:description" content="Talabalar muammosini mas‘ul odamga yetkazadigan platforma.">
+<meta property="og:image" content="https://univoice.uz/og.png">
+<link rel="icon" href="favicon.png">
+<style>
+@font-face{font-family:Poppins;font-weight:500;font-display:swap;src:url(fonts/poppins-500.woff) format("woff")}
+@font-face{font-family:Poppins;font-weight:700;font-display:swap;src:url(fonts/poppins-700.woff) format("woff")}
+@font-face{font-family:Inter;font-weight:400;font-display:swap;src:url(fonts/inter-400.woff) format("woff")}
+@font-face{font-family:Inter;font-weight:500;font-display:swap;src:url(fonts/inter-500.woff) format("woff")}
+
+:root{
+  --ink:#01061c;
+  --deep:#0a1240;
+  --ice:#eaf2ff;
+  --mist:#a3b5d8;
+  --cyan:#5fe3ee;
+  --violet:#9a7bff;
+  --step:.75s;
+}
+*{box-sizing:border-box;margin:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--ink);color:var(--ice);font:400 18px/1.6 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:4px}
+
+.wrap{max-width:1160px;margin:0 auto;padding:0 32px}
+
+.top{display:flex;align-items:center;justify-content:space-between;padding:24px 0}
+.brand{display:flex;align-items:center;gap:12px;font:700 22px/1 Poppins,sans-serif;text-decoration:none}
+.brand img{width:48px;height:48px;border-radius:50%}
+
+.cta{display:inline-block;background:var(--ice);color:var(--ink);font:500 16px/1 Poppins,sans-serif;padding:17px 28px;border-radius:999px;text-decoration:none;transition:background .15s}
+.cta:hover{background:var(--cyan)}
+.top .cta{padding:13px 20px;font-size:14px}
+
+.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:72px;align-items:center;padding:56px 0 104px}
+h1{font:700 clamp(46px,6.4vw,84px)/1.06 Poppins,sans-serif;letter-spacing:-.025em}
+.lead{max-width:30em;margin:28px 0 36px;font-size:20px;color:var(--mist)}
+
+/* The speech bubble from the logo holds one complaint's whole journey */
+.bubble{position:relative;padding:40px 40px 36px;border-radius:44px;background:linear-gradient(160deg,#0d1a55 0%,#0a1240 60%,#120f4a 100%);box-shadow:0 0 0 2px rgba(95,227,238,.55),0 0 70px rgba(95,140,255,.28)}
+.tail{position:absolute;left:44px;bottom:-37px;width:48px;height:40px;display:block}
+.sample{font-size:14px;color:var(--mist)}
+.quote{font:500 23px/1.36 Poppins,sans-serif;margin:8px 0 28px}
+.track{list-style:none;padding:0;position:relative}
+.track li{position:relative;padding:0 0 18px 32px;opacity:.28;animation:lit .35s ease forwards}
+.track li:last-child{padding-bottom:0}
+.track li::before{content:"";position:absolute;left:2px;top:7px;width:12px;height:12px;border-radius:50%;background:var(--cyan)}
+.track li:not(:last-child)::after{content:"";position:absolute;left:7px;top:23px;bottom:-3px;width:2px;background:rgba(95,227,238,.4)}
+.track li:nth-child(1){animation-delay:calc(var(--step)*1)}
+.track li:nth-child(2){animation-delay:calc(var(--step)*2)}
+.track li:nth-child(3){animation-delay:calc(var(--step)*3)}
+.track li:nth-child(4){animation-delay:calc(var(--step)*4)}
+.track li:last-child::before{background:var(--ice);box-shadow:0 0 14px var(--cyan)}
+.track b{font:500 17px/1.4 Poppins,sans-serif;display:block}
+.track span{font-size:15.5px;line-height:1.45;color:var(--mist);display:block}
+@keyframes lit{to{opacity:1}}
+
+.proof{padding:88px 0;border-top:1px solid rgba(163,181,216,.18)}
+.proof p{max-width:21em;font:500 clamp(30px,4.2vw,52px)/1.2 Poppins,sans-serif;letter-spacing:-.015em}
+.proof small{display:block;margin-top:20px;font:400 15px/1.5 Inter,sans-serif;color:var(--mist)}
+
+.rest{display:grid;grid-template-columns:1fr 1fr;gap:72px;padding:0 0 96px}
+h2{font:500 24px/1.3 Poppins,sans-serif;margin-bottom:12px}
+.rest p{max-width:32em;color:var(--mist)}
+.people{list-style:none;padding:0}
+.people li{padding:4px 0;color:var(--mist)}
+.people strong{color:var(--ice);font-weight:500}
+
+.end{display:flex;flex-wrap:wrap;gap:16px 32px;align-items:center;justify-content:space-between;padding:32px 0 44px;border-top:1px solid rgba(163,181,216,.18);font-size:15px;color:var(--mist)}
+.end p{max-width:44em}
+
+@media (max-width:860px){
+  body{font-size:17px}
+  .wrap{padding:0 20px}
+  .top{padding:18px 0}
+  .hero{grid-template-columns:1fr;gap:48px;padding:28px 0 88px}
+  .lead{font-size:18px;margin:20px 0 28px}
+  .bubble{padding:30px 26px 28px;border-radius:36px}
+  .tail{left:34px}
+  .top .cta{display:none}
+  .quote{font-size:20px}
+  .proof{padding:60px 0}
+  .rest{grid-template-columns:1fr;gap:40px;padding-bottom:64px}
+}
+@media (prefers-reduced-motion:reduce){
+  .track li{animation:none;opacity:1}
+  .cta{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="/"><img src="logo.jpg" alt="" width="48" height="48">UniVoice</a>
+    <a class="cta" href="https://t.me/blackknightsp_bot">Telegram’da ochish</a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <h1>Talaba aytadi. Universitet eshitadi.</h1>
+        <p class="lead">UniVoice talabalar muammosini mas’ul odamga yetkazadi va hal bo‘lgunicha kuzatib boradi.</p>
+        <a class="cta" href="https://t.me/blackknightsp_bot">Telegram’da ochish</a>
+      </div>
+
+      <div class="bubble" role="img" aria-label="Namuna murojaatning yo‘li: yangi, qabul, jarayonda, hal">
+        <p class="sample">Namuna murojaat</p>
+        <p class="quote">Imtihon haftasida dars jadvali ikki marta o‘zgardi. Oldindan e’lon qilinsin.</p>
+        <ol class="track">
+          <li><b>Yangi</b><span>Talaba yozdi, boshqalar ovoz berdi</span></li>
+          <li><b>Qabul</b><span>Fakultet Head’iga yo‘naltirildi</span></li>
+          <li><b>Jarayonda</b><span>Mas’ul odam dekanat bilan gaplashmoqda</span></li>
+          <li><b>Hal</b><span>Javob talabaga yetdi</span></li>
+        </ol>
+        <svg class="tail" viewBox="0 0 48 40" aria-hidden="true"><path d="M1 0 L3 35 Q4 40 9 36 L47 0" fill="#0e1049" stroke="#7a86e6" stroke-width="2" stroke-linejoin="round"/></svg>
+      </div>
+    </section>
+
+    <section class="proof">
+      <p>Millat Umidi universitetida birinchi 9 kunda 209 foydalanuvchi qo‘shildi, 24 ta muammo yozildi va 206 ta ovoz berildi.</p>
+      <small>Ishga tushgan sana: 2026-yil 31-oktabr. Ma’lumotlar 9-noyabr holatiga.</small>
+    </section>
+
+    <section class="rest">
+      <div>
+        <h2>Bir ilovada</h2>
+        <p>Muammolar va ovoz berish, tadbirlarga yozilish, talabalar o‘rtasidagi bozor, mahorat almashish va jamoaga ariza topshirish.</p>
+      </div>
+      <div>
+        <h2>Asoschilar</h2>
+        <ul class="people">
+          <li><strong>Abdurahmon Ismoiljanov</strong>, Founder &amp; CEO</li>
+          <li><strong>Umar Maxmudjonov</strong>, Co-founder &amp; CSMO</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="end">
+    <p>Birinchi versiya Millat Umidi universitetida BlackKnight nomi bilan ishlaydi.</p>
+    <span>univoice.uz</span>
+  </footer>
+</div>
+</body>
+</html>
