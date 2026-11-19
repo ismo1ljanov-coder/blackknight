@@ -9,7 +9,7 @@
 <title>BlackKnight Club</title>
 <meta name="description" content="BlackKnight Club — Millat Umidi talabalari ovozi: muammolar, tadbirlar, Skill Swap.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Manrope:wght@400;500;600;700;800&family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Manrope:wght@400;500;600;700;800&family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 /* Black Knight Glass: black ground, knight emblem watermark, warm-gold frosted cards, Cinzel crest type */
@@ -36,15 +36,15 @@
   color-scheme:light;
 }
 :root[data-theme="uv"]{
-  --bg:#F6F2EC; --fg:#1F1B3D; --muted:rgba(31,27,61,.68); --dim:rgba(31,27,61,.56);
-  --wh:31,27,61; --gd:79,63,217; --gh:120,105,255; --gl:79,63,217; --gn:23,138,124; --bl:79,63,217; --rd:194,65,45; --fgc:31,27,61; --sv:90,90,112;
-  --gold:#4F3FD9; --gold-hi:#3B2DB8; --gold-lo:#7A6CF0; --gold-bg:rgba(79,63,217,.10); --gold-line:rgba(79,63,217,.32);
-  --metal:#4F3FD9; --metal-text:linear-gradient(135deg,#4F3FD9 0%,#1FA594 100%);
-  --glass:#FFFFFF; --glass-2:#FFFFFF; --line:rgba(31,27,61,.08); --line-2:rgba(31,27,61,.14);
-  --crest:"Onest",system-ui,sans-serif; --font:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --blue:#4F3FD9; --blue-bg:rgba(79,63,217,.10); --green:#178A7C; --green-bg:rgba(31,165,148,.14); --red:#C2412D; --silver:#5A5A70;
-  --sheet:#FBF8F3; --nav:#FFFFFF; --scrim:rgba(31,27,61,.32); --emblem:0;
-  color-scheme:light;
+  --bg:#01061c; --fg:#eaf2ff; --muted:rgba(234,242,255,.68); --dim:rgba(234,242,255,.52);
+  --wh:255,255,255; --gd:154,123,255; --gh:95,227,238; --gl:110,90,230; --gn:130,220,160; --bl:140,165,255; --rd:255,180,168; --fgc:234,242,255; --sv:190,205,235;
+  --gold:#9a7bff; --gold-hi:#8fe9f2; --gold-lo:#6b55e0; --gold-bg:rgba(154,123,255,.16); --gold-line:rgba(95,227,238,.42);
+  --metal:linear-gradient(135deg,#5fe3ee 0%,#7fa8ff 50%,#9a7bff 100%); --metal-text:var(--metal);
+  --glass:rgba(120,150,255,.06); --glass-2:rgba(120,150,255,.10); --line:rgba(140,170,255,.16); --line-2:rgba(140,170,255,.30);
+  --crest:"Poppins",system-ui,sans-serif; --font:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --blue:#b9c6ff; --blue-bg:rgba(var(--bl),.2); --green:#a6ecbc; --green-bg:rgba(var(--gn),.18); --red:#ffb4a8; --silver:#d6dbe3;
+  --sheet:rgba(6,12,42,.96); --nav:rgba(4,9,32,.78); --scrim:rgba(1,4,18,.6); --emblem:0;
+  color-scheme:dark;
 }
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%;overflow-x:hidden}
@@ -386,50 +386,29 @@ nav button.create svg{width:26px;height:26px}
 .vtask .foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .field select{height:48px;padding:0 12px;border-radius:14px;border:1px solid rgba(var(--wh),.18);background:rgba(var(--wh),.08);color:var(--fg);font-size:16px}
 .onb .dots{display:flex;gap:6px}.onb .dots i{height:6px;width:6px;border-radius:3px;background:rgba(var(--wh),.25)}.onb .dots i.on{width:26px;background:var(--gold)}
+.club.has-cover .club-t b{color:#fff}
 :root[data-theme="uv"] .bgmark,:root[data-theme="uv"] .rule{display:none}
-:root[data-theme="uv"] .glass{-webkit-backdrop-filter:none;backdrop-filter:none;border-color:transparent;border-radius:24px;box-shadow:0 6px 22px -14px rgba(60,40,20,.28)}
-:root[data-theme="uv"] .pagetitle h1{font-weight:700;letter-spacing:-.02em;font-size:28px}
-:root[data-theme="uv"] .head .team{font-family:var(--font);font-weight:800;font-size:20px;letter-spacing:-.02em;background:none;color:var(--fg)}
-:root[data-theme="uv"] .head .team span{color:#4F3FD9}
-:root[data-theme="uv"] .uvlogo{width:40px;height:40px;border:0;box-shadow:none;background:none;border-radius:0}
-:root[data-theme="uv"] .primary{background:#4F3FD9;color:#fff;border-radius:999px;box-shadow:0 10px 22px -10px rgba(79,63,217,.7);font-weight:700}
-:root[data-theme="uv"] .btn{border-radius:999px;border-color:transparent;background:#EDEAFF;color:#3B2DB8}
-:root[data-theme="uv"] .btn.ghost{background:#fff;border-color:var(--line-2);color:var(--fg)}
-:root[data-theme="uv"] .btn.done{background:#DDF4F0;color:#178A7C}
-:root[data-theme="uv"] .iconbtn{border:0;background:#fff;box-shadow:0 3px 12px -4px rgba(60,40,20,.2)}
-:root[data-theme="uv"] .vote{border:0;background:#EDEAFF;color:#4F3FD9;border-radius:18px}
-:root[data-theme="uv"] .vote[aria-pressed="true"]{background:#4F3FD9;color:#fff}
-:root[data-theme="uv"] nav{border:0!important;box-shadow:0 14px 34px -14px rgba(60,40,20,.35);border-radius:999px;height:70px;-webkit-backdrop-filter:none;backdrop-filter:none}
-:root[data-theme="uv"] nav button[aria-current="page"]{color:#4F3FD9}
-:root[data-theme="uv"] nav button.create{background:#4F3FD9;color:#fff;border:0;box-shadow:0 10px 20px -8px rgba(79,63,217,.8)}
-:root[data-theme="uv"] .sheet{-webkit-backdrop-filter:none;backdrop-filter:none;border-top:0}
-:root[data-theme="uv"] .field input,:root[data-theme="uv"] .field textarea,:root[data-theme="uv"] .field select{background:#fff;border-color:rgba(31,27,61,.12)}
-:root[data-theme="uv"] .ctabs{background:#fff;border:0}
-:root[data-theme="uv"] .ctabs button[aria-selected="true"]{background:#1F1B3D;color:#fff;box-shadow:none}
-:root[data-theme="uv"] .evhero{border:0}
-:root[data-theme="uv"] .evh-btn{background:#fff;color:#4F3FD9;border:0}
-:root[data-theme="uv"] .evpill{border:0;background:#fff;color:#1F1B3D}
-:root[data-theme="uv"] .evsec::before{background:#4F3FD9}
-:root[data-theme="uv"] .cta{background:#4F3FD9;color:#fff;border:0;border-radius:999px}
-:root[data-theme="uv"] .toast{background:#1F1B3D;color:#fff;border:0}
-:root[data-theme="uv"] .hev.has-pic,:root[data-theme="uv"] .club.has-cover{--fg:#fff;--muted:rgba(255,255,255,.78);--dim:rgba(255,255,255,.65);--line:rgba(255,255,255,.18);color:#fff}
-:root[data-theme="uv"] .hev.has-pic .btn.ghost{background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.3)}
-:root[data-theme="uv"] .hev.has-pic .hev-next button span:first-child{color:#C9C2FF}
+:root[data-theme="uv"] body{background:radial-gradient(120% 60% at 50% -10%,#0d1a55 0%,#01061c 60%) fixed,#01061c}
+:root[data-theme="uv"] .head .team{font-family:var(--crest);font-weight:700;letter-spacing:-.01em;font-size:20px}
+:root[data-theme="uv"] .head .logo{border-radius:50%;box-shadow:0 0 0 1.5px rgba(95,227,238,.55),0 0 22px rgba(95,140,255,.35)}
+:root[data-theme="uv"] .pagetitle h1{font-family:var(--crest);font-weight:700;letter-spacing:-.02em}
+:root[data-theme="uv"] .primary,:root[data-theme="uv"] .cta{color:#01061c}
+:root[data-theme="uv"] .glass{box-shadow:0 0 0 1px rgba(95,227,238,.06)}
+:root[data-theme="uv"] .hev.has-pic,:root[data-theme="uv"] .club.has-cover{--fg:#fff;--muted:rgba(255,255,255,.78);color:#fff}
 .club.has-cover .club-t b{color:#fff}
 /* website front door */
-.gate{min-height:calc(100vh - 140px);display:flex;flex-direction:column;align-items:stretch;gap:14px;padding:8px 4px 20px}
-.gate-top{display:flex;align-items:center;gap:10px}.gate-top b{font-size:22px;font-weight:800;letter-spacing:-.02em}.gate-top b span{color:#4F3FD9}
-.gate-art{width:220px;height:200px;align-self:center;margin:10px 0 0}
-.gate h1{margin:0;font-size:36px;line-height:1.08;font-weight:700;letter-spacing:-.025em}
+.gate{min-height:calc(100vh - 140px);display:flex;flex-direction:column;gap:16px;padding:8px 4px 20px}
+.gate-top{display:flex;align-items:center;gap:12px}.gate-top img{width:44px;height:44px;border-radius:50%}.gate-top b{font:700 22px/1 var(--crest)}
+.gate-art{width:190px;height:190px;align-self:center;margin:14px 0 4px;border-radius:50%;box-shadow:0 0 0 2px rgba(95,227,238,.55),0 0 70px rgba(95,140,255,.35)}
+.gate h1{margin:0;font:700 36px/1.08 var(--crest);letter-spacing:-.025em}
 .gate p{margin:0;font-size:16px;line-height:1.55;color:var(--muted)}
-.gate-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-height:58px}
-.gate-stats div{background:#fff;border-radius:20px;padding:10px 12px;display:flex;flex-direction:column;box-shadow:0 6px 18px -12px rgba(60,40,20,.25)}
-.gate-stats b{font-size:22px;font-weight:800;color:#4F3FD9}.gate-stats span{font-size:12px;color:var(--muted)}
+.gate-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-height:62px}
+.gate-stats div{border-radius:18px;padding:10px 12px;display:flex;flex-direction:column;background:var(--glass-2);border:1px solid var(--line)}
+.gate-stats b{font:700 22px/1.2 var(--crest);background:var(--metal);-webkit-background-clip:text;background-clip:text;color:transparent}.gate-stats span{font-size:12px;color:var(--muted)}
 .gate-tg{display:flex;justify-content:center;min-height:48px;margin-top:6px}
 .gate-guest{height:48px;border:0;background:none;color:var(--fg);font-size:15px;text-decoration:underline;text-underline-offset:4px}
 .gate-note{text-align:center;font-size:12.5px}
 body.gate-on nav{display:none}
-@media (min-width:900px){ :root[data-theme="uv"] .app{max-width:560px} }
 </style>
 </head>
 <body>
@@ -446,7 +425,7 @@ body.gate-on nav{display:none}
 <script>
 // Build stamp: bump on every frontend change. Telegram's webview caches the page; if the server has a newer
 // stamp, the app reloads itself once with ?v=<stamp> so everyone gets the new version.
-const BUILD = '2026-11-19.1';
+const BUILD = '2026-11-19.2';
 (() => {
   try {
     if (sessionStorage.getItem('bk_upd') === BUILD) return;
@@ -475,7 +454,7 @@ if (TG) { try { TG.ready(); TG.expand(); } catch (e) {} }
 const UV = /univoice/i.test(location.hostname) || new URLSearchParams(location.search).has('uv');
 const BRAND = UV ? 'UniVoice' : 'Black Knight';
 const BRAND_TEAM = UV ? 'UniVoice jamoasi' : 'Black Knight Team';
-const THEME_BG = { dark: '#050505', light: '#f6f1e5', uv: '#F6F2EC' };
+const THEME_BG = { dark: '#050505', light: '#f6f1e5', uv: '#01061c' };
 function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
   const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', THEME_BG[t]);
@@ -554,8 +533,7 @@ function meButton() {
   const pic = me.photo_url ? `<img src="${esc(me.photo_url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : esc((me.name || '♞').trim().charAt(0).toUpperCase());
   return `<button class="iconbtn meava" data-tab="profil" aria-label="Profil"${on ? ' aria-current="page"' : ''}>${pic}<span class="dot" id="reqdot"${(S.requests || []).length ? '' : ' hidden'}></span></button>`;
 }
-const UV_LOGO = '<svg class="logo uvlogo" viewBox="0 0 36 36" role="img" aria-label="UniVoice logotipi"><rect x="2" y="5" width="32" height="24" rx="10" fill="#4F3FD9"/><path d="M11 28l-3 7 9-6z" fill="#4F3FD9"/><path d="M18 9l9 3-9 3-9-3z" fill="#fff"/><path d="M13 13.5v3c0 1.5 2.3 2.5 5 2.5s5-1 5-2.5v-3l-5 1.7z" fill="#fff" opacity=".85"/></svg>';
-const head = (title, extra = '') => `<header class="head">${UV ? UV_LOGO : '<img class="logo" src="logo.jpg" alt="Black Knight Team logotipi">'}<div class="grow"><div class="team">${UV ? 'Uni<span>Voice</span>' : 'Black Knight Team'}</div><div class="uni">Millat Umidi University</div></div>${extra}${meButton()}</header>
+const head = (title, extra = '') => `<header class="head"><img class="logo" src="logo.jpg" alt="${UV ? 'UniVoice' : 'Black Knight Team'} logotipi"><div class="grow"><div class="team">${UV ? 'UniVoice' : 'Black Knight Team'}</div><div class="uni">Millat Umidi University</div></div>${extra}${meButton()}</header>
   <div class="pagetitle"><h1>${title}</h1><div class="rule" aria-hidden="true"><i></i></div></div>`;
 
 // ---------- data
@@ -1759,7 +1737,7 @@ async function certificate() {
   const gold = x.createLinearGradient(0, 0, W, 0); gold.addColorStop(0, '#9c7a3c'); gold.addColorStop(0.5, '#f1d48f'); gold.addColorStop(1, '#9c7a3c');
   x.strokeStyle = gold; x.lineWidth = 6; x.strokeRect(50, 50, W - 100, H - 100);
   x.lineWidth = 1.5; x.strokeRect(74, 74, W - 148, H - 148);
-  try { const logo = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = UV ? 'data:image/svg+xml,' + encodeURIComponent(UV_LOGO.replace('class="logo uvlogo" ', 'xmlns="http://www.w3.org/2000/svg" width="160" height="160" ')) : 'logo.jpg'; }); x.drawImage(logo, W / 2 - 80, 120, 160, 160); } catch (e) {}
+  try { const logo = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = 'logo.jpg'; }); x.drawImage(logo, W / 2 - 80, 120, 160, 160); } catch (e) {}
   x.textAlign = 'center'; x.fillStyle = gold;
   x.font = '600 30px Manrope, sans-serif'; x.fillText(UV ? 'U N I V O I C E' : 'B L A C K   K N I G H T   T E A M', W / 2, 330);
   x.font = '700 92px Georgia, serif'; x.fillText('SERTIFIKAT', W / 2, 450);
@@ -1987,17 +1965,8 @@ function logout() { store.del('uv_token'); store.del('uv_uid'); location.reload(
 function loginGate() {
   document.body.classList.add('gate-on');
   $('#app').innerHTML = `<section class="gate">
-    <div class="gate-top">${UV_LOGO}<b>Uni<span>Voice</span></b></div>
-    <svg class="gate-art" viewBox="0 0 250 230" role="img" aria-label="Diplom qalpoqli ovoz pufakchasi">
-      <defs><radialGradient id="ga" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="#FFF8EE"/><stop offset="1" stop-color="#E9DCC8"/></radialGradient>
-      <radialGradient id="gb" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#9B8CFF"/><stop offset="1" stop-color="#5141E0"/></radialGradient>
-      <radialGradient id="gc" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#7CE3D6"/><stop offset="1" stop-color="#1FA594"/></radialGradient></defs>
-      <ellipse cx="125" cy="195" rx="98" ry="26" fill="#E2D3BD"/><ellipse cx="125" cy="186" rx="98" ry="26" fill="url(#ga)"/>
-      <path d="M60 186c18-10 30-10 46 0s30 10 46 0 30-10 46 0" fill="none" stroke="url(#gc)" stroke-width="8" stroke-linecap="round"/>
-      <rect x="62" y="54" width="126" height="96" rx="34" fill="url(#gb)"/><path d="M96 140l-10 28 30-20z" fill="#5141E0"/>
-      <circle cx="100" cy="102" r="9" fill="#fff"/><circle cx="125" cy="102" r="9" fill="#fff"/><circle cx="150" cy="102" r="9" fill="#fff"/>
-      <path d="M125 20l52 18-52 18-52-18z" fill="#2B2560"/><path d="M95 46v14c0 6 14 12 30 12s30-6 30-12V46l-30 10z" fill="#3A3380"/>
-      <path d="M177 38v26" stroke="#F2B35A" stroke-width="4" stroke-linecap="round"/><circle cx="177" cy="68" r="6" fill="#F2B35A"/></svg>
+    <div class="gate-top"><img src="logo.jpg" alt=""><b>UniVoice</b></div>
+    <img class="gate-art" src="logo.jpg" alt="UniVoice logotipi">
     <h1>Universitetning<br>ovozi — sizda</h1>
     <p>Muammoni yozing, ovoz to‘plang, javob oling. Tadbirlar, klublar, volontyorlik va talabalar bozori — barchasi bir joyda.</p>
     <div class="gate-stats" id="gate-stats"></div>
