@@ -73,6 +73,24 @@ button{cursor:pointer}
 .rule i{width:7px;height:7px;background:var(--gold);transform:rotate(45deg);flex:none}
 .iconbtn{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--glass-2);display:grid;place-items:center;flex:none}
 .stat{padding:16px;display:flex;flex-direction:column;gap:12px}
+.hhello{font-size:15px;color:var(--muted);margin-top:-6px}.hhello b{color:var(--gold-hi);font-weight:600}
+.htiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.htile{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 4px;border-radius:20px;border:1px solid var(--line);background:rgba(217,180,108,.05);color:var(--fg);cursor:pointer;font:inherit}
+.htile-ic{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:rgba(217,180,108,.12);color:var(--gold-hi)}
+.htile-ic svg{width:24px;height:24px}
+.htile b{font-size:12px;font-weight:700;text-align:center;line-height:1.2}
+.hsec{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:8px}
+.hsec h3{margin:0;font-family:var(--crest);font-size:19px}
+.hsec button{background:none;border:0;color:var(--gold);font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.klist{padding:4px 14px;display:flex;flex-direction:column}
+.krow{display:flex;align-items:center;gap:12px;padding:10px 0;border:0;border-top:1px solid var(--line);background:none;color:var(--fg);text-align:left;cursor:pointer;font:inherit}
+.krow:first-child{border-top:0}
+.kdate{flex:none;width:44px;height:44px;border-radius:12px;background:rgba(217,180,108,.12);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.kdate b{font-size:17px;color:var(--gold-hi)}.kdate small{font-size:10.5px;color:var(--muted);margin-top:2px}.kmeg{font-size:20px}
+.kt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.kt b{font-size:14.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kt span{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.krow i{font-style:normal;color:var(--muted)}
 .hev{position:relative;overflow:hidden;padding:16px;display:flex;flex-direction:column;gap:12px}
 .hev.has-pic::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,.82)),var(--pic) center/cover;z-index:0}
 .hev>*{position:relative;z-index:1}
@@ -419,7 +437,7 @@ body.gate-on nav{display:none}
   <button data-tab="tadbirlar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/><rect class="fill" x="7" y="14" width="4" height="3" rx=".5" stroke="none"/></svg><span>Tadbirlar</span></button>
   <button class="create" data-act="new" aria-label="Post yozish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   <button data-tab="odamlar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle class="fill" cx="9" cy="8" r="4"/><path class="fill" d="M2 21a7 7 0 0 1 14 0Z"/><path d="M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3"/></svg><span>Odamlar</span></button>
-  <button data-tab="koproq"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect class="fill" x="3" y="3" width="7.5" height="7.5" rx="2"/><rect class="fill" x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect class="fill" x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect class="fill" x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg><span>Ko‘proq</span></button>
+  <button data-tab="koproq"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="fill" d="M3 9.5 12 4l9 5.5Z"/><path d="M3 9.5 12 4l9 5.5M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20.5h18"/></svg><span>Kampus</span></button>
 </nav>
 <div id="layer"></div>
 <script>
@@ -1765,16 +1783,33 @@ async function certificate() {
 }
 
 // "Ko‘proq": everything that is not an everyday tab.
+const HUB_ICON = {
+  tadbirlar: '<rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M8 3v3M16 3v3M3 9.5h18"/><path d="M8 13.5h.01M12 13.5h.01M16 13.5h.01M8 17h.01M12 17h.01"/>',
+  klublar: '<circle cx="12" cy="7.5" r="2.6"/><circle cx="5.5" cy="10" r="2"/><circle cx="18.5" cy="10" r="2"/><path d="M7.5 19.5a4.5 4.5 0 0 1 9 0"/><path d="M2.5 19a3.3 3.3 0 0 1 4.6-3M21.5 19a3.3 3.3 0 0 0-4.6-3"/>',
+  volontyor: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/>',
+  market: '<path d="M5 8h14l-1.2 11.2a1 1 0 0 1-1 .8H7.2a1 1 0 0 1-1-.8Z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>',
+};
+async function loadElons() { try { S.elons = (await api(`/api/problems?tab=new&kind=elon&uid=${uid}`)).problems; } catch (e) { if (!S.elons) S.elons = []; } }
 function viewKoproq() {
   const light = document.documentElement.getAttribute('data-theme') === 'light';
   const rows = [
-    ['klublar', '🏛', 'Klublar', 'Shaxmat, kitobxonlar va boshqa klublar · +5 ball'],
-    ['volontyor', '🤝', 'Volontyorlik', S.me && S.service && S.service.hours ? `${S.service.hours} soat · ${S.service.level}` : 'Vazifalar, soatlar, sertifikat'],
-    ['market', '🛒', 'Market', 'Talabalar o‘zaro savdosi · Ritsarlar uchun'],
     ['jamoa', '🛡', 'Jamoa va vakansiyalar', 'Lavozimlar, ariza topshirish'],
   ];
+  const tiles = [['tadbirlar', 'Tadbirlar'], ['klublar', 'Klublar'], ['volontyor', 'Volontyorlik'], ['market', 'Market']];
+  const sec = (title, act) => `<div class="hsec"><h3>${title}</h3><button ${act}>Barchasi <span aria-hidden="true">→</span></button></div>`;
+  const evs = (S.events || []).filter((e) => new Date(e.starts_at) > Date.now() - 3 * 36e5).slice(0, 3);
+  const evList = S.events === null ? '<div class="skeleton"></div>' : evs.length ? `<section class="glass klist">${evs.map((e) => { const d = new Date(e.starts_at); return `<button class="krow" data-evopen="${e.id}"><span class="kdate"><b>${d.getDate()}</b><small>${MONTHS[d.getMonth()].slice(0, 3)}</small></span><span class="kt"><b>${esc(e.title)}</b><span>${evLeft(e.starts_at)}${e.date_only ? '' : ' · ' + hhmm(d)}${e.place ? ' · ' + esc(e.place) : ''}</span></span><i aria-hidden="true">${e.joined ? '✓' : '›'}</i></button>`; }).join('')}</section>` : '<div class="glass empty" style="padding:22px">Yaqin kunlarda tadbir yo‘q</div>';
+  const els = (S.elons || []).slice(0, 3);
+  const elList = S.elons === undefined ? '<div class="skeleton"></div>' : els.length ? `<section class="glass klist">${els.map((p) => `<button class="krow" data-elon="${p.id}"><span class="kdate kmeg" aria-hidden="true">📣</span><span class="kt"><b>${esc(p.title)}</b><span>${esc(p.author || 'Black Knight Team')} · ${ago(p.created_at)}</span></span><i aria-hidden="true">›</i></button>`).join('')}</section>` : '<div class="glass empty" style="padding:22px">Hozircha e’lon yo‘q</div>';
   if (S.head) rows.push(['bolim', '🎖', 'Mening bo‘limim', S.head.open ? `${S.head.open} ta yangi murojaat` : 'Yangi murojaat yo‘q']);
-  return head('Ko‘proq') + `
+  return head('Kampus') + `
+  <div class="hhello"><div>Universitet hayotidan <b>ko‘proq imkoniyat</b></div></div>
+  <div class="htiles">${tiles.map(([t, l]) => `<button class="htile" data-tab="${t}"><span class="htile-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${HUB_ICON[t]}</svg></span><b>${l}</b></button>`).join('')}</div>
+  ${sec('Yaqin tadbirlar', 'data-tab="tadbirlar"')}
+  ${evList}
+  ${sec('E’lonlar', 'data-go="elon"')}
+  ${elList}
+  <div class="hsec"><h3>Boshqa</h3></div>
   <section class="glass tm-list">${rows.map(([t, ic, n, sub]) => `<button class="tm-row" data-tab="${t}"><span class="tm-ico" aria-hidden="true">${ic}</span><span class="tm-t"><b>${n}</b><span>${esc(sub)}</span></span><span aria-hidden="true">›</span></button>`).join('')}
     <button class="tm-row" data-kind="savol" data-go="faq"><span class="tm-ico" aria-hidden="true">❔</span><span class="tm-t"><b>FAQ · Savollar</b><span>Kontrakt, jadval, hujjatlar bo‘yicha savollar</span></span><span aria-hidden="true">›</span></button>
   </section>
@@ -2120,6 +2155,7 @@ document.addEventListener('click', async (e) => {
   if (d.act === 'onboard') return onboardSheet();
   if (d.act === 'logout') return logout();
   if (d.act === 'login') return loginSheet();
+  if (d.go === 'elon' || d.elon) { S.tab = 'ovoz'; S.kind = 'elon'; S.ptab = 'new'; S.problems = null; render(); window.scrollTo(0, 0); await Promise.all([loadProblems(), loadStats()]); render(); return; }
   if (d.go === 'faq') { S.tab = 'ovoz'; S.kind = 'savol'; S.ptab = 'top'; S.problems = null; render(); window.scrollTo(0, 0); await Promise.all([loadProblems(), loadStats()]); render(); return; }
   if (d.act === 'profile') return profileSheet(false);
   if (d.act === 'theme') { toggleTheme(); if (S.tab === 'koproq') render(); return; }
@@ -2240,7 +2276,7 @@ async function refresh() {
   else if (S.tab === 'market') await loadMarket();
   else if (S.tab === 'jamoa') await Promise.all([loadTeamData(), loadMe(), checkAdmin()]);
   else if (S.tab === 'bolim') await Promise.all([loadHead(), loadMe()]);
-  else if (S.tab === 'koproq') await loadMe();
+  else if (S.tab === 'koproq') await Promise.all([loadMe(), loadEvents(), loadElons()]);
   else if (S.tab === 'klublar') await Promise.all([loadClubs(), checkAdmin()]);
   else if (S.tab === 'volontyor') await Promise.all([loadVol(), loadMe(), loadClubs(), checkAdmin()]);
   else await Promise.all([loadMe(), loadMatches(), loadRequests(), loadContacts()]);
