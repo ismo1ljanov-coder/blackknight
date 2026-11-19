@@ -2517,6 +2517,15 @@ export default {
       if (path.startsWith('/tg/promo/')) return await promoJob(path.split('/')[3]);
       if (path === '/tg/vacancy') return await vacJob();
       if (path.startsWith('/tg/nudge/')) return await nudgeEvent(+path.split('/')[3]);
+      // Scheduled announce without the admin key: runs only while settings 'announce_<id>'='armed'.
+      // 'announce_to_<id>' = a tg id sends one test copy; otherwise everyone (deduped per user).
+      if (path.startsWith('/tg/announce-armed/')) {
+        const id = +path.split('/')[3];
+        const armed = (await q('SELECT value FROM settings WHERE key=$1', ['announce_' + id])).rows[0];
+        if (!armed || armed.value !== 'armed') return bad('not armed', 403);
+        const to = (await q('SELECT value FROM settings WHERE key=$1', ['announce_to_' + id])).rows[0];
+        return await announceEvent(id, to ? to.value : 'all');
+      }
       if (path.startsWith('/tg/announce/')) {
         const [, , , key, id] = path.split('/');
         if (!ADMIN_KEY || key !== ADMIN_KEY) return bad('forbidden', 403);
