@@ -117,15 +117,13 @@ async function tg(method, payload) {
   return r.json();
 }
 
-const START_TEXT = `Assalomu alaykum! Bu — Black Knight Team, Millat Umidi talabalarining o‘z platformasi.
+const START_TEXT = `Assalomu alaykum! Bu — BlackKnight, Millat Umidi talabalari platformasi.
 
-Nega qo‘shilish kerak?
+📝 Muammoni yozing — ovoz to‘plasa, ma’muriyatga olib chiqamiz
+🤝 Kerakli odamni toping, bilim almashing
+♞ Profilni to‘ldiring va kanalga obuna bo‘ling — «Ritsar» nishonini oling
 
-1️⃣ Ovozingiz eshitiladi. Kampusdagi muammoni yozing (anonim ham bo‘ladi). Ko‘p ovoz to‘plaganini jamoamiz ma’muriyatga olib chiqadi, natijani sizga xabar qilamiz.
-2️⃣ Kerakli odamni topasiz. Kim nimani biladi — «Odamlar»da qidiring, bilim almashing.
-3️⃣ Ritsarga aylanasiz. Post, ovoz va do‘st taklifi uchun ball. Profilini to‘ldirgan va @blackknightsp kanaliga obuna bo‘lgan birinchi 229 kishiga — raqamli «Birinchi ritsar» nishoni.
-
-Boshlash — 1 daqiqa: ilovani oching, profilingizni to‘ldiring va bitta muammoga ovoz bering 👇`;
+👇 Ilovani oching`;
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
@@ -229,7 +227,16 @@ async function tryAwardKnight(uid) {
       WHERE id=$1 AND knight_no IS NULL AND (SELECT count(*) FROM users WHERE knight_no IS NOT NULL) < ${KNIGHT_LIMIT}
       RETURNING knight_no`, [uid]);
     if (!r.rowCount) return 'full';
-    await notify(uid, `♞ <b>Tabriklaymiz!</b> Siz Black Knight'ning <b>Birinchi ritsari #${r.rows[0].knight_no}</b> bo‘ldingiz (${KNIGHT_LIMIT} tadan).\n\nOltin belgi endi profilingiz va postlaringizda ko‘rinadi.`);
+    const award = `♞ <b>Tabriklaymiz!</b> Siz Black Knight'ning <b>Birinchi ritsari #${r.rows[0].knight_no}</b> bo‘ldingiz (${KNIGHT_LIMIT} tadan).\n\nOltin belgi endi profilingiz va postlaringizda ko‘rinadi.`;
+    // Ritsars may apply to the team: fold the vacancy hint into the same message (no separate promo).
+    const vac = (await vacState().catch(() => 'off')) === 'on' ? await vacOpen().catch(() => []) : [];
+    if (vac.length && WEBAPP_URL) {
+      const t = await tg('sendMessage', { chat_id: uid.slice(2), parse_mode: 'HTML',
+        text: award + `\n\n🎖 Endi jamoaga ariza bera olasiz: ${vac.length} ta o‘rin ochiq.`,
+        reply_markup: { inline_keyboard: [[{ text: '♞ Jamoa — ariza berish', web_app: { url: WEBAPP_URL.replace(/[?#].*$/, '') + '?open=jamoa' } }], [{ text: 'Black Knight’ni ochish', web_app: { url: WEBAPP_URL } }]] } }).catch(() => null);
+      if (t && t.ok) await q('INSERT INTO reminders (user_id, kind, ok) VALUES ($1,$2,true) ON CONFLICT DO NOTHING RETURNING 1 x', [uid, VAC_KIND]).catch(() => {});
+      else await notify(uid, award);
+    } else await notify(uid, award);
     return 'awarded';
   } catch { return 'retry'; /* two awards raced for the same number; the next visit retries */ }
 }
@@ -250,13 +257,20 @@ async function serviceOf(uid) {
 }
 
 const openKb = () => (WEBAPP_URL ? { inline_keyboard: [[{ text: 'Black Knight’ni ochish', web_app: { url: WEBAPP_URL } }]] } : undefined);
+// /start keyboard: open the app + subscribe to the club channel.
+const startKb = () => {
+  const kb = [];
+  if (WEBAPP_URL) kb.push([{ text: 'Black Knight’ni ochish', web_app: { url: WEBAPP_URL } }]);
+  if (CHANNEL) kb.push([{ text: '📢 Kanalga obuna bo‘lish', url: 'https://t.me/' + CHANNEL.replace(/^@/, '') }]);
+  return kb.length ? { inline_keyboard: kb } : undefined;
+};
 
 // Sends the guide video. The first send uploads it by URL; Telegram's file_id is then cached and reused.
 async function sendGuide(chatId) {
   const cached = (await q("SELECT value FROM settings WHERE key='guide_file_id'")).rows[0];
   const video = cached ? cached.value : (WEBAPP_URL ? WEBAPP_URL.replace(/\/$/, '') + '/qollanma.mp4' : '');
   if (video) {
-    const r = await tg('sendVideo', { chat_id: chatId, video, caption: START_TEXT, supports_streaming: true, width: 1080, height: 1920, reply_markup: openKb() });
+    const r = await tg('sendVideo', { chat_id: chatId, video, caption: START_TEXT, supports_streaming: true, width: 1080, height: 1920, reply_markup: startKb() });
     if (r && r.ok) {
       const fid = r.result && r.result.video && r.result.video.file_id;
       if (fid && !cached) await q("INSERT INTO settings (key,value) VALUES ('guide_file_id',$1) ON CONFLICT (key) DO UPDATE SET value=$1, updated_at=now() RETURNING 1 x", [fid]);
@@ -264,7 +278,7 @@ async function sendGuide(chatId) {
     }
     if (cached) await q("DELETE FROM settings WHERE key='guide_file_id' RETURNING 1 x");
   }
-  await tg('sendMessage', { chat_id: chatId, text: START_TEXT, reply_markup: openKb() });
+  await tg('sendMessage', { chat_id: chatId, text: START_TEXT, reply_markup: startKb() });
 }
 
 // Group link for an event, sent privately once someone signs up.
@@ -688,8 +702,7 @@ async function tgWebhook(req) {
       return json({ ok: true });
     }
     if (text.startsWith('/start') || text.startsWith('/qollanma')) await sendGuide(msg.chat.id);
-    if (text.startsWith('/start')) await vacForNewcomer(me).catch((e) => console.error('vac', e));
-    else await tg('sendMessage', { chat_id: msg.chat.id, text: 'Ilovani ochish uchun pastdagi tugmani bosing. Qo‘llanma videoni qayta ko‘rish: /qollanma', reply_markup: openKb() });
+    if (!text.startsWith('/start')) await tg('sendMessage', { chat_id: msg.chat.id, text: 'Ilovani ochish uchun pastdagi tugmani bosing. Qo‘llanma videoni qayta ko‘rish: /qollanma', reply_markup: openKb() });
   }
   return json({ ok: true });
 }
@@ -1334,7 +1347,7 @@ async function vacJob() {
   if (!open.length) { await setVacState('done'); return json({ state: 'done' }); }
   const h = +new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hour12: false }).format(new Date());
   if (h < 9 || h >= 21) return json({ state: 'on', paused: 'night' });
-  const rows = (await q(`${SEGMENTS.all} EXCEPT SELECT user_id FROM reminders WHERE kind=$1`, [VAC_KIND])).rows;
+  const rows = (await q(`${SEGMENTS.knights} EXCEPT SELECT user_id FROM reminders WHERE kind=$1`, [VAC_KIND])).rows;
   const res = { total: rows.length, sent: 0, failed: 0, stopped: null }, started = Date.now();
   for (const r of rows) {
     if (Date.now() - started > 50000) { res.stopped = 'time'; break; }
