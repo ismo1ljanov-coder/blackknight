@@ -545,7 +545,34 @@ async function attendanceCallback(cb, eventId, status) {
   // keep only the "volontyor bo'lmoqchiman" button on the original message
   const rest = (cb.message.reply_markup && cb.message.reply_markup.inline_keyboard || []).filter((row) => row.some((b) => String(b.callback_data || '').startsWith('vol:')));
   await tg('editMessageReplyMarkup', { chat_id: chat, message_id: cb.message.message_id, reply_markup: { inline_keyboard: status === 'v' ? [] : rest } }).catch(() => {});
+  // Per-event survey: 'rate_<id>'='on' → attendees get a 1–5 rating question, everyone else the follow-up.
+  const rate = ((await q('SELECT value FROM settings WHERE key=$1', ['rate_' + eventId])).rows[0] || {}).value === 'on';
+  if (rate && came) {
+    await tg('sendMessage', { chat_id: chat, text: 'Dars sizga qanchalik foydali bo‘ldi? 👇',
+      reply_markup: { inline_keyboard: [[1, 2, 3, 4, 5].map((n) => ({ text: '⭐ ' + n, callback_data: `rt:${eventId}:${n}` }))] } }).catch(() => {});
+    return;
+  }
+  if (rate) return sendFollowup(chat, eventId);
   await tg('sendMessage', { chat_id: chat, text: reply, reply_markup: kb }).catch(() => {});
+}
+
+async function sendFollowup(chat, eventId) {
+  const get = async (k) => ((await q('SELECT value FROM settings WHERE key=$1', [k + eventId])).rows[0] || {}).value;
+  const text = await get('followup_text_');
+  if (!text) return tg('sendMessage', { chat_id: chat, text: 'Javobingiz uchun rahmat! 🙏' }).catch(() => {});
+  let kb; try { kb = JSON.parse((await get('followup_kb_')) || 'null'); } catch { kb = null; }
+  await tg('sendMessage', { chat_id: chat, parse_mode: 'HTML', text, reply_markup: kb || undefined }).catch(() => {});
+}
+
+async function ratingCallback(cb, eventId, stars) {
+  const me = 'tg' + cb.from.id;
+  stars = Math.max(1, Math.min(5, stars | 0));
+  await q(`INSERT INTO event_ratings (event_id, user_id, stars) VALUES ($1,$2,$3)
+    ON CONFLICT (event_id, user_id) DO UPDATE SET stars=$3, at=now() RETURNING 1 x`, [eventId, me, stars]);
+  await tg('answerCallbackQuery', { callback_query_id: cb.id, text: 'Rahmat! ' + '⭐'.repeat(stars) });
+  if (!cb.message) return;
+  await tg('editMessageText', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, text: 'Bahoingiz: ' + '⭐'.repeat(stars) + ' — rahmat! 🙏' }).catch(() => {});
+  await sendFollowup(cb.message.chat.id, eventId);
 }
 
 async function volunteerCallback(cb, eventId) {
@@ -582,6 +609,11 @@ async function tgWebhook(req) {
   if (cb && typeof cb.data === 'string' && cb.data.startsWith('at:')) {
     const [, id, v] = cb.data.split(':');
     await attendanceCallback(cb, +id, v);
+    return json({ ok: true });
+  }
+  if (cb && typeof cb.data === 'string' && cb.data.startsWith('rt:')) {
+    const [, id, n] = cb.data.split(':');
+    await ratingCallback(cb, +id, +n);
     return json({ ok: true });
   }
   if (cb && typeof cb.data === 'string' && cb.data.startsWith('vol:')) {
