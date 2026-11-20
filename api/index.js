@@ -368,8 +368,9 @@ async function nudgeEvent(eventId) {
     EXCEPT SELECT user_id FROM rsvps WHERE event_id=$2 EXCEPT SELECT user_id FROM event_guests WHERE event_id=$2
     EXCEPT SELECT user_id FROM reminders WHERE kind=$3`, ['event_' + eventId, eventId, kOut])).rows;
   const res = { in: [0, 0], out: [0, 0] };
-  const inText = `<b>Bugun ko‘rishamiz!</b> 🧺\n\n⏰ 14:00\n📍 ${esc(e.place || '')}\n\nDo‘stingizni ham olib keling. Tafsilotlar va joyni topish — guruhda 👇`;
-  const outText = `<b>Bugun 14:00 da Picnic!</b> 🧺\n\n${going} talaba allaqachon yozildi — siz ham kelasizmi?\nSnacklar, o‘yinlar va yangi tanishlar sizni kutmoqda.\n\n📍 ${esc(e.place || '')}`;
+  const tpl = async (k) => ((await q('SELECT value FROM settings WHERE key=$1', [k + eventId])).rows[0] || {}).value;
+  const inText = ((await tpl('nudge_in_text_')) || `<b>Bugun ko‘rishamiz!</b> 🧺\n\n⏰ 14:00\n📍 ${esc(e.place || '')}\n\nDo‘stingizni ham olib keling. Tafsilotlar va joyni topish — guruhda 👇`).replace(/\{going\}/g, going);
+  const outText = ((await tpl('nudge_out_text_')) || `<b>Bugun 14:00 da Picnic!</b> 🧺\n\n${going} talaba allaqachon yozildi — siz ham kelasizmi?\nSnacklar, o‘yinlar va yangi tanishlar sizni kutmoqda.\n\n📍 ${esc(e.place || '')}`).replace(/\{going\}/g, going);
   for (const r of ins) {
     const kb = e.link ? { inline_keyboard: [[{ text: '👥 Guruhga o‘tish', url: e.link }]] } : undefined;
     const t = await tg('sendMessage', { chat_id: r.user_id.slice(2), parse_mode: 'HTML', text: inText, reply_markup: kb }).catch(() => null);
