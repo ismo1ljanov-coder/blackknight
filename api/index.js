@@ -30,6 +30,25 @@ async function sqlFetch(host, body) {
     body,
   });
 }
+// Maintenance mode: while the database is unavailable (e.g. plan quota), the bot answers
+// with a short notice instead of failing silently. Re-checked every 10 minutes.
+let dbDownUntil = 0;
+const dbDownErr = (e) => /quota|exceeded|db unreachable|fetch failed/i.test(String(e && e.message));
+const notified = new Map();
+async function maintenanceReply(upd) {
+  const chan = (CHANNEL || '@blackknightsp').replace(/^@/, '').replace(/^https?:\/\/t\.me\//, '');
+  const text = '🛠 <b>Black Knight hozir texnik yangilanishda.</b>\n\nPlatforma tez orada qaytadi — profilingiz, ovozlaringiz va Ritsar unvoningiz saqlangan.\n\nYangiliklar kanalimizda 👇';
+  const kb = { inline_keyboard: [[{ text: '📣 Kanalga o‘tish', url: `https://t.me/${chan}` }]] };
+  const cb = upd.callback_query;
+  if (cb) return tg('answerCallbackQuery', { callback_query_id: cb.id, text: 'Platforma texnik yangilanishda — tez orada qaytamiz.', show_alert: true }).catch(() => {});
+  const msg = upd.message;
+  if (!msg || !msg.chat || msg.chat.type !== 'private') return;
+  const last = notified.get(msg.chat.id) || 0;
+  if (Date.now() - last < 10 * 60000) return;
+  notified.set(msg.chat.id, Date.now());
+  await tg('sendMessage', { chat_id: msg.chat.id, text, parse_mode: 'HTML', reply_markup: kb, disable_web_page_preview: true }).catch(() => {});
+}
+
 async function q(text, params = []) {
   const body = JSON.stringify({ query: `WITH t AS (${text}) SELECT coalesce(json_agg(t),'[]')::text FROM t`, params });
   let res, lastErr;
@@ -43,7 +62,8 @@ async function q(text, params = []) {
   }
   if (!res) throw lastErr || new Error('db unreachable');
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'db error');
+  if (!res.ok) { if (res.status === 402 || /quota/i.test(data.message || '')) dbDownUntil = Date.now() + 10 * 60000; throw new Error(data.message || 'db error'); }
+  dbDownUntil = 0;
   const rows = JSON.parse(data.rows[0][0]);
   return { rows, rowCount: rows.length };
 }
@@ -2552,7 +2572,14 @@ export default {
       await loadChannel();
       const path = new URL(req.url).pathname;
       if (path === '/__selftest') return await selftest();
-      if (path === '/tg/webhook' && req.method === 'POST') return await tgWebhook(req);
+      if (path === '/tg/webhook' && req.method === 'POST') {
+        if (req.headers.get('x-telegram-bot-api-secret-token') !== WEBHOOK_SECRET) return bad('forbidden', 403);
+        const raw = await req.text();
+        const upd = (() => { try { return JSON.parse(raw); } catch (e) { return {}; } })();
+        if (dbDownUntil > Date.now()) { await maintenanceReply(upd); return json({ ok: true }); }
+        try { return await tgWebhook(new Request(req.url, { method: 'POST', headers: req.headers, body: raw })); }
+        catch (e) { if (dbDownErr(e) || dbDownUntil > Date.now()) { await maintenanceReply(upd); return json({ ok: true }); } throw e; }
+      }
       if (path === '/tg/rehook') {
         const r = await q(`DELETE FROM settings WHERE key='rehook' AND value='armed' RETURNING 1 x`);
         if (!r.rowCount) return bad('not armed', 403);
